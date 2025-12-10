@@ -1,0 +1,72 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: oj-core
+
+  # ==============================================================
+  # 1. DATABASE (MySQL)
+  # ==============================================================
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_LOCAL_PORT:3306}/${MYSQL_DATABASE:oj_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_ROOT_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: ${MYSQL_HIKARI_POOL_NAME:OJ-Hikari-MySQL}
+      maximum-pool-size: ${MYSQL_HIKARI_MAX_POOL_SIZE:10}
+      minimum-idle: ${MYSQL_HIKARI_MIN_IDLE:5}
+      connection-timeout: ${MYSQL_HIKARI_CONNECTION_TIMEOUT:30000}
+
+  # Cấu hình JPA / Hibernate
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+
+  # ==============================================================
+  # 2. DATA NO-SQL (Redis & MongoDB)
+  # ==============================================================
+  data:
+    # --- REDIS (Cache, Session, Leaderboard) ---
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_LOCAL_PORT:6379}
+      # password: ${REDIS_PASSWORD:} # Nếu có pass thì bỏ comment
+
+    # --- MONGODB (Discussion, Comment) ---
+    mongodb:
+      # Format: mongodb://user:pass@host:port/database?authSource=admin
+      uri: mongodb://${MONGO_INITDB_ROOT_USERNAME:root}:${MONGO_INITDB_ROOT_PASSWORD:root}@${MONGO_HOST:localhost}:${MONGO_LOCAL_PORT:27017}/oj_discussion_db?authSource=admin
+
+  # ==============================================================
+  # 3. MESSAGING (RabbitMQ) - Giao tiếp với Judge Worker
+  # ==============================================================
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_NODE_PORT:5672}
+    username: ${RABBITMQ_DEFAULT_USER:guest}
+    password: ${RABBITMQ_DEFAULT_PASS:guest}
+
+  # ==============================================================
+  # 4. SECURITY (Cấu hình tạm để test API)
+  # ==============================================================
+  security:
+    user:
+      name: admin
+      password: admin
+
+# ==============================================================
+# 5. CUSTOM CONFIG (MinIO) - Lưu file
+# (Spring không có chuẩn riêng cho MinIO nên ta tự định nghĩa biến)
+# ==============================================================
+minio:
+  endpoint: http://${MINIO_HOST:localhost}:${MINIO_API_PORT:9000}
+  access-key: ${MINIO_ROOT_USER:minioadmin}
+  secret-key: ${MINIO_ROOT_PASSWORD:minioadmin}
+  bucket-name: oj-data
