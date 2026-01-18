@@ -38,14 +38,18 @@ services:
       - oj-network
 
   # ----------------------------------------------------------------
-  # 3. Redis: Cache, Session, Realtime Leaderboard (ZSET)
+  # 3. Redis: Cache, Session, Realtime Leaderboard (ZSET) and blacklist JWT
   # ----------------------------------------------------------------
   redis:
     image: redis:alpine
     container_name: oj-redis
     restart: always
+    env_file: .env
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
       - "${REDIS_LOCAL_PORT}:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     networks:
