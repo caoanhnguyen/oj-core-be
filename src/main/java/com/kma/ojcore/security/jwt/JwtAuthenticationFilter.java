@@ -37,7 +37,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-
         String path = request.getRequestURI();
 
         // Bỏ qua các path public
@@ -52,33 +51,58 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String jwt = tokenCookieUtil.getCookieValue(request, tokenCookieUtil.ACCESS_TOKEN_COOKIE_NAME);
 
-            System.out.println("JWT from cookie: " + jwt);
-
             if (StringUtils.hasText(jwt)) {
                 // Kiểm tra token có bị blacklist không
                 if (tokenBlacklistServiceImpl.isBlacklisted(jwt)) {
                     log.warn("Token is blacklisted");
-                    filterChain.doFilter(request, response);
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Token is blacklisted\",\"path\":\"" + request.getServletPath() + "\"}");
+                    return;
+                }
+
+                // Parse token để bắt lỗi hết hạn
+                try {
+                    tokenProvider.parseAccessToken(jwt); // Nếu hết hạn sẽ ném ExpiredJwtException
+                } catch (io.jsonwebtoken.ExpiredJwtException ex) {
+                    log.warn("Expired JWT token");
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Token expired\",\"path\":\"" + request.getServletPath() + "\"}");
                     return;
                 }
 
                 // Validate token
-                if (tokenProvider.validateAccessToken(jwt)) {
-                    UUID userId = tokenProvider.getUserIdFromAccessToken(jwt);
-
-                    UserDetails userDetails = customUserDetailsService.loadUserById(userId);
-                    UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                try {
+                    if (tokenProvider.validateAccessToken(jwt)) {
+                        UUID userId = tokenProvider.getUserIdFromAccessToken(jwt);
+                        UserDetails userDetails = customUserDetailsService.loadUserById(userId);
+                        UsernamePasswordAuthenticationToken authentication =
+                                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    } else {
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        response.setContentType("application/json");
+                        response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Invalid token\",\"path\":\"" + request.getServletPath() + "\"}");
+                        return;
+                    }
+                } catch (io.jsonwebtoken.SignatureException | io.jsonwebtoken.MalformedJwtException | io.jsonwebtoken.UnsupportedJwtException | IllegalArgumentException ex) {
+                    log.warn("Invalid JWT token: {}", ex.getMessage());
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Invalid token\",\"path\":\"" + request.getServletPath() + "\"}");
+                    return;
                 }
             }
         } catch (Exception ex) {
             log.error("Could not set user authentication in security context", ex);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Authentication error\",\"path\":\"" + request.getServletPath() + "\"}");
+            return;
         }
 
         filterChain.doFilter(request, response);
     }
 }
-

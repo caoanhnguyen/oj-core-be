@@ -3,7 +3,6 @@ package com.kma.ojcore.security.oauth2;
 import com.kma.ojcore.entity.Role;
 import com.kma.ojcore.entity.User;
 import com.kma.ojcore.enums.Provider;
-import com.kma.ojcore.enums.RoleName;
 import com.kma.ojcore.repository.RoleRepository;
 import com.kma.ojcore.repository.UserRepository;
 import com.kma.ojcore.security.UserPrincipal;
@@ -18,6 +17,7 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
@@ -38,9 +38,15 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         try {
             return processOAuth2User(userRequest, oAuth2User);
+        } catch (OAuth2AuthenticationException ex) {
+            log.error("OAuth2 authentication error: {}", ex.getError(), ex);
+            throw ex; // preserve error code and message
+        } catch (IllegalArgumentException ex) {
+            log.error("Invalid provider: {}", ex.getMessage(), ex);
+            throw new OAuth2AuthenticationException("Invalid OAuth2 provider: " + ex.getMessage());
         } catch (Exception ex) {
             log.error("Error processing OAuth2 user: {}", ex.getMessage(), ex);
-            throw new OAuth2AuthenticationException(ex.getMessage());
+            throw new OAuth2AuthenticationException("Internal error during OAuth2 authentication: " + ex.getMessage());
         }
     }
 
@@ -56,21 +62,30 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         log.info("Processing OAuth2 user from provider: {}", registrationId);
         log.debug("OAuth2 user attributes: {}", oAuth2User.getAttributes());
 
-        OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfoFactory.getOAuth2UserInfo(
-                registrationId,
-                oAuth2User.getAttributes()
-        );
+        OAuth2UserInfo oAuth2UserInfo;
+        try {
+            oAuth2UserInfo = OAuth2UserInfoFactory.getOAuth2UserInfo(
+                    registrationId,
+                    oAuth2User.getAttributes()
+            );
+        } catch (Exception ex) {
+            throw new OAuth2AuthenticationException("Unsupported OAuth2 provider or invalid user info: " + ex.getMessage());
+        }
 
         log.info("OAuth2 user info - ID: {}, Name: {}, Email: {}",
                 oAuth2UserInfo.getId(),
                 oAuth2UserInfo.getName(),
                 oAuth2UserInfo.getEmail());
 
-        // Tìm user theo provider và providerId thay vì email
-        Optional<User> userOptional = userRepository.findByProviderAndProviderId(
-                Provider.valueOf(registrationId.toUpperCase()),
-                oAuth2UserInfo.getId()
-        );
+        Optional<User> userOptional;
+        try {
+            userOptional = userRepository.findByProviderAndProviderId(
+                    Provider.valueOf(registrationId.toUpperCase()),
+                    oAuth2UserInfo.getId()
+            );
+        } catch (IllegalArgumentException ex) {
+            throw new OAuth2AuthenticationException("Invalid provider: " + registrationId);
+        }
 
         User user;
 
@@ -78,6 +93,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             user = userOptional.get();
             log.info("Found existing user: {}", user.getUsername());
             user = updateExistingUser(user, oAuth2UserInfo);
+            Set<Role> roles = roleRepository.getRoleByUserId(user.getId());
+            user.setRoles(roles);
             log.info("Updated existing user: {}", user.getUsername());
         } else {
             // Nếu có email, check xem email đã được dùng chưa
@@ -87,13 +104,16 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                     User existingUser = existingUserByEmail.get();
                     log.error("Email already registered with provider: {}", existingUser.getProvider());
                     throw new OAuth2AuthenticationException(
-                            "Email already registered with " + existingUser.getProvider() + " provider"
+                            "Email already registered with provider: " + existingUser.getProvider()
                     );
                 }
             }
 
             log.info("Registering new user from {}", registrationId);
             user = registerNewUser(userRequest, oAuth2UserInfo);
+            Set<Role> roles = new HashSet<>();
+            roles.add(roleRepository.getUserRole());
+            user.setRoles(roles);
             log.info("Registered new user: {}", user.getUsername());
         }
 

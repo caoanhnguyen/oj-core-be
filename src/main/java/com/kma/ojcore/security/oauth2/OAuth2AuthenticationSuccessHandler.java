@@ -64,7 +64,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
         // Lưu refresh token vào database
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        User user = userRepository.findById(Objects.requireNonNull(userPrincipal).getId())
+        User user = userRepository.findUserWithRolesById(Objects.requireNonNull(userPrincipal).getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);

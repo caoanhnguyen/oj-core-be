@@ -1,5 +1,6 @@
 package com.kma.ojcore.controller;
 
+import com.kma.ojcore.dto.request.ResetPasswordRequest;
 import com.kma.ojcore.dto.response.JwtAuthenticationResponse;
 import com.kma.ojcore.dto.request.LoginRequest;
 import com.kma.ojcore.dto.request.RegisterRequest;
@@ -11,14 +12,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.apache.coyote.BadRequestException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * Authentication Controller:
@@ -67,6 +65,17 @@ public class AuthController {
                 .build();
     }
 
+    // Kiểm tra email đã được đăng ký chưa
+    @PostMapping("/check-email")
+    public ApiResponse<?> checkEmail(@RequestParam String email) {
+        boolean isRegistered = authService.checkEmailExists(email);
+        return ApiResponse.builder()
+                .status(200)
+                .message("Email is " + (isRegistered ? "already registered" : "available"))
+                .data(isRegistered)
+                .build();
+    }
+
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<?> getCurrentUser(@AuthenticationPrincipal UserPrincipal currentUser) {
@@ -75,6 +84,43 @@ public class AuthController {
                 .status(200)
                 .message("Get current user successful")
                 .data(userResponse)
+                .build();
+    }
+
+    @PostMapping("/forgot-password")
+    public ApiResponse<?> forgotPassword(@RequestParam String email) {
+        authService.forgotPassword(email);
+        return ApiResponse.builder()
+                .status(200)
+                .message("Nếu email tồn tại trong hệ thống, một mã OTP đã được gửi để đặt lại mật khẩu.")
+                .build();
+    }
+
+    @PostMapping("/reset-password")
+    public ApiResponse<?> resetPassword(@RequestBody @Valid ResetPasswordRequest request) throws BadRequestException {
+        authService.resetPassword(request);
+        return ApiResponse.builder()
+                .status(200)
+                .message("Mật khẩu đã được đặt lại thành công.")
+                .build();
+    }
+
+    @GetMapping("/verify-email")
+    public ApiResponse<?> verifyEmail(@RequestParam String token) throws BadRequestException {
+        authService.verifyEmail(token);
+        return ApiResponse.builder()
+                .status(200)
+                .message("Email đã được xác thực thành công. Bạn có thể đăng nhập ngay bây giờ.")
+                .build();
+    }
+
+    @PostMapping("/resend-verification-email")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<?> resendVerificationEmail(@AuthenticationPrincipal UserPrincipal currentUser) {
+        authService.sendVerificationEmail(currentUser.getId());
+        return ApiResponse.builder()
+                .status(200)
+                .message("Email xác thực đã được gửi lại. Vui lòng kiểm tra hộp thư của bạn.")
                 .build();
     }
 }

@@ -27,7 +27,7 @@ public class TokenCookieUtil {
                 .httpOnly(true)
                 .secure(true)
                 .path("/")
-                .maxAge(jwtAccessExpirationMs / 1000)
+                .maxAge(jwtRefreshExpirationMs / 1000) // Set max age của access token trong cookie theo thời gian refresh token
                 .sameSite("Lax")
                 .build();
 

@@ -33,7 +33,7 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Transactional
     public UserDetails loadUserById(UUID id) {
-        User user = userRepository.findById(id)
+        User user = userRepository.findUserWithRolesById(id)
                 .orElseThrow(() ->
                         new UsernameNotFoundException("User not found with id: " + id)
                 );

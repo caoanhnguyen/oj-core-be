@@ -33,17 +33,11 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
         try {
             // Set TTL cho token bằng thời gian tồn tại của token
             long expirationMs = jwtAccessExpirationMs;
-            long currentTimeMs = System.currentTimeMillis();
-            long ttl = expirationMs - currentTimeMs;
 
-            if (ttl > 0) {
-                String key = BLACKLIST_PREFIX + token;
-                // Lưu vào Redis với TTL bằng thời gian còn lại của token
-                redisTemplate.opsForValue().set(key, "blacklisted", ttl, TimeUnit.MILLISECONDS);
-                log.info("Token added to blacklist with TTL: {} ms", ttl);
-            } else {
-                log.warn("Token already expired, no need to blacklist");
-            }
+            String key = BLACKLIST_PREFIX + token;
+            // Lưu vào Redis với TTL bằng thời gian còn lại của token
+            redisTemplate.opsForValue().set(key, "blacklisted", expirationMs, TimeUnit.MILLISECONDS);
+            log.info("Token added to blacklist with TTL: {} ms", expirationMs);
         } catch (Exception e) {
             log.error("Error blacklisting token: {}", e.getMessage());
         }

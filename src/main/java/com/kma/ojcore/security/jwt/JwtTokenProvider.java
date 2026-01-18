@@ -124,5 +124,11 @@ public class JwtTokenProvider {
         }
         return false;
     }
-}
 
+    public void parseAccessToken(String token) {
+        Jwts.parser()
+                .verifyWith(getSigningKey(accessSecret))
+                .build()
+                .parseSignedClaims(token);
+    }
+}
