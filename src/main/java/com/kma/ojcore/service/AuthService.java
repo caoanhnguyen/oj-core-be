@@ -1,10 +1,10 @@
 package com.kma.ojcore.service;
 
-import com.kma.ojcore.dto.request.LoginRequest;
-import com.kma.ojcore.dto.request.RegisterRequest;
-import com.kma.ojcore.dto.request.ResetPasswordRequest;
-import com.kma.ojcore.dto.response.JwtAuthenticationResponse;
-import com.kma.ojcore.dto.response.UserResponse;
+import com.kma.ojcore.dto.request.auth.LoginRequest;
+import com.kma.ojcore.dto.request.auth.RegisterRequest;
+import com.kma.ojcore.dto.request.auth.ResetPasswordRequest;
+import com.kma.ojcore.dto.response.auth.JwtAuthenticationResponse;
+import com.kma.ojcore.dto.response.auth.UserResponse;
 import com.kma.ojcore.security.UserPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

@@ -1,12 +1,12 @@
 package com.kma.ojcore.service.impl;
 
 import com.kma.ojcore.config.RabbitMQConfig;
-import com.kma.ojcore.dto.request.LoginRequest;
-import com.kma.ojcore.dto.request.RegisterRequest;
-import com.kma.ojcore.dto.request.ResetPasswordRequest;
-import com.kma.ojcore.dto.response.EmailMessage;
-import com.kma.ojcore.dto.response.JwtAuthenticationResponse;
-import com.kma.ojcore.dto.response.UserResponse;
+import com.kma.ojcore.dto.request.auth.LoginRequest;
+import com.kma.ojcore.dto.request.auth.RegisterRequest;
+import com.kma.ojcore.dto.request.auth.ResetPasswordRequest;
+import com.kma.ojcore.dto.response.auth.EmailMessage;
+import com.kma.ojcore.dto.response.auth.JwtAuthenticationResponse;
+import com.kma.ojcore.dto.response.auth.UserResponse;
 import com.kma.ojcore.entity.RefreshToken;
 import com.kma.ojcore.entity.Role;
 import com.kma.ojcore.entity.User;

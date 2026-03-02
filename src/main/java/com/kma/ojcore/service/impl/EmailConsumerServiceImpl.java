@@ -1,7 +1,7 @@
 package com.kma.ojcore.service.impl;
 
 import com.kma.ojcore.config.RabbitMQConfig;
-import com.kma.ojcore.dto.response.EmailMessage;
+import com.kma.ojcore.dto.response.auth.EmailMessage;
 import com.kma.ojcore.service.EmailConsumerService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;

@@ -1,0 +1,76 @@
+package com.kma.ojcore.entity;
+
+import com.kma.ojcore.enums.ProblemDifficulty;
+import jakarta.persistence.*;
+import lombok.*;
+import lombok.experimental.FieldDefaults;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+@Entity
+@Table(name = "problems")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@FieldDefaults(level = AccessLevel.PRIVATE)
+public class Problem extends BaseEntity {
+
+    @Column(nullable = false, length = 255)
+    String title;
+
+    @Column(nullable = false, unique = true, length = 255)
+    String slug;
+
+    @Column(columnDefinition = "TEXT")
+    String description;
+
+    @Column(name = "constraints", columnDefinition = "TEXT")
+    String constraints;
+
+    @Enumerated(EnumType.STRING)
+    ProblemDifficulty difficulty;
+
+    // Giới hạn tài nguyên (Mặc định cho các ngôn ngữ)
+    @Column(name = "time_limit_ms")
+    Integer timeLimitMs;
+
+    @Column(name = "memory_limit_kb")
+    Integer memoryLimitKb;
+
+    // -- Relationships -- //
+
+    // Problem - Template //
+    @OneToMany(mappedBy = "problem", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
+    List<ProblemTemplate> templates;
+
+    // Problem - TestCase //
+    @OneToMany(mappedBy = "problem", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
+    List<TestCase> testCases;
+
+    // Problem - User (author) //
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    User author;
+
+    // Problem - Example //
+    @OneToMany(mappedBy = "problem", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
+    @OrderBy("orderIndex ASC")
+    List<ProblemExample> examples;
+
+    // Problem - Image //
+    @OneToMany(mappedBy = "problem", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
+    List<ProblemImage> images;
+
+    // Problem - Topic //
+    @ManyToMany
+    @JoinTable(
+            name = "problem_topics",
+            joinColumns = @JoinColumn(name = "problem_id"),
+            inverseJoinColumns = @JoinColumn(name = "topic_id")
+    )
+    Set<Topic> topics = new HashSet<>();
+}

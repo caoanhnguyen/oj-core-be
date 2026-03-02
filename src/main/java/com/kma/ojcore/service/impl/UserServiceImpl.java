@@ -1,6 +1,6 @@
 package com.kma.ojcore.service.impl;
 
-import com.kma.ojcore.dto.response.UserResponse;
+import com.kma.ojcore.dto.response.auth.UserResponse;
 import com.kma.ojcore.entity.User;
 import com.kma.ojcore.mapper.UserMapper;
 import com.kma.ojcore.repository.UserRepository;
