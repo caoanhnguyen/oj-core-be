@@ -1,6 +1,6 @@
 package com.kma.ojcore.mapper;
 
-import com.kma.ojcore.dto.response.UserResponse;
+import com.kma.ojcore.dto.response.auth.UserResponse;
 import com.kma.ojcore.entity.Role;
 import com.kma.ojcore.entity.User;
 import org.mapstruct.Mapper;

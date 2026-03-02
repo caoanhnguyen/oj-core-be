@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8088
 
 spring:
   application:
@@ -98,4 +98,14 @@ minio:
   endpoint: http://${MINIO_HOST:localhost}:${MINIO_API_PORT:9000}
   access-key: ${MINIO_ROOT_USER:minioadmin}
   secret-key: ${MINIO_ROOT_PASSWORD:minioadmin}
-  bucket-name: oj-data
+  bucket-name: ${MINIO_BUCKET_NAME:oj-data}
+  paths:
+    # Các thư mục con trong bucket để lưu trữ file
+
+    # User
+    user-avatars-dir: avatars
+    # Problem
+    problem-root: problems
+    testcases-dir: testcases
+    illustrations-dir: illustrations
+    descriptions-dir: descriptions # Lưu file mô tả bài tập
