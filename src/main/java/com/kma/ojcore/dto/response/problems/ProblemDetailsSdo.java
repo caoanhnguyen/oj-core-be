@@ -19,7 +19,7 @@ public class ProblemDetailsSdo {
     String title;
     String slug;
     String description;
-    String constraints; // mới: text/markdown các ràng buộc
+    String constraints;
     ProblemDifficulty difficulty;
     Integer timeLimitMs;
     Integer memoryLimitKb;
@@ -29,6 +29,7 @@ public class ProblemDetailsSdo {
     List<ProblemTemplateSummary> templates;
     List<TestCaseSummary> testCases;
     List<ExampleSummary> examples;
+    List<TopicsSummary> topics;
 
     @Data
     @Builder
@@ -67,5 +68,13 @@ public class ProblemDetailsSdo {
         String outputData;
         String explanation; // HTML content
         Integer orderIndex;
+    }
+
+    @Data
+    @Builder
+    @FieldDefaults(level = AccessLevel.PRIVATE)
+    public static class TopicsSummary {
+        UUID topicId;
+        String name;
     }
 }

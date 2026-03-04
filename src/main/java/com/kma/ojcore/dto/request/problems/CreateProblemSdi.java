@@ -8,6 +8,8 @@ import lombok.Data;
 import lombok.experimental.FieldDefaults;
 
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 @Data
 @FieldDefaults(level = AccessLevel.PRIVATE)
@@ -46,4 +48,6 @@ public class CreateProblemSdi {
     List<String> temporaryImageKeys;
 
     List<TemplateSdi> templates;
+
+    Set<UUID> topicIds;
 }

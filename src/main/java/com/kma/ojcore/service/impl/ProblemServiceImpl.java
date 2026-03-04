@@ -6,6 +6,7 @@ import com.kma.ojcore.dto.response.problems.ProblemResponse;
 import com.kma.ojcore.entity.Problem;
 import com.kma.ojcore.entity.ProblemExample;
 import com.kma.ojcore.entity.ProblemTemplate;
+import com.kma.ojcore.entity.Topic;
 import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.ProblemDifficulty;
 import com.kma.ojcore.exception.ResourceAlreadyExistsException;
@@ -14,19 +15,18 @@ import com.kma.ojcore.mapper.ExampleMapper;
 import com.kma.ojcore.mapper.ProblemMapper;
 import com.kma.ojcore.mapper.TemplateMapper;
 import com.kma.ojcore.repository.ProblemRepository;
+import com.kma.ojcore.repository.TopicRepository;
 import com.kma.ojcore.service.ImageStorageService;
 import com.kma.ojcore.service.ProblemService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.coyote.BadRequestException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,10 +39,11 @@ public class ProblemServiceImpl implements ProblemService {
     private final TemplateMapper templateMapper;
     private final ExampleMapper exampleMapper;
     private final ImageStorageService imageStorageService;
+    private final TopicRepository topicRepository;
 
     @Override
-    @Transactional
-    public ProblemDetailsSdo createProblem(CreateProblemSdi request) {
+    @Transactional(rollbackFor = Throwable.class)
+    public ProblemDetailsSdo createProblem(CreateProblemSdi request) throws BadRequestException {
         log.info("Creating problem with slug: {}", request.getSlug());
 
         // 1. Validate slug uniqueness
@@ -101,7 +102,22 @@ public class ProblemServiceImpl implements ProblemService {
             saved.setTemplates(templates);
         }
 
-        // 8. Save lại với examples và templates
+        // 8. Lưu danh sách topics nếu có
+        if (request.getTopicIds() != null && !request.getTopicIds().isEmpty()) {
+            log.info("Associating {} topics", request.getTopicIds().size());
+            // Check Topics tồn tại và status là active
+            List<Topic> topics = topicRepository.findByIdInAndStatus(request.getTopicIds(), EStatus.ACTIVE);
+
+            // Nếu số lượng trả về từ repo khác với request -> có topic không tồn tại hoặc không active
+            if(topics.size() != request.getTopicIds().size()) {
+                throw new BadRequestException("One or more topics not found or not active");
+            }
+
+            // Thêm list topic cho problem
+            saved.setTopics(new HashSet<>(topics));
+        }
+
+        // 9. Save lại Problem với các mối quan hệ đã thiết lập
         Problem finalProblem = problemRepository.save(saved);
         log.info("Problem created successfully: {}", finalProblem.getId());
 

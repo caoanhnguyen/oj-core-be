@@ -14,6 +14,10 @@ public interface TopicService {
 
     Page<TopicBasicSdo> userSearchTopics(String name, Pageable pageable);
 
+    // ADMIN
+
+    Page<TopicBasicSdo> getAllActiveTopics(Pageable pageable);
+
     Page<TopicAdminSdo> searchTopics(String name, Pageable pageable);
 
     TopicDetailsSdo getTopicById(UUID topicId);

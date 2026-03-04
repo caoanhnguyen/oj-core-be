@@ -38,6 +38,12 @@ public class TopicServiceImpl implements TopicService {
 
     @Transactional(readOnly = true)
     @Override
+    public Page<TopicBasicSdo> getAllActiveTopics(Pageable pageable) {
+        return topicRepository.allActiveTopics(pageable);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
     public Page<TopicAdminSdo> searchTopics(String name, Pageable pageable) {
         String searchName = EscapeHelper.escapeLike(name);
         return topicRepository.searchTopics(searchName, pageable);

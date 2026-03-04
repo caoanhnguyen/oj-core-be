@@ -8,11 +8,13 @@ import com.kma.ojcore.dto.response.problems.ProblemResponse;
 import com.kma.ojcore.entity.Problem;
 import com.kma.ojcore.entity.ProblemTemplate;
 import com.kma.ojcore.entity.TestCase;
+import com.kma.ojcore.entity.Topic;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Mapper(componentModel = "spring")
@@ -37,6 +39,7 @@ public interface ProblemMapper {
     @Mapping(target = "templates", expression = "java(toTemplateSummaries(problem.getTemplates()))")
     @Mapping(target = "testCases", expression = "java(toTestCaseSummaries(problem.getTestCases()))")
     @Mapping(target = "examples", expression = "java(toExampleSummaries(problem.getExamples()))")
+    @Mapping(target = "topics", expression = "java(toTopicSummaries(problem.getTopics()))")
     ProblemDetailsSdo toProblemDetailsSdo(Problem problem);
 
     default List<ProblemTemplateSummary> toTemplateSummaries(List<ProblemTemplate> templates) {
@@ -83,6 +86,19 @@ public interface ProblemMapper {
                         .outputData(ex.getOutputData())
                         .explanation(ex.getExplanation())
                         .orderIndex(ex.getOrderIndex())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    default List<ProblemDetailsSdo.TopicsSummary> toTopicSummaries(
+            Set<Topic> topics) {
+        if (topics == null) {
+            return null;
+        }
+        return topics.stream()
+                .map(ex -> ProblemDetailsSdo.TopicsSummary.builder()
+                        .topicId(ex.getId())
+                        .name(ex.getName())
                         .build())
                 .collect(Collectors.toList());
     }

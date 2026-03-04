@@ -8,6 +8,8 @@ import com.kma.ojcore.enums.ProblemDifficulty;
 import com.kma.ojcore.service.ProblemService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.apache.coyote.BadRequestException;
+import org.simpleframework.xml.core.Validate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,13 +27,14 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/problems")
 @RequiredArgsConstructor
+@Validate
 public class ProblemController {
 
     private final ProblemService problemService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<ProblemDetailsSdo> createProblem(@Valid @RequestBody CreateProblemSdi request) {
+    public ApiResponse<ProblemDetailsSdo> createProblem(@Valid @RequestBody CreateProblemSdi request) throws BadRequestException {
         ProblemDetailsSdo result = problemService.createProblem(request);
         return ApiResponse.<ProblemDetailsSdo>builder()
                 .status(HttpStatus.CREATED.value())
@@ -52,7 +55,7 @@ public class ProblemController {
 
     @GetMapping("/slug/{slug}")
     public ApiResponse<ProblemDetailsSdo> getProblemBySlug(@PathVariable String slug) {
-        ProblemDetailsSdo result = problemService.getProblemBySlug(slug);
+        ProblemDetailsSdo result = problemService.  getProblemBySlug(slug);
         return ApiResponse.<ProblemDetailsSdo>builder()
                 .status(HttpStatus.OK.value())
                 .message("Get problem details successfully")

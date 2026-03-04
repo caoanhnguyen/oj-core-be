@@ -12,10 +12,19 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 @Repository
 public interface TopicRepository extends JpaRepository<Topic, UUID> {
+
+    @Query("SELECT new com.kma.ojcore.dto.response.topics.TopicBasicSdo(t.id, t.name, t.slug) " +
+            "FROM Topic t " +
+            "WHERE t.status = 'ACTIVE'")
+    Page<TopicBasicSdo> allActiveTopics(Pageable pageable);
+
+    List<Topic> findByIdInAndStatus(Collection<UUID> topicIds, EStatus status);
 
     @Query("SELECT new com.kma.ojcore.dto.response.topics.TopicBasicSdo(t.id, t.name, t.slug) " +
             "FROM Topic t " +

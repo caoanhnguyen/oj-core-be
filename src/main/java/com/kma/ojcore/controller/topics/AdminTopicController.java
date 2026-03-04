@@ -4,6 +4,7 @@ import com.kma.ojcore.dto.request.topics.CreateTopicSdi;
 import com.kma.ojcore.dto.request.topics.UpdateTopicSdi;
 import com.kma.ojcore.dto.response.common.ApiResponse;
 import com.kma.ojcore.dto.response.topics.TopicAdminSdo;
+import com.kma.ojcore.dto.response.topics.TopicBasicSdo;
 import com.kma.ojcore.dto.response.topics.TopicDetailsSdo;
 import com.kma.ojcore.service.TopicService;
 import jakarta.validation.Valid;
@@ -28,6 +29,20 @@ import java.util.UUID;
 public class AdminTopicController {
 
     private final TopicService topicService;
+
+    @GetMapping("/active")
+    public ApiResponse<?> searchActiveTopics(@RequestParam(defaultValue = "0") int page,
+                                            @RequestParam(defaultValue = "100") int size,
+                                            @PageableDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort) {
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<TopicBasicSdo> topics = topicService.getAllActiveTopics(pageable);
+
+        return ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Active topics retrieved successfully")
+                .data(topics)
+                .build();
+    }
 
     @GetMapping
     public ApiResponse<?> searchTopics(@RequestParam(required = false) String name,
