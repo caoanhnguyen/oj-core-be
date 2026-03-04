@@ -1,6 +1,7 @@
 package com.kma.ojcore.mapper;
 
 import com.kma.ojcore.dto.request.problems.CreateProblemSdi;
+import com.kma.ojcore.dto.request.problems.UpdateProblemSdi;
 import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo;
 import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo.ProblemTemplateSummary;
 import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo.TestCaseSummary;
@@ -9,9 +10,7 @@ import com.kma.ojcore.entity.Problem;
 import com.kma.ojcore.entity.ProblemTemplate;
 import com.kma.ojcore.entity.TestCase;
 import com.kma.ojcore.entity.Topic;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.MappingTarget;
+import org.mapstruct.*;
 
 import java.util.List;
 import java.util.Set;
@@ -32,7 +31,9 @@ public interface ProblemMapper {
     @Mapping(target = "templates", ignore = true)
     @Mapping(target = "examples", ignore = true)
     @Mapping(target = "images", ignore = true)
-    void updateEntityFromRequest(CreateProblemSdi request, @MappingTarget Problem problem);
+    @Mapping(target = "topics", ignore = true)
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    void updateEntityFromRequest(UpdateProblemSdi request, @MappingTarget Problem problem);
 
     ProblemResponse toProblemResponse(Problem problem);
 

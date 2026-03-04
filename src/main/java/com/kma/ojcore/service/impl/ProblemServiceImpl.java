@@ -1,6 +1,8 @@
 package com.kma.ojcore.service.impl;
 
 import com.kma.ojcore.dto.request.problems.CreateProblemSdi;
+import com.kma.ojcore.dto.request.problems.ProblemFilter;
+import com.kma.ojcore.dto.request.problems.UpdateProblemSdi;
 import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo;
 import com.kma.ojcore.dto.response.problems.ProblemResponse;
 import com.kma.ojcore.entity.Problem;
@@ -9,6 +11,7 @@ import com.kma.ojcore.entity.ProblemTemplate;
 import com.kma.ojcore.entity.Topic;
 import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.ProblemDifficulty;
+import com.kma.ojcore.enums.ProblemStatus;
 import com.kma.ojcore.exception.ResourceAlreadyExistsException;
 import com.kma.ojcore.exception.ResourceNotFoundException;
 import com.kma.ojcore.mapper.ExampleMapper;
@@ -18,6 +21,7 @@ import com.kma.ojcore.repository.ProblemRepository;
 import com.kma.ojcore.repository.TopicRepository;
 import com.kma.ojcore.service.ImageStorageService;
 import com.kma.ojcore.service.ProblemService;
+import com.kma.ojcore.utils.EscapeHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.coyote.BadRequestException;
@@ -41,8 +45,8 @@ public class ProblemServiceImpl implements ProblemService {
     private final ImageStorageService imageStorageService;
     private final TopicRepository topicRepository;
 
-    @Override
     @Transactional(rollbackFor = Throwable.class)
+    @Override
     public ProblemDetailsSdo createProblem(CreateProblemSdi request) throws BadRequestException {
         log.info("Creating problem with slug: {}", request.getSlug());
 
@@ -124,45 +128,39 @@ public class ProblemServiceImpl implements ProblemService {
         return problemMapper.toProblemDetailsSdo(finalProblem);
     }
 
-    @Override
     @Transactional(readOnly = true)
+    @Override
     public ProblemDetailsSdo getProblemById(UUID id) {
         Problem problem = problemRepository.findByIdAndStatus(id, EStatus.ACTIVE)
                 .orElseThrow(() -> new ResourceNotFoundException("Problem not found with id: " + id));
         return problemMapper.toProblemDetailsSdo(problem);
     }
 
-    @Override
     @Transactional(readOnly = true)
+    @Override
     public ProblemDetailsSdo getProblemBySlug(String slug) {
         Problem problem = problemRepository.findBySlugAndStatus(slug, EStatus.ACTIVE)
                 .orElseThrow(() -> new ResourceNotFoundException("Problem not found with slug: " + slug));
         return problemMapper.toProblemDetailsSdo(problem);
     }
 
-    @Override
     @Transactional(readOnly = true)
-    public Page<ProblemResponse> getProblems(ProblemDifficulty difficulty, String keyword, Pageable pageable) {
-        String searchKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
-
-        Page<Problem> page;
-        if (difficulty != null && searchKeyword != null) {
-            page = problemRepository.findByStatusAndDifficultyAndTitleContainingIgnoreCase(EStatus.ACTIVE, difficulty,
-                    searchKeyword, pageable);
-        } else if (difficulty != null) {
-            page = problemRepository.findByStatusAndDifficulty(EStatus.ACTIVE, difficulty, pageable);
-        } else if (searchKeyword != null) {
-            page = problemRepository.findByStatusAndTitleContainingIgnoreCase(EStatus.ACTIVE, searchKeyword, pageable);
-        } else {
-            page = problemRepository.findByStatus(EStatus.ACTIVE, pageable);
-        }
-
-        return page.map(problemMapper::toProblemResponse);
+    @Override
+    public Page<ProblemResponse> getProblems(String keyword, ProblemDifficulty difficulty, EStatus status, ProblemStatus problemStatus, List<String> topicSlugs, Pageable pageable) {
+        // Escape keyword để tránh lỗi khi dùng trong query
+        String searchKeyword = EscapeHelper.escapeLike(keyword);
+        return problemRepository.searchProblemsForAdmin(
+                searchKeyword,
+                difficulty,
+                status,
+                problemStatus,
+                topicSlugs,
+                pageable);
     }
 
+    @Transactional(rollbackFor = Throwable.class)
     @Override
-    @Transactional
-    public ProblemDetailsSdo updateProblem(UUID id, CreateProblemSdi request) {
+    public ProblemDetailsSdo updateProblem(UUID id, UpdateProblemSdi request) throws BadRequestException {
         log.info("Updating problem: {}", id);
 
         Problem problem = problemRepository.findByIdAndStatus(id, EStatus.ACTIVE)
@@ -229,6 +227,21 @@ public class ProblemServiceImpl implements ProblemService {
             });
         }
 
+        // Update Topics
+        if (request.getTopicIds() != null) {
+            log.info("Updating topics");
+            // Check Topics tồn tại và status là active
+            List<Topic> topics = topicRepository.findByIdInAndStatus(request.getTopicIds(), EStatus.ACTIVE);
+
+            if (topics.size() != request.getTopicIds().size()) {
+                throw new BadRequestException("One or more topics not found or not active");
+            }
+
+            // Cập nhật danh sách topic cho problem
+            problem.getTopics().clear(); // Hibernate sẽ tự động xóa các record trong bảng liên kết khi clear() được gọi
+            problem.getTopics().addAll(topics); // Thêm lại các topic mới
+        }
+
         Problem saved = problemRepository.save(problem);
         log.info("Problem updated successfully: {}", id);
 
@@ -237,26 +250,38 @@ public class ProblemServiceImpl implements ProblemService {
 
     /**
      * Xóa mềm một Problem bằng cách đặt trạng thái của nó thành DELETED.
-     * Cũng xóa tất cả ảnh liên quan.
+     * Các tài nguyên liên quan được giữ nguyên
      * 
      * @param id UUID của Problem cần xóa
      */
+    @Transactional(rollbackFor = Throwable.class)
     @Override
-    @Transactional
     public void deleteProblem(UUID id) {
         log.info("Deleting problem: {}", id);
-
-        Problem problem = problemRepository.findByIdAndStatus(id, EStatus.ACTIVE)
-                .orElseThrow(() -> new ResourceNotFoundException("Problem not found with id: " + id));
-
-        // Delete all images associated with this problem
-        imageStorageService.deleteAllImagesForProblem(id);
-
+        if(!problemRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Problem not found with id: " + id);
+        }
         // Soft delete problem
-        problem.setStatus(EStatus.DELETED);
-        problemRepository.save(problem);
-
+        problemRepository.updateStatusById(EStatus.DELETED, id);
         log.info("Problem deleted successfully: {}", id);
+    }
+
+    /**
+     * Khôi phục một Problem đã bị xóa mềm bằng cách đặt trạng thái của nó thành ACTIVE.
+     * Các tài nguyên liên quan được giữ nguyên
+     *
+     * @param id UUID của Problem cần xóa
+     */
+    @Transactional(rollbackFor = Throwable.class)
+    @Override
+    public void restoreProblem(UUID id) {
+        log.info("Restoring problem: {}", id);
+        if(!problemRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Problem not found with id: " + id);
+        }
+        // Restore problem
+        problemRepository.updateStatusById(EStatus.ACTIVE, id);
+        log.info("Problem restored successfully: {}", id);
     }
 
     // ========== Helper Methods ========== //

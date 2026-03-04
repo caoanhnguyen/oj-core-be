@@ -1,6 +1,7 @@
 package com.kma.ojcore.entity;
 
 import com.kma.ojcore.enums.ProblemDifficulty;
+import com.kma.ojcore.enums.ProblemStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -32,7 +33,12 @@ public class Problem extends BaseEntity {
     String constraints;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     ProblemDifficulty difficulty;
+
+    @Column(name = "problem_status", nullable = false)
+    @Enumerated(EnumType.STRING)
+    ProblemStatus problemStatus = ProblemStatus.DRAFT;
 
     // Giới hạn tài nguyên (Mặc định cho các ngôn ngữ)
     @Column(name = "time_limit_ms")

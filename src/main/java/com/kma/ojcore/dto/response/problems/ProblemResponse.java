@@ -1,6 +1,8 @@
 package com.kma.ojcore.dto.response.problems;
 
+import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.ProblemDifficulty;
+import com.kma.ojcore.enums.ProblemStatus;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
@@ -18,6 +20,8 @@ public class ProblemResponse {
     String title;
     String slug;
     ProblemDifficulty difficulty;
+    EStatus status;
+    ProblemStatus problemStatus;
     LocalDateTime createdDate;
     LocalDateTime updatedDate;
 }
