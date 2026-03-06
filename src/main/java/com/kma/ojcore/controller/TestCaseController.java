@@ -1,5 +1,6 @@
 package com.kma.ojcore.controller;
 
+import com.kma.ojcore.dto.request.problems.UpdateTestCaseSdi;
 import com.kma.ojcore.dto.response.common.ApiResponse;
 import com.kma.ojcore.entity.TestCase;
 import com.kma.ojcore.service.TestCaseService;
@@ -21,7 +22,7 @@ public class TestCaseController {
 
         @PostMapping
         @PreAuthorize("hasRole('ADMIN')")
-        public ApiResponse<TestCase> uploadTestCase(
+        public ApiResponse<com.kma.ojcore.dto.response.problems.TestCaseSdo> uploadTestCase(
                         @PathVariable UUID problemId,
                         @RequestParam(required = false) MultipartFile inputFile,
                         @RequestParam(required = false) MultipartFile outputFile,
@@ -32,7 +33,7 @@ public class TestCaseController {
                         @RequestParam(defaultValue = "false") boolean isHidden,
                         @RequestParam(required = false) Integer orderIndex) throws IOException {
 
-                TestCase saved = testCaseService.createTestCase(
+                com.kma.ojcore.dto.response.problems.TestCaseSdo saved = testCaseService.createTestCase(
                                 problemId,
                                 inputFile,
                                 outputFile,
@@ -43,17 +44,10 @@ public class TestCaseController {
                                 isHidden,
                                 orderIndex);
 
-                // Trả trực tiếp entity TestCase sẽ gây LazyInitializationException khi
-                // serialize quan hệ Problem.
-                // Chỉ trả id để client có thể gọi lại GET /api/problems/{id} (vốn đã có DTO đầy
-                // đủ).
-                TestCase response = new TestCase();
-                response.setId(saved.getId());
-
-                return ApiResponse.<TestCase>builder()
+                return ApiResponse.<com.kma.ojcore.dto.response.problems.TestCaseSdo>builder()
                                 .status(HttpStatus.CREATED.value())
                                 .message("Test case created successfully")
-                                .data(response)
+                                .data(saved)
                                 .build();
         }
 
@@ -68,6 +62,45 @@ public class TestCaseController {
                 return ApiResponse.builder()
                                 .status(HttpStatus.CREATED.value())
                                 .message("Test cases uploaded successfully")
+                                .build();
+        }
+
+        @PutMapping("/{testcaseId}")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ApiResponse<com.kma.ojcore.dto.response.problems.TestCaseSdo> updateTestCase(
+                        @PathVariable UUID problemId,
+                        @PathVariable UUID testcaseId,
+                        @RequestBody UpdateTestCaseSdi request) {
+                com.kma.ojcore.dto.response.problems.TestCaseSdo updated = testCaseService.updateTestCase(problemId,
+                                testcaseId, request);
+
+                return ApiResponse.<com.kma.ojcore.dto.response.problems.TestCaseSdo>builder()
+                                .status(HttpStatus.OK.value())
+                                .message("Test case updated successfully")
+                                .data(updated)
+                                .build();
+        }
+
+        @DeleteMapping("/{testcaseId}")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ApiResponse<Void> deleteTestCase(
+                        @PathVariable UUID problemId,
+                        @PathVariable UUID testcaseId) {
+                testCaseService.deleteTestCase(problemId, testcaseId);
+                return ApiResponse.<Void>builder()
+                                .status(HttpStatus.OK.value())
+                                .message("Test case deleted successfully")
+                                .build();
+        }
+
+        @DeleteMapping
+        @PreAuthorize("hasRole('ADMIN')")
+        public ApiResponse<Void> deleteAllTestCases(
+                        @PathVariable UUID problemId) {
+                testCaseService.deleteAllTestCases(problemId);
+                return ApiResponse.<Void>builder()
+                                .status(HttpStatus.OK.value())
+                                .message("All test cases deleted successfully")
                                 .build();
         }
 }

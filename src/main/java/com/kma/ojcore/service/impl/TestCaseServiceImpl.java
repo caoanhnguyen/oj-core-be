@@ -1,5 +1,6 @@
 package com.kma.ojcore.service.impl;
 
+import com.kma.ojcore.dto.request.problems.UpdateTestCaseSdi;
 import com.kma.ojcore.entity.Problem;
 import com.kma.ojcore.entity.TestCase;
 import com.kma.ojcore.enums.EStatus;
@@ -48,8 +49,8 @@ public class TestCaseServiceImpl implements TestCaseService {
     }
 
     @Override
-    @Transactional
-    public TestCase createTestCase(UUID problemId,
+    @Transactional(rollbackFor = Throwable.class)
+    public com.kma.ojcore.dto.response.problems.TestCaseSdo createTestCase(UUID problemId,
             MultipartFile inputFile,
             MultipartFile outputFile,
             MultipartFile illustration,
@@ -140,11 +141,23 @@ public class TestCaseServiceImpl implements TestCaseService {
             testCase.setIllustrationUrl(stored);
         }
 
-        return testCaseRepository.save(testCase);
+        TestCase savedTestCase = testCaseRepository.save(testCase);
+
+        return com.kma.ojcore.dto.response.problems.TestCaseSdo.builder()
+                .id(savedTestCase.getId())
+                .isSample(savedTestCase.isSample())
+                .isHidden(savedTestCase.isHidden())
+                .orderIndex(savedTestCase.getOrderIndex())
+                .illustrationUrl(savedTestCase.getIllustrationUrl())
+                .inputData(savedTestCase.getInputData())
+                .outputData(savedTestCase.getOutputData())
+                .inputUrl(savedTestCase.getInputUrl())
+                .outputUrl(savedTestCase.getOutputUrl())
+                .build();
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Throwable.class)
     public void createTestCasesFromZip(UUID problemId, MultipartFile file, String metadata) throws IOException {
         // 1. Parse Metadata
         com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
@@ -249,5 +262,79 @@ public class TestCaseServiceImpl implements TestCaseService {
         public void transferTo(java.io.File dest) throws IOException, IllegalStateException {
             java.nio.file.Files.write(dest.toPath(), content);
         }
+    }
+
+    @Override
+    @Transactional
+    public com.kma.ojcore.dto.response.problems.TestCaseSdo updateTestCase(UUID problemId, UUID testcaseId,
+            UpdateTestCaseSdi request) {
+        TestCase testCase = testCaseRepository.findById(testcaseId)
+                .orElseThrow(() -> new ResourceNotFoundException("TestCase not found id: " + testcaseId));
+
+        if (!testCase.getProblem().getId().equals(problemId)) {
+            throw new IllegalArgumentException("TestCase does not belong to this problem");
+        }
+
+        if (request.getIsHidden() != null) {
+            testCase.setHidden(request.getIsHidden());
+        }
+        if (request.getIsSample() != null) {
+            testCase.setSample(request.getIsSample());
+        }
+
+        TestCase savedTestCase = testCaseRepository.save(testCase);
+
+        return com.kma.ojcore.dto.response.problems.TestCaseSdo.builder()
+                .id(savedTestCase.getId())
+                .isSample(savedTestCase.isSample())
+                .isHidden(savedTestCase.isHidden())
+                .orderIndex(savedTestCase.getOrderIndex())
+                .illustrationUrl(savedTestCase.getIllustrationUrl())
+                .inputData(savedTestCase.getInputData())
+                .outputData(savedTestCase.getOutputData())
+                .inputUrl(savedTestCase.getInputUrl())
+                .outputUrl(savedTestCase.getOutputUrl())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void deleteTestCase(UUID problemId, UUID testcaseId) {
+        TestCase testCase = testCaseRepository.findById(testcaseId)
+                .orElseThrow(() -> new ResourceNotFoundException("TestCase not found id: " + testcaseId));
+
+        if (!testCase.getProblem().getId().equals(problemId)) {
+            throw new IllegalArgumentException("TestCase does not belong to this problem");
+        }
+
+        if (testCase.getInputUrl() != null) {
+            fileStorageService.delete(bucketName, testCase.getInputUrl());
+        }
+        if (testCase.getOutputUrl() != null) {
+            fileStorageService.delete(bucketName, testCase.getOutputUrl());
+        }
+        if (testCase.getIllustrationUrl() != null) {
+            fileStorageService.delete(bucketName, testCase.getIllustrationUrl());
+        }
+
+        testCaseRepository.delete(testCase);
+    }
+
+    @Override
+    @Transactional
+    public void deleteAllTestCases(UUID problemId) {
+        java.util.List<TestCase> testCases = testCaseRepository.findByProblemId(problemId);
+        for (TestCase testCase : testCases) {
+            if (testCase.getInputUrl() != null) {
+                fileStorageService.delete(bucketName, testCase.getInputUrl());
+            }
+            if (testCase.getOutputUrl() != null) {
+                fileStorageService.delete(bucketName, testCase.getOutputUrl());
+            }
+            if (testCase.getIllustrationUrl() != null) {
+                fileStorageService.delete(bucketName, testCase.getIllustrationUrl());
+            }
+        }
+        testCaseRepository.deleteByProblemId(problemId);
     }
 }

@@ -31,10 +31,10 @@ public class MinioFileStorageService implements FileStorageService {
                             .object(objectName)
                             .stream(inputStream, size, -1)
                             .contentType(contentType)
-                            .build()
-            );
+                            .build());
             log.info("File uploaded to MinIO: bucket={}, object={}", bucketName, objectName);
-            // Ở đây trả về objectName; client có thể build URL từ endpoint + bucketName + objectName nếu cần
+            // Ở đây trả về objectName; client có thể build URL từ endpoint + bucketName +
+            // objectName nếu cần
             return objectName;
         } catch (Exception e) {
             log.error("Failed to upload file to MinIO", e);
@@ -44,7 +44,16 @@ public class MinioFileStorageService implements FileStorageService {
 
     @Override
     public void delete(String bucketName, String objectName) {
-        // Có thể implement sau nếu cần xóa file; để trống tạm thời.
+        try {
+            minioClient.removeObject(
+                    RemoveObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .build());
+            log.info("File deleted from MinIO: bucket={}, object={}", bucketName, objectName);
+        } catch (Exception e) {
+            log.error("Failed to delete file from MinIO", e);
+        }
     }
 
     @Override
@@ -54,8 +63,7 @@ public class MinioFileStorageService implements FileStorageService {
                     GetObjectArgs.builder()
                             .bucket(bucketName)
                             .object(objectName)
-                            .build()
-            );
+                            .build());
         } catch (Exception e) {
             log.error("Failed to download file from MinIO", e);
             throw new RuntimeException("Failed to download file from storage", e);
@@ -71,8 +79,7 @@ public class MinioFileStorageService implements FileStorageService {
                             .bucket(bucketName)
                             .object(objectName)
                             .expiry(expiryInSeconds, TimeUnit.SECONDS)
-                            .build()
-            );
+                            .build());
         } catch (Exception e) {
             log.error("Failed to get presigned URL from MinIO", e);
             throw new RuntimeException("Lỗi lấy URL file: " + e.getMessage(), e);

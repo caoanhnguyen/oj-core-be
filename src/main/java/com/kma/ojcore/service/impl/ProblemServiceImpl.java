@@ -57,6 +57,7 @@ public class ProblemServiceImpl implements ProblemService {
 
         // 2. Map to entity
         Problem problem = problemMapper.toEntity(request);
+        problem.setProblemStatus(ProblemStatus.DRAFT); // Mặc định tạo mới sẽ ở trạng thái DRAFT
 
         // 3. Save Problem first (để có ID cho việc commit images)
         Problem saved = problemRepository.save(problem);
