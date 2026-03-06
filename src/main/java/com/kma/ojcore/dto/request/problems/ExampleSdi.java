@@ -13,18 +13,20 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ExampleSdi {
 
-    @NotBlank(message = "Input data is required")
-    String inputData;
+    // Đổi thành rawInput cho chuẩn với Entity
+    @NotBlank(message = "Input thô là bắt buộc cho Example")
+    String rawInput;
 
-    @NotBlank(message = "Output data is required")
-    String outputData;
+    // Đổi thành rawOutput cho chuẩn với Entity
+    @NotBlank(message = "Output thô là bắt buộc cho Example")
+    String rawOutput;
 
     /**
      * HTML content giải thích example
-     * Có thể chứa ảnh minh họa
+     * Trường này có thể để trống nếu không cần giải thích
      */
     String explanation;
 
-    @NotNull(message = "Order index is required")
+    @NotNull(message = "Thứ tự hiển thị (Order index) là bắt buộc")
     Integer orderIndex;
 }

@@ -1,7 +1,8 @@
 package com.kma.ojcore.dto.response.problems;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.kma.ojcore.enums.ProblemDifficulty;
+import com.kma.ojcore.enums.RuleType;
+import com.kma.ojcore.enums.SupportedLanguage;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
@@ -9,6 +10,7 @@ import lombok.experimental.FieldDefaults;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Data
@@ -21,42 +23,40 @@ public class ProblemDetailsSdo {
     String description;
     String constraints;
     ProblemDifficulty difficulty;
+
+    // Giới hạn chạy
     Integer timeLimitMs;
     Integer memoryLimitKb;
+    RuleType ruleType;
+
+    // Thống kê & UI
+    Long submissionCount;
+    Long acceptedCount;
+    Integer totalScore;
+    String source;
+    String hint;
+    String authorName; // Lấy từ problem.getAuthor().getUsername()
+
+    // Cấu hình ngôn ngữ
+    Set<SupportedLanguage> allowedLanguages;
+
     LocalDateTime createdDate;
     LocalDateTime updatedDate;
 
+    // Các danh sách con
     List<ProblemTemplateSummary> templates;
-    List<TestCaseSummary> testCases;
     List<ExampleSummary> examples;
     List<TopicsSummary> topics;
+
+    // ĐÃ XÓA TestCaseSummary VÌ LƯU Ở MINIO RỒI
 
     @Data
     @Builder
     @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class ProblemTemplateSummary {
         UUID id;
-        String language;
+        SupportedLanguage language;
         String codeTemplate;
-    }
-
-    @Data
-    @Builder
-    @FieldDefaults(level = AccessLevel.PRIVATE)
-    public static class TestCaseSummary {
-        UUID id;
-        @JsonProperty("isHidden")
-        boolean isSample;
-        @JsonProperty("isSample")
-        boolean isHidden;
-        Integer orderIndex;
-        String illustrationUrl;
-
-        // Added for Display (Sample only)
-        String inputData;
-        String outputData;
-        String inputUrl;
-        String outputUrl;
     }
 
     @Data
@@ -64,9 +64,9 @@ public class ProblemDetailsSdo {
     @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class ExampleSummary {
         UUID id;
-        String inputData;
-        String outputData;
-        String explanation; // HTML content
+        String rawInput;   // Đổi tên cho chuẩn Entity
+        String rawOutput;  // Đổi tên cho chuẩn Entity
+        String explanation;
         Integer orderIndex;
     }
 
@@ -74,7 +74,7 @@ public class ProblemDetailsSdo {
     @Builder
     @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class TopicsSummary {
-        UUID topicId;
+        UUID topicId; // Map từ id của Topic
         String name;
     }
 }

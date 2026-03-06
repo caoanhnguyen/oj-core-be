@@ -1,7 +1,6 @@
 package com.kma.ojcore.service.impl;
 
 import com.kma.ojcore.dto.request.problems.CreateProblemSdi;
-import com.kma.ojcore.dto.request.problems.ProblemFilter;
 import com.kma.ojcore.dto.request.problems.UpdateProblemSdi;
 import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo;
 import com.kma.ojcore.dto.response.problems.ProblemResponse;
@@ -58,6 +57,8 @@ public class ProblemServiceImpl implements ProblemService {
         // 2. Map to entity
         Problem problem = problemMapper.toEntity(request);
         problem.setProblemStatus(ProblemStatus.DRAFT); // Mặc định tạo mới sẽ ở trạng thái DRAFT
+        problem.setAcceptedCount(0L);
+        problem.setSubmissionCount(0L);
 
         // 3. Save Problem first (để có ID cho việc commit images)
         Problem saved = problemRepository.save(problem);
@@ -113,8 +114,9 @@ public class ProblemServiceImpl implements ProblemService {
             // Check Topics tồn tại và status là active
             List<Topic> topics = topicRepository.findByIdInAndStatus(request.getTopicIds(), EStatus.ACTIVE);
 
-            // Nếu số lượng trả về từ repo khác với request -> có topic không tồn tại hoặc không active
-            if(topics.size() != request.getTopicIds().size()) {
+            // Nếu số lượng trả về từ repo khác với request -> có topic không tồn tại hoặc
+            // không active
+            if (topics.size() != request.getTopicIds().size()) {
                 throw new BadRequestException("One or more topics not found or not active");
             }
 
@@ -132,7 +134,7 @@ public class ProblemServiceImpl implements ProblemService {
     @Transactional(readOnly = true)
     @Override
     public ProblemDetailsSdo getProblemById(UUID id) {
-        Problem problem = problemRepository.findByIdAndStatus(id, EStatus.ACTIVE)
+        Problem problem = problemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Problem not found with id: " + id));
         return problemMapper.toProblemDetailsSdo(problem);
     }
@@ -140,14 +142,15 @@ public class ProblemServiceImpl implements ProblemService {
     @Transactional(readOnly = true)
     @Override
     public ProblemDetailsSdo getProblemBySlug(String slug) {
-        Problem problem = problemRepository.findBySlugAndStatus(slug, EStatus.ACTIVE)
+        Problem problem = problemRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Problem not found with slug: " + slug));
         return problemMapper.toProblemDetailsSdo(problem);
     }
 
     @Transactional(readOnly = true)
     @Override
-    public Page<ProblemResponse> getProblems(String keyword, ProblemDifficulty difficulty, EStatus status, ProblemStatus problemStatus, List<String> topicSlugs, Pageable pageable) {
+    public Page<ProblemResponse> getProblems(String keyword, ProblemDifficulty difficulty, EStatus status,
+            ProblemStatus problemStatus, List<String> topicSlugs, Pageable pageable) {
         // Escape keyword để tránh lỗi khi dùng trong query
         String searchKeyword = EscapeHelper.escapeLike(keyword);
         return problemRepository.searchProblemsForAdmin(
@@ -164,7 +167,7 @@ public class ProblemServiceImpl implements ProblemService {
     public ProblemDetailsSdo updateProblem(UUID id, UpdateProblemSdi request) throws BadRequestException {
         log.info("Updating problem: {}", id);
 
-        Problem problem = problemRepository.findByIdAndStatus(id, EStatus.ACTIVE)
+        Problem problem = problemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Problem not found with id: " + id));
 
         // Validate slug if changed
@@ -197,6 +200,7 @@ public class ProblemServiceImpl implements ProblemService {
             // Clear old examples (orphanRemoval will delete them)
             if (problem.getExamples() != null) {
                 problem.getExamples().clear();
+                problemRepository.flush(); // Flush to delete orphans before inserts
             } else {
                 problem.setExamples(new ArrayList<>());
             }
@@ -216,6 +220,7 @@ public class ProblemServiceImpl implements ProblemService {
             // Clear old templates
             if (problem.getTemplates() != null) {
                 problem.getTemplates().clear();
+                problemRepository.flush(); // Flush to delete orphans before inserts
             } else {
                 problem.setTemplates(new ArrayList<>());
             }
@@ -259,7 +264,7 @@ public class ProblemServiceImpl implements ProblemService {
     @Override
     public void deleteProblem(UUID id) {
         log.info("Deleting problem: {}", id);
-        if(!problemRepository.existsById(id)) {
+        if (!problemRepository.existsById(id)) {
             throw new ResourceNotFoundException("Problem not found with id: " + id);
         }
         // Soft delete problem
@@ -268,7 +273,8 @@ public class ProblemServiceImpl implements ProblemService {
     }
 
     /**
-     * Khôi phục một Problem đã bị xóa mềm bằng cách đặt trạng thái của nó thành ACTIVE.
+     * Khôi phục một Problem đã bị xóa mềm bằng cách đặt trạng thái của nó thành
+     * ACTIVE.
      * Các tài nguyên liên quan được giữ nguyên
      *
      * @param id UUID của Problem cần xóa
@@ -277,7 +283,7 @@ public class ProblemServiceImpl implements ProblemService {
     @Override
     public void restoreProblem(UUID id) {
         log.info("Restoring problem: {}", id);
-        if(!problemRepository.existsById(id)) {
+        if (!problemRepository.existsById(id)) {
             throw new ResourceNotFoundException("Problem not found with id: " + id);
         }
         // Restore problem

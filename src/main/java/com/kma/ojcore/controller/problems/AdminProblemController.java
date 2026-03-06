@@ -1,7 +1,6 @@
 package com.kma.ojcore.controller.problems;
 
 import com.kma.ojcore.dto.request.problems.CreateProblemSdi;
-import com.kma.ojcore.dto.request.problems.ProblemFilter;
 import com.kma.ojcore.dto.request.problems.UpdateProblemSdi;
 import com.kma.ojcore.dto.response.common.ApiResponse;
 import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo;
@@ -35,12 +34,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Validate
 @PreAuthorize("hasAnyRole('ADMIN', 'MODERATOR')")
-public class ProblemController {
+public class AdminProblemController {
 
     private final ProblemService problemService;
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<ProblemDetailsSdo> createProblem(@Valid @RequestBody CreateProblemSdi request) throws BadRequestException {
         ProblemDetailsSdo result = problemService.createProblem(request);
         return ApiResponse.<ProblemDetailsSdo>builder()

@@ -1,6 +1,5 @@
 package com.kma.ojcore.repository;
 
-import com.kma.ojcore.dto.request.problems.ProblemFilter;
 import com.kma.ojcore.dto.response.problems.ProblemResponse;
 import com.kma.ojcore.entity.Problem;
 import com.kma.ojcore.enums.EStatus;
@@ -23,9 +22,9 @@ public interface ProblemRepository extends JpaRepository<Problem, UUID> {
 
     boolean existsBySlug(String slug);
 
-    Optional<Problem> findBySlugAndStatus(String slug, EStatus status);
+    Optional<Problem> findBySlug(String slug);
 
-    Optional<Problem> findByIdAndStatus(UUID id, EStatus status);
+    Optional<Problem> findById(UUID id);
 
     @Query("SELECT new com.kma.ojcore.dto.response.problems.ProblemResponse(p.id, p.title, p.slug, p.difficulty, p.status, p.problemStatus, p.createdDate, p.updatedDate) " +
             "FROM Problem p " +
