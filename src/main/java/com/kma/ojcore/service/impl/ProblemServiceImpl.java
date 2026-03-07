@@ -313,4 +313,17 @@ public class ProblemServiceImpl implements ProblemService {
 
         return result;
     }
+
+    @Transactional
+    @Override
+    public void publishProblem(UUID id) {
+        // Kiểm tra problem tồn tại
+        log.info("Publishing problem: {}", id);
+        if (!problemRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Problem not found with id: " + id);
+        }
+        // Publishing problem
+        problemRepository.updateProblemStatusById(ProblemStatus.PUBLISHED, id);
+        log.info("Problem published successfully: {}", id);
+    }
 }

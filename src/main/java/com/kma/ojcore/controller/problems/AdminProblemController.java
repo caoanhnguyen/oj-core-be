@@ -89,7 +89,7 @@ public class AdminProblemController {
                 .build();
     }
 
-    @PutMapping("/{id}")
+    @PatchMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<ProblemDetailsSdo> updateProblem(@PathVariable UUID id,
                                                         @Valid @RequestBody UpdateProblemSdi request) throws BadRequestException {
@@ -118,6 +118,16 @@ public class AdminProblemController {
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Problem restored successfully")
+                .build();
+    }
+
+    @PatchMapping("/{id}/publish")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<?> publishProblem(@PathVariable UUID id) {
+        problemService.publishProblem(id);
+        return ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Problem published successfully")
                 .build();
     }
 }

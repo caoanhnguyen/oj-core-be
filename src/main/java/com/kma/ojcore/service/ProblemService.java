@@ -35,4 +35,6 @@ public interface ProblemService {
     void deleteProblem(UUID id);
 
     void restoreProblem(UUID id);
+
+    void publishProblem(UUID id);
 }

@@ -43,4 +43,9 @@ public interface ProblemRepository extends JpaRepository<Problem, UUID> {
     @Modifying
     @Query("Update Problem p set p.status = :status where p.id = :id")
     void updateStatusById(@Param("status") EStatus status, @Param("id") UUID id);
+
+    @Modifying
+    @Query("Update Problem p set p.problemStatus = :problemStatus where p.id = :id")
+    void updateProblemStatusById(@Param("problemStatus") ProblemStatus problemStatus, @Param("id") UUID id);
+
 }

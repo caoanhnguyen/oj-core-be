@@ -1,0 +1,50 @@
+[
+  {
+    "key": "C",
+    "displayName": "C (gcc 11.4)",
+    "aceMode": "c_cpp",
+    "compileCommand": "gcc -O3 main.center -o main -lm",
+    "runCommand": "./main",
+    "isCompiled": true,
+    "sourceName": "main.c",
+    "exeName": "main",
+    "memoryLimitAllowance": 0,
+    "timeLimitAllowance": 0
+  },
+  {
+    "key": "CPP",
+    "displayName": "C++ (g++ 11.4)",
+    "aceMode": "c_cpp",
+    "compileCommand": "g++ -O3 main.cpp -o main",
+    "runCommand": "./main",
+    "isCompiled": true,
+    "sourceName": "main.cpp",
+    "exeName": "main",
+    "memoryLimitAllowance": 0,
+    "timeLimitAllowance": 0
+  },
+  {
+    "key": "JAVA",
+    "displayName": "Java 21 (OpenJDK)",
+    "aceMode": "java",
+    "compileCommand": "javac Main.java",
+    "runCommand": "java -Xss64M -Xmx{memory_limit}M Main",
+    "isCompiled": true,
+    "sourceName": "Main.java",
+    "exeName": "Main.class",
+    "memoryLimitAllowance": 32,
+    "timeLimitAllowance": 1000
+  },
+  {
+    "key": "PYTHON3",
+    "displayName": "Python 3.12",
+    "aceMode": "python",
+    "compileCommand": "python3 -m py_compile main.py",
+    "runCommand": "python3 main.py",
+    "isCompiled": false,
+    "sourceName": "main.py",
+    "exeName": "main.py",
+    "memoryLimitAllowance": 64,
+    "timeLimitAllowance": 2000
+  }
+]

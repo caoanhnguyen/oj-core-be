@@ -14,11 +14,7 @@ public enum SupportedLanguage {
 
     // 3. Nhóm thông dịch (Interpreted) -> Chạy thuật toán vòng lặp rất chậm
     // Python cần thời gian chạy rất dài, RAM xài cũng khá tốn
-    PYTHON3("Python 3", 3.0, 1.5),
-
-    // 4. Nhóm V8 Engine (Node.js) -> Khởi động nhanh hơn Java nhưng ngốn RAM khủng khiếp
-    // Cấp thời gian gấp đôi, RAM gấp đôi (thậm chí có thể lên 2.5 nếu bài đồ thị lớn)
-    JS("JavaScript (Node)", 2.0, 2.0);
+    PYTHON3("Python 3", 3.0, 1.5);
 
     private final String displayName;
     private final double timeMultiplier; // Hệ số nhân thời gian chạy so với nhóm Native (C/C++)
