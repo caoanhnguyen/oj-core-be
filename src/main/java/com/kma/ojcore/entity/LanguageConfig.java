@@ -1,13 +1,12 @@
 package com.kma.ojcore.entity;
 
-import com.kma.ojcore.enums.SupportedLanguage;
 import lombok.Data;
 import lombok.experimental.FieldDefaults;
 
 @Data
 @FieldDefaults(level = lombok.AccessLevel.PRIVATE)
 public class LanguageConfig {
-    SupportedLanguage key;
+    String languageKey;
     String displayName;
     String aceMode;
     String compileCommand;

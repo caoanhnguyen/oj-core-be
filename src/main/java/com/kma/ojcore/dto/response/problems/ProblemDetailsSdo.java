@@ -2,7 +2,6 @@ package com.kma.ojcore.dto.response.problems;
 
 import com.kma.ojcore.enums.ProblemDifficulty;
 import com.kma.ojcore.enums.RuleType;
-import com.kma.ojcore.enums.SupportedLanguage;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
@@ -26,7 +25,7 @@ public class ProblemDetailsSdo {
 
     // Giới hạn chạy
     Integer timeLimitMs;
-    Integer memoryLimitKb;
+    Integer memoryLimitMb;
     RuleType ruleType;
 
     // Thống kê & UI
@@ -35,10 +34,12 @@ public class ProblemDetailsSdo {
     Integer totalScore;
     String source;
     String hint;
-    String authorName; // Lấy từ problem.getAuthor().getUsername()
+    String authorName;
+    String inputFormat;
+    String outputFormat;
 
     // Cấu hình ngôn ngữ
-    Set<SupportedLanguage> allowedLanguages;
+    Set<String> allowedLanguages;
 
     LocalDateTime createdDate;
     LocalDateTime updatedDate;
@@ -55,7 +56,7 @@ public class ProblemDetailsSdo {
     @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class ProblemTemplateSummary {
         UUID id;
-        SupportedLanguage language;
+        String languageKey;
         String codeTemplate;
     }
 

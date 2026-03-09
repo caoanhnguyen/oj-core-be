@@ -1,13 +1,12 @@
 package com.kma.ojcore.entity;
 
-import com.kma.ojcore.enums.SupportedLanguage;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 @Entity
 @Table(name = "problem_templates", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"problem_id", "language"})
+        @UniqueConstraint(columnNames = {"problem_id", "language_key"})
 })
 @Getter
 @Setter
@@ -17,9 +16,8 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ProblemTemplate extends BaseEntity {
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 50)
-    SupportedLanguage language;
+    @Column(name = "language_key", nullable = false)
+    String languageKey;
 
     // Khung code hiển thị cho User thấy trên Editor (Đã bao gồm hàm main cấu hình sẵn I/O)
     // Dùng TEXT là quá dư dả (chứa được ~65.000 ký tự)

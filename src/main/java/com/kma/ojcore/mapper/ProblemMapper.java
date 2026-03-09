@@ -45,7 +45,7 @@ public interface ProblemMapper {
         return templates.stream()
                 .map(t -> ProblemTemplateSummary.builder()
                         .id(t.getId())
-                        .language(t.getLanguage()) // Bổ sung map Enum language
+                        .languageKey(t.getLanguageKey()) // Bổ sung map Enum language
                         .codeTemplate(t.getCodeTemplate())
                         .build())
                 .collect(Collectors.toList());

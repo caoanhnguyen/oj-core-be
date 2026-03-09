@@ -2,7 +2,6 @@ package com.kma.ojcore.dto.request.problems;
 
 import com.kma.ojcore.enums.ProblemDifficulty;
 import com.kma.ojcore.enums.RuleType;
-import com.kma.ojcore.enums.SupportedLanguage;
 import lombok.Data;
 import lombok.experimental.FieldDefaults;
 
@@ -42,7 +41,7 @@ public class UpdateProblemSdi {
 
     String testcaseDir;
 
-    Set<SupportedLanguage> allowedLanguages;
+    Set<String> allowedLanguages;
 
     /**
      * Danh sách examples cho Problem

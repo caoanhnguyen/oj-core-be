@@ -3,7 +3,6 @@ package com.kma.ojcore.entity;
 import com.kma.ojcore.enums.ProblemDifficulty;
 import com.kma.ojcore.enums.ProblemStatus;
 import com.kma.ojcore.enums.RuleType;
-import com.kma.ojcore.enums.SupportedLanguage;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -46,8 +45,8 @@ public class Problem extends BaseEntity {
     @Column(name = "time_limit_ms")
     Integer timeLimitMs;
 
-    @Column(name = "memory_limit_kb")
-    Integer memoryLimitKb;
+    @Column(name = "memory_limit_mb")
+    Integer memoryLimitMb;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "rule_type", nullable = false)
@@ -56,11 +55,10 @@ public class Problem extends BaseEntity {
     @Column(name = "testcase_dir", length = 255)
     String testcaseDir;
 
-    @ElementCollection(fetch = FetchType.EAGER)
+    @ElementCollection(fetch = FetchType.EAGER) // Tạm thời dùng EAGER vì số lượng ngôn ngữ ít (3-4 cái), không ảnh hưởng nhiều
     @CollectionTable(name = "problem_languages", joinColumns = @JoinColumn(name = "problem_id"))
-    @Enumerated(EnumType.STRING)
-    @Column(name = "language")
-    Set<SupportedLanguage> allowedLanguages = new HashSet<>();
+    @Column(name = "language_key", length = 50)
+    Set<String> allowedLanguages = new HashSet<>();
 
     // --- CÁC TRƯỜNG THỐNG KÊ & UI --- //
     @Column(name = "submission_count")

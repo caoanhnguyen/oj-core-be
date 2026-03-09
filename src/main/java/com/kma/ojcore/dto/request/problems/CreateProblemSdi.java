@@ -2,7 +2,6 @@ package com.kma.ojcore.dto.request.problems;
 
 import com.kma.ojcore.enums.ProblemDifficulty;
 import com.kma.ojcore.enums.RuleType;
-import com.kma.ojcore.enums.SupportedLanguage;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -38,7 +37,7 @@ public class CreateProblemSdi {
     Integer timeLimitMs;
 
     @NotNull(message = "Phải cài đặt giới hạn bộ nhớ")
-    Integer memoryLimitKb;
+    Integer memoryLimitMb;
 
     @NotNull(message = "Phải chọn luật chấm (ACM/OI)")
     RuleType ruleType;
@@ -50,7 +49,7 @@ public class CreateProblemSdi {
     String testcaseDir;
 
     @NotEmpty(message = "Phải cho phép ít nhất 1 ngôn ngữ")
-    Set<SupportedLanguage> allowedLanguages = new HashSet<>();
+    Set<String> allowedLanguages = new HashSet<>();
 
     String source;
 
