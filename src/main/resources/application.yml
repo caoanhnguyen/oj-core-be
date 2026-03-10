@@ -91,8 +91,7 @@ spring:
             enable: true
 
 # ==============================================================
-# 5. CUSTOM CONFIG (MinIO) - Lưu file
-# (Spring không có chuẩn riêng cho MinIO nên ta tự định nghĩa biến)
+# 6. CUSTOM CONFIG (MinIO) - Lưu file
 # ==============================================================
 minio:
   endpoint: http://${MINIO_HOST:localhost}:${MINIO_API_PORT:9000}
@@ -109,3 +108,15 @@ minio:
     testcases-dir: testcases
     illustrations-dir: illustrations
     descriptions-dir: descriptions # Lưu file mô tả bài tập
+
+# ==============================================================
+# 7. Biến hệ thống OJ
+# ==============================================================
+oj:
+  storage:
+    minio:
+      # Tên bucket, lấy từ biến môi trường, nếu không có thì mặc định là oj-testcases
+      bucket-testcase: ${MINIO_BUCKET_TESTCASE:oj-testcases}
+      # Các prefix đường dẫn
+      prefix-problem: problems
+      suffix-testcase: testcases

@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,6 +27,15 @@ import java.util.zip.ZipInputStream;
 @Slf4j
 public class TestcasesServiceImpl implements TestcaseService {
 
+    @Value("${oj.storage.minio.bucket-testcase}")
+    private String testcaseBucket;
+
+    @Value("${oj.storage.minio.prefix-problem}")
+    private String problemPrefix;
+
+    @Value("${oj.storage.minio.suffix-testcase}")
+    private String testcaseSuffix;
+
     private final ProblemRepository problemRepository;
     private final ObjectMapper objectMapper;
     private final FileStorageService minioService;
@@ -36,18 +46,18 @@ public class TestcasesServiceImpl implements TestcaseService {
         Problem problem = problemRepository.findById(problemId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy Problem"));
 
-        // 1. Tạo thư mục tạm trên Server BE để giải nén và làm việc
+        // 1. Tạo thư mục tạm trên Server BE để lưu file info.json
         Path tempDir = Files.createTempDirectory("oj_testcase_" + problemId);
         Map<String, byte[]> fileMap = new HashMap<>();
 
         try {
-            // 2. Giải nén ZIP và lọc ra các file .in, .out
+            // 2. Đọc file ZIP trực tiếp trên RAM, lọc ra các file .in, .out
             try (ZipInputStream zis = new ZipInputStream(zipFile.getInputStream())) {
                 ZipEntry entry;
                 while ((entry = zis.getNextEntry()) != null) {
                     if (entry.isDirectory()) continue;
 
-                    // Chỉ lấy file ở thư mục gốc hoặc xử lý path nếu cần
+                    // Lấy tên file gốc (bỏ qua các thư mục lồng nhau nếu có)
                     String fileName = Paths.get(entry.getName()).getFileName().toString();
                     if (fileName.endsWith(".in") || fileName.endsWith(".out")) {
                         fileMap.put(fileName, zis.readAllBytes());
@@ -59,7 +69,7 @@ public class TestcasesServiceImpl implements TestcaseService {
             List<String> baseNames = fileMap.keySet().stream()
                     .filter(name -> name.endsWith(".in"))
                     .map(name -> name.replace(".in", ""))
-                    .sorted() // Sắp xếp để chia điểm cho chuẩn
+                    .sorted() // Sắp xếp để chia điểm (1, 2, 3...)
                     .toList();
 
             if (baseNames.isEmpty()) throw new RuntimeException("File ZIP không chứa testcase hợp lệ (.in/.out)");
@@ -70,7 +80,7 @@ public class TestcasesServiceImpl implements TestcaseService {
             int scorePerTest = totalScore / numTests;
             int extraScore = totalScore % numTests;
 
-            // 5. Tính MD5, Size và Build info.json
+            // 5. Tính MD5, Size và Build cấu trúc info.json
             List<Map<String, Object>> testcaseList = new ArrayList<>();
             for (int i = 0; i < numTests; i++) {
                 String base = baseNames.get(i);
@@ -93,35 +103,45 @@ public class TestcasesServiceImpl implements TestcaseService {
                 tcInfo.put("score", (i == numTests - 1) ? (scorePerTest + extraScore) : scorePerTest);
 
                 testcaseList.add(tcInfo);
-
-                // Ghi file thô ra thư mục tạm để tí nữa upload cả folder lên MinIO
-                Files.write(tempDir.resolve(inName), fileMap.get(inName));
-                Files.write(tempDir.resolve(outName), fileMap.get(outName));
             }
 
-            // 6. Ghi file info.json
+            // 6. Ghi file info.json ra ổ cứng tạm
             Map<String, Object> finalInfo = new HashMap<>();
-            finalInfo.put("problemId", problemId);
+            finalInfo.put("problemId", problemId.toString());
             finalInfo.put("testCases", testcaseList);
-            objectMapper.writeValue(tempDir.resolve("info.json").toFile(), finalInfo);
 
-            // 7. Upload thư mục lên MinIO
-            // Path trên MinIO ví dụ: problems/UUID/testcases/
-            String minioPath = "problems/" + problemId + "/testcases";
-            minioService.upload("oj-testcases",
+            Path infoJsonPath = tempDir.resolve("info.json");
+            objectMapper.writeValue(infoJsonPath.toFile(), finalInfo);
+
+            // 7. Upload lên MinIO
+            String minioPath = String.format("%s/%s/%s", problemPrefix, problemId, testcaseSuffix);
+
+            // 7.1. Upload info.json
+            minioService.upload(
+                    testcaseBucket,
                     minioPath + "/info.json",
-                    Files.newInputStream(tempDir.resolve("info.json")),
-                    Files.size(tempDir.resolve("info.json")),
-                    "application/json");
+                    Files.newInputStream(infoJsonPath),
+                    Files.size(infoJsonPath),
+                    "application/json"
+            );
 
-            // 8. Cập nhật DB
+            // 7.2. Upload testcases.zip
+            minioService.upload(
+                    testcaseBucket,
+                    minioPath + "/testcases.zip",
+                    zipFile.getInputStream(),
+                    zipFile.getSize(),
+                    "application/zip"
+            );
+
+            // 8. Cập nhật đường dẫn vào DB
             problem.setTestcaseDir(minioPath);
             problemRepository.save(problem);
 
-            log.info("Xử lý thành công {} testcases cho bài toán {}", numTests, problemId);
+            log.info("Xử lý và upload thành công {} testcases cho bài toán {}", numTests, problemId);
 
         } finally {
-            // 9. Luôn luôn dọn rác folder tạm
+            // 9. Xóa thư mục tạm sau khi hoàn thành
             FileUtils.deleteDirectory(tempDir.toFile());
         }
     }
