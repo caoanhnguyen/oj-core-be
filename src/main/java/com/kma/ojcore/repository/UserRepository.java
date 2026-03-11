@@ -10,7 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, Long> {
+public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.roles WHERE u.id = :id")
     Optional<User> findUserWithRolesById(UUID id);

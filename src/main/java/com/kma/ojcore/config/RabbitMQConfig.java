@@ -11,7 +11,9 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMQConfig {
 
-    public static final String EMAIL_QUEUE = "email_queue";
+    public static final String EMAIL_QUEUE = "email.queue";
+    public static final String JUDGE_QUEUE = "judge.queue";
+    public static final String RESULT_QUEUE = "result.queue";
 
     @Bean
     public Queue emailQueue() {
@@ -23,10 +25,21 @@ public class RabbitMQConfig {
         return new Jackson2JsonMessageConverter();
     }
 
-//    @Bean
-//    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
-//        final RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
-//        rabbitTemplate.setMessageConverter(jsonMessageConverter());
-//        return rabbitTemplate;
-//    }
+    // Khai báo Queue để nếu chưa có thì RabbitMQ tự tạo
+    @Bean
+    public Queue judgeQueue() {
+        return new Queue(JUDGE_QUEUE, true); // true = durable (không mất data khi RabbitMQ restart)
+    }
+
+    @Bean
+    public Queue resultQueue() {
+        return new Queue(RESULT_QUEUE, true);
+    }
+
+    @Bean
+    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
+        RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
+        rabbitTemplate.setMessageConverter(jsonMessageConverter());
+        return rabbitTemplate;
+    }
 }
