@@ -19,32 +19,32 @@ public class RabbitMQConfig {
     public static final String JUDGE_QUEUE = "judge.queue";
     public static final String RESULT_QUEUE = "result.queue";
     public static final String RUN_CODE_QUEUE = "judge.run.queue";
+    public static final String RUN_CODE_RESULT_QUEUE = "judge.run.result.queue"; // 🌟 Mới thêm
 
     // 3. Khai báo CÁC NHÃN ĐỊA CHỈ (Routing Keys)
     public static final String EMAIL_ROUTING_KEY = "email.routing.key";
     public static final String JUDGE_ROUTING_KEY = "judge.routing.key";
     public static final String RESULT_ROUTING_KEY = "result.routing.key";
     public static final String RUN_CODE_ROUTING_KEY = "judge.run.routing.key";
+    public static final String RUN_CODE_RESULT_ROUTING_KEY = "judge.run.result.routing.key"; // 🌟 Mới thêm
 
     // ==========================================
     // KHỞI TẠO CÁC BEAN
     // ==========================================
 
-    // A. Xây dựng Bưu cục (Exchange)
     @Bean
     public DirectExchange judgeExchange() {
         return new DirectExchange(JUDGE_EXCHANGE);
     }
 
-    // B. Xây dựng các Hòm thư (Queues)
+    // Xây dựng các Hòm thư (Queues)
     @Bean public Queue emailQueue() { return new Queue(EMAIL_QUEUE, true); }
     @Bean public Queue judgeQueue() { return new Queue(JUDGE_QUEUE, true); }
     @Bean public Queue resultQueue() { return new Queue(RESULT_QUEUE, true); }
     @Bean public Queue runCodeQueue() { return new Queue(RUN_CODE_QUEUE, true); }
+    @Bean public Queue runCodeResultQueue() { return new Queue(RUN_CODE_RESULT_QUEUE, true); }
 
-    // C. DẠY BƯU CỤC CÁCH CHIA THƯ (Bindings)
-    // Nghĩa là: Nếu có thư mang nhãn X -> Ném vào Queue Y
-
+    // DẠY BƯU CỤC CÁCH CHIA THƯ (Bindings)
     @Bean
     public Binding emailBinding(Queue emailQueue, DirectExchange judgeExchange) {
         return BindingBuilder.bind(emailQueue).to(judgeExchange).with(EMAIL_ROUTING_KEY);
@@ -63,6 +63,11 @@ public class RabbitMQConfig {
     @Bean
     public Binding runCodeBinding(Queue runCodeQueue, DirectExchange judgeExchange) {
         return BindingBuilder.bind(runCodeQueue).to(judgeExchange).with(RUN_CODE_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding runCodeResultBinding(Queue runCodeResultQueue, DirectExchange judgeExchange) { // 🌟 Mới thêm
+        return BindingBuilder.bind(runCodeResultQueue).to(judgeExchange).with(RUN_CODE_RESULT_ROUTING_KEY);
     }
 
     // ==========================================
