@@ -161,6 +161,7 @@ public class SubmissionServiceImpl implements SubmissionService {
                                   String username,
                                   EStatus status,
                                   ProblemStatus problemStatus,
+                                  List<SubmissionVerdict> allowedVerdicts,
                                   Pageable pageable) {
         // Validate problem và user
         if (problemId != null && !problemRepository.existsById(problemId)) {
@@ -171,7 +172,7 @@ public class SubmissionServiceImpl implements SubmissionService {
             throw new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + userId);
         }
 
-        return submissionRepository.getSubmissions(problemId, userId, submissionVerdict, username, status, problemStatus, pageable);
+        return submissionRepository.getSubmissions(problemId, userId, submissionVerdict, username, status, problemStatus, allowedVerdicts, pageable);
     }
 
     @Override

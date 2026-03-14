@@ -31,7 +31,7 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
     List<VerdictCountProjection> countSubmissionsByVerdict(@Param("problemId") UUID problemId);
 
     @Query("SELECT new com.kma.ojcore.dto.response.submissions.SubmissionDetailsSdo(" +
-            "s.id, s.user.id, s.user.username, s.problem.id, s.problem.title, " +
+            "s.id, s.user.id, s.user.username, s.problem.id, s.problem.title, s.problem.slug, " +
             "s.languageKey, s.submissionStatus, s.verdict, s.score, " +
             "s.passedTestCount, s.totalTestCount, " +
             "s.executionTimeMs, s.executionMemoryMb, s.createdDate, " +
@@ -42,7 +42,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
 
     @Query("SELECT new com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo(" +
             "s.id, s.verdict, s.score, s.passedTestCount, s.totalTestCount, " +
-            "s.executionTimeMs, s.executionMemoryMb, s.createdDate, s.user.id, s.user.username, s.problem.id, s.problem.title) " +
+            "s.executionTimeMs, s.executionMemoryMb, s.createdDate, s.languageKey, " +
+            "s.user.id, s.user.username, s.problem.id, s.problem.title, s.problem.slug) " +
             "FROM Submission s " +
             "WHERE (:problemId IS NULL OR s.problem.id = :problemId) " +
             "AND (:userId IS NULL OR s.user.id = :userId) " +
@@ -50,12 +51,14 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             "AND (:keyword IS NULL OR LOWER(s.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
             "                      OR LOWER(s.problem.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
             "AND (:problemStatus IS NULL OR s.problem.status = :status)" +
-            "AND (:problemStatus IS NULL OR s.problem.problemStatus = :problemStatus)")
+            "AND (:problemStatus IS NULL OR s.problem.problemStatus = :problemStatus)" +
+            "AND (s.verdict IN :verdicts)")
     Page<SubmissionBasicSdo> getSubmissions(@Param("problemId") UUID problemId,
                                             @Param("userId") UUID userId,
                                             @Param("submissionVerdict") SubmissionVerdict submissionVerdict,
                                             @Param("keyword") String keyword,
                                             @Param("status") EStatus status,
                                             @Param("problemStatus") ProblemStatus problemStatus,
+                                            @Param("verdicts") List<SubmissionVerdict> allowedVerdicts,
                                             Pageable pageable);
 }

@@ -31,6 +31,8 @@ public class SubmissionBasicSdo {
 
     LocalDateTime createdDate;
 
+    String languageKey;
+
 
     // --- Thông tin tác giả ---
     UUID userId;
@@ -41,4 +43,6 @@ public class SubmissionBasicSdo {
     UUID problemId;
 
     String problemTitle;
+
+    String problemSlug;
 }

@@ -28,6 +28,7 @@ public interface SubmissionService {
                            String username,
                            EStatus status,
                            ProblemStatus problemStatus,
+                           List<SubmissionVerdict> allowedVerdicts,
                            Pageable pageable);
 
     ProblemStatisticSdo getProblemStatistics(UUID problemId, List<SubmissionVerdict> allowedVerdicts);

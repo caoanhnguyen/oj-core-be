@@ -21,6 +21,7 @@ public class SubmissionDetailsSdo {
 
     UUID problemId;
     String problemTitle;
+    String problemSlug;
 
     String language;
     SubmissionStatus submissionStatus;

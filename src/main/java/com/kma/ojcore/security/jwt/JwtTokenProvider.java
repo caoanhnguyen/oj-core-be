@@ -95,6 +95,15 @@ public class JwtTokenProvider {
         return claims.get("username", String.class);
     }
 
+    // Thêm hàm này vào JwtTokenProvider
+    public Claims getAccessTokenClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(getSigningKey(accessSecret))
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
     public boolean validateAccessToken(String authToken) {
         return validateToken(authToken, accessSecret);
     }

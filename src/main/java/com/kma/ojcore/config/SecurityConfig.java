@@ -91,7 +91,7 @@ public class SecurityConfig {
                                     .requestMatchers(HttpMethod.GET, apiPrefix + "/files/view").permitAll()
 
                                     // Admin API (Dùng hasAnyAuthority như đã bàn để fix lỗi Role)
-                                    .requestMatchers(apiPrefix + "/admin/**").hasAnyAuthority("ADMIN", "MODERATOR")
+                                    .requestMatchers(apiPrefix + "/admin/**").hasAnyRole("ADMIN", "MODERATOR")
 
                                     // Bắt buộc đăng nhập cho các request còn lại
                                     .anyRequest().authenticated()
