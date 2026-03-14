@@ -1,30 +1,37 @@
-package com.kma.ojcore.dto.response.submissions;
+package com.kma.ojcore.dto.request.submissions;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.experimental.FieldDefaults;
 
 import java.util.List;
+import java.util.UUID;
 
 @Data
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class RunCodeRequest {
-    String runToken;       // Mã định danh phiên chạy (UUID)
-    String sourceCode;     // Mã nguồn sinh viên viết
-    String sourceName;     // VD: "Main.java", "main.cpp"
-    String languageKey;    // VD: "JAVA", "CPP"
 
-    // Danh sách các Custom Input do user nhập
-    List<String> customInputs;
+    // --- Thông tin định danh ---
+    UUID runToken;
+    UUID problemId;
 
-    // Các lệnh cấu hình (Core BE lấy từ DB gửi sang)
-    boolean isCompiled;
+    // --- Payload User gửi ---
+    String sourceCode;
+    String languageKey;
+    List<RunTestCaseSdi> customInputs;
+
+    // --- Cấu hình ngôn ngữ (Lấy từ LanguageLoader) ---
     String compileCommand;
     String runCommand;
+    @JsonProperty("isCompiled")
+    boolean isCompiled;
+    String sourceName;
+    String exeName;
 
-    // Giới hạn tài nguyên (Có thể lấy mặc định: 2s, 256MB)
-    Long timeLimitMs;
-    Long memoryLimitMb;
+    // --- Giới hạn ĐÃ ĐƯỢC TÍNH TOÁN ---
+    Integer finalTimeLimitMs;
+    Integer finalMemoryLimitMb;
 }

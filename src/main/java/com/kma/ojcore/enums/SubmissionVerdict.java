@@ -2,6 +2,9 @@ package com.kma.ojcore.enums;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 
+import java.util.Arrays;
+import java.util.List;
+
 public enum SubmissionVerdict {
     PENDING, // Chưa có phán quyết
     AC,      // Accepted (Đúng hoàn toàn)
@@ -20,5 +23,13 @@ public enum SubmissionVerdict {
         } catch (IllegalArgumentException e) {
             return SE; // Nếu máy chấm gửi bậy, tự ép về SE (System Error)
         }
+    }
+
+    public static List<SubmissionVerdict> getPublicVerdicts() {
+        return Arrays.asList(AC, WA, TLE, MLE, RE, CE);
+    }
+
+    public static List<SubmissionVerdict> getAllVerdicts() {
+        return Arrays.asList(values()); // Trả về toàn bộ các giá trị của Enum
     }
 }

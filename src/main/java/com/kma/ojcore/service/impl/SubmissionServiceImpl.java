@@ -1,16 +1,23 @@
 package com.kma.ojcore.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kma.ojcore.config.LanguageLoader;
 import com.kma.ojcore.config.RabbitMQConfig;
 import com.kma.ojcore.dto.request.submissions.JudgeSdi;
 import com.kma.ojcore.dto.request.submissions.SubmissionSdi;
+import com.kma.ojcore.dto.response.problems.ProblemStatisticSdo;
+import com.kma.ojcore.dto.response.submissions.RunCodeResponse;
+import com.kma.ojcore.dto.response.submissions.SubmissionDetailsSdo;
 import com.kma.ojcore.entity.LanguageConfig;
 import com.kma.ojcore.entity.Problem;
 import com.kma.ojcore.entity.Submission;
 import com.kma.ojcore.entity.User;
+import com.kma.ojcore.enums.EStatus;
+import com.kma.ojcore.enums.ProblemStatus;
 import com.kma.ojcore.enums.SubmissionStatus;
 import com.kma.ojcore.enums.SubmissionVerdict;
 import com.kma.ojcore.exception.BusinessException;
+import com.kma.ojcore.exception.ResourceNotFoundException;
 import com.kma.ojcore.repository.ProblemRepository;
 import com.kma.ojcore.repository.SubmissionRepository;
 import com.kma.ojcore.repository.UserRepository;
@@ -18,11 +25,17 @@ import com.kma.ojcore.service.SubmissionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -33,10 +46,10 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final SubmissionRepository submissionRepository;
     private final ProblemRepository problemRepository;
     private final UserRepository userRepository;
-
-    // Inject thêm 2 vũ khí hạng nặng
     private final LanguageLoader languageLoader;
     private final RabbitTemplate rabbitTemplate;
+    private final RedisTemplate<String, String> redisTemplate;
+    private final ObjectMapper objectMapper;
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
@@ -69,6 +82,7 @@ public class SubmissionServiceImpl implements SubmissionService {
                 .build();
         submission = submissionRepository.save(submission);
 
+        // Cộng lượt nộp vào Problem
         problem.setSubmissionCount(problem.getSubmissionCount() + 1L);
         problemRepository.save(problem);
 
@@ -101,11 +115,95 @@ public class SubmissionServiceImpl implements SubmissionService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                rabbitTemplate.convertAndSend(RabbitMQConfig.JUDGE_QUEUE, sdi);
+                rabbitTemplate.convertAndSend(RabbitMQConfig.JUDGE_EXCHANGE, RabbitMQConfig.JUDGE_ROUTING_KEY, sdi);
                 log.info("Đã ném Submission [{}] vào RabbitMQ SAU KHI DB ĐÃ COMMIT!", finalSubmission.getId());
             }
         });
 
         return submission.getId();
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public SubmissionDetailsSdo getSubmissionBasicInfo(UUID submissionId) {
+        if(!submissionRepository.existsById(submissionId)) {
+            throw new ResourceNotFoundException("Không tìm thấy submission với ID: " + submissionId);
+        }
+
+        return submissionRepository.getDetails(submissionId);
+    }
+
+    @Override
+    public RunCodeResponse getRunCodeResult(UUID token) {
+        String redisKey = "RUN_CODE_RESULT:" + token.toString();
+
+        // Chọc vào Redis tìm xem có đồ không
+        String jsonResult = redisTemplate.opsForValue().get(redisKey);
+
+        if (jsonResult != null) {
+            try {
+                // Parse lại chuỗi JSON thành Object để Spring Boot trả về dạng JSON chuẩn
+                return objectMapper.readValue(jsonResult, RunCodeResponse.class);
+            } catch (Exception e) {
+                log.error("Lỗi khi xử lý kết quả Run Code từ Redis", e);
+                throw new BusinessException("Lỗi khi xử lý kết quả Run Code");
+            }
+        } else {
+            log.info("Kết quả đang được xử lý hoặc đã bị xóa khỏi REDIS. Token: [{}]", token);
+            throw new BusinessException("Kết quả Run Code vẫn đang được xử lý. Vui lòng thử lại sau vài giây.");
+        }
+    }
+
+    @Override
+    public Page<?> getSubmissions(UUID problemId,
+                                  UUID userId,
+                                  SubmissionVerdict submissionVerdict,
+                                  String username,
+                                  EStatus status,
+                                  ProblemStatus problemStatus,
+                                  Pageable pageable) {
+        // Validate problem và user
+        if (problemId != null && !problemRepository.existsById(problemId)) {
+            throw new ResourceNotFoundException("Không tìm thấy bài toán với ID: " + problemId);
+        }
+
+        if (userId != null && !userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + userId);
+        }
+
+        return submissionRepository.getSubmissions(problemId, userId, submissionVerdict, username, status, problemStatus, pageable);
+    }
+
+    @Override
+    public ProblemStatisticSdo getProblemStatistics(UUID problemId, List<SubmissionVerdict> allowedVerdicts) {
+        List<SubmissionRepository.VerdictCountProjection> projections =
+                submissionRepository.countSubmissionsByVerdict(problemId);
+
+        long total = 0;
+        Map<String, Long> counts = new HashMap<>();
+
+        // 1. Khởi tạo sẵn giá trị 0 dựa trên danh sách Controller cho phép
+        for (SubmissionVerdict v : allowedVerdicts) {
+            counts.put(v.name(), 0L);
+        }
+
+        // 2. Lặp kết quả từ DB và cộng dồn
+        for (SubmissionRepository.VerdictCountProjection p : projections) {
+            SubmissionVerdict verdict = SubmissionVerdict.valueOf(p.getVerdict()); // Trả về kiểu Enum
+
+            // 🌟 CHỐT CHẶN: Nếu DB trả ra cái verdict KHÔNG NẰM TRONG danh sách cho phép -> Bỏ qua!
+            if (verdict == null || !allowedVerdicts.contains(verdict)) {
+                continue;
+            }
+
+            long count = p.getCount();
+            counts.put(verdict.name(), count);
+            total += count; // Chỉ lấy tổng của những lần nộp được phép
+        }
+
+        return ProblemStatisticSdo.builder()
+                .totalSubmissions(total)
+                .verdictCounts(counts)
+                .build();
     }
 }

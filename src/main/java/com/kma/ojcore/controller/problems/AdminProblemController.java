@@ -5,10 +5,13 @@ import com.kma.ojcore.dto.request.problems.UpdateProblemSdi;
 import com.kma.ojcore.dto.response.common.ApiResponse;
 import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo;
 import com.kma.ojcore.dto.response.problems.ProblemResponse;
+import com.kma.ojcore.dto.response.problems.ProblemStatisticSdo;
 import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.ProblemDifficulty;
 import com.kma.ojcore.enums.ProblemStatus;
+import com.kma.ojcore.enums.SubmissionVerdict;
 import com.kma.ojcore.service.ProblemService;
+import com.kma.ojcore.service.SubmissionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.apache.coyote.BadRequestException;
@@ -37,6 +40,7 @@ import java.util.UUID;
 public class AdminProblemController {
 
     private final ProblemService problemService;
+    private final SubmissionService submissionService;
 
     @PostMapping
     public ApiResponse<ProblemDetailsSdo> createProblem(@Valid @RequestBody CreateProblemSdi request) throws BadRequestException {
@@ -60,7 +64,7 @@ public class AdminProblemController {
 
     @GetMapping("/slug/{slug}")
     public ApiResponse<ProblemDetailsSdo> getProblemBySlug(@PathVariable String slug) {
-        ProblemDetailsSdo result = problemService.  getProblemBySlug(slug);
+        ProblemDetailsSdo result = problemService.getProblemBySlug(slug);
         return ApiResponse.<ProblemDetailsSdo>builder()
                 .status(HttpStatus.OK.value())
                 .message("Get problem details successfully")
@@ -128,6 +132,20 @@ public class AdminProblemController {
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Problem published successfully")
+                .build();
+    }
+
+    @GetMapping("/{id}/statistics")
+    public ApiResponse<?> getStatisticsForAdmin(
+            @PathVariable UUID id
+    ) {
+        ProblemStatisticSdo result = submissionService.getProblemStatistics(
+                id, SubmissionVerdict.getAllVerdicts()
+        );
+        return ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Problem statistics retrieved successfully")
+                .data(result)
                 .build();
     }
 }
