@@ -7,8 +7,10 @@ import com.kma.ojcore.security.oauth2.CustomOAuth2UserService;
 import com.kma.ojcore.security.oauth2.OAuth2AuthenticationFailureHandler;
 import com.kma.ojcore.security.oauth2.OAuth2AuthenticationSuccessHandler;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -36,6 +38,9 @@ public class SecurityConfig {
         private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
         private final JwtAuthenticationFilter jwtAuthenticationFilter;
         private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
+
+        @Value("${app.api.prefix}")
+        private String apiPrefix;
 
         @Bean
         public PasswordEncoder passwordEncoder() {
@@ -67,19 +72,30 @@ public class SecurityConfig {
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .authorizeHttpRequests(auth -> auth
-                                                // Auth endpoints (register, login, refresh token)
-                                                .requestMatchers("/api/auth/**").permitAll()
-                                                // OAuth2 endpoints (authorization and callback)
-                                                .requestMatchers(
-                                                                "/oauth2/**",
-                                                                "/login/oauth2/**")
-                                                .permitAll()
-                                                // Public file viewing
-                                                .requestMatchers("/api/files/view").permitAll()
-                                                // Admin endpoints - chỉ cho phép ROLE_ADMIN
-                                                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                                                // All other requests must be authenticated
-                                                .anyRequest().authenticated())
+
+                                    .requestMatchers(apiPrefix + "/auth/**").permitAll()
+
+                                    // Giữ nguyên mấy thằng không thuộc API v1 (như OAuth2, Swagger)
+                                    .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+                                    .requestMatchers("/v3/api-docs/**", "/swagger-ui/**").permitAll()
+
+                                    // Public API
+                                    .requestMatchers(HttpMethod.GET, apiPrefix + "/system/languages").permitAll()
+                                    .requestMatchers(HttpMethod.GET, apiPrefix + "/topics").permitAll()
+                                    .requestMatchers(HttpMethod.GET,
+                                            apiPrefix + "/problems",
+                                            apiPrefix + "/problems/*",
+                                            apiPrefix + "/problems/slug/*",
+                                            apiPrefix + "/problems/*/statistics").permitAll()
+                                    .requestMatchers(HttpMethod.GET, apiPrefix + "/submissions", apiPrefix + "/submissions/statistics").permitAll()
+                                    .requestMatchers(HttpMethod.GET, apiPrefix + "/files/view").permitAll()
+
+                                    // Admin API (Dùng hasAnyAuthority như đã bàn để fix lỗi Role)
+                                    .requestMatchers(apiPrefix + "/admin/**").hasAnyAuthority("ADMIN", "MODERATOR")
+
+                                    // Bắt buộc đăng nhập cho các request còn lại
+                                    .anyRequest().authenticated()
+                        )
                                 .oauth2Login(oauth2 -> oauth2
                                                 // Custom OAuth2 user service to load user info
                                                 .userInfoEndpoint(userInfo -> userInfo

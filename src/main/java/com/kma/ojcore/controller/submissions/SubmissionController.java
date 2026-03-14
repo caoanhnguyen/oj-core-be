@@ -23,18 +23,20 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/submissions")
+@RequestMapping("/api/v1/submissions")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'USER', 'MODERATOR')")
+//@PreAuthorize("hasAnyRole('ADMIN', 'USER', 'MODERATOR')")
 public class SubmissionController {
 
     private final SubmissionService submissionService;
     private final RunCodeService runCodeService;
 
     @PostMapping
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<?> submitCode(@Valid @RequestBody SubmissionSdi request) {
         // Lấy ID của user hiện tại từ security context
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -49,6 +51,7 @@ public class SubmissionController {
     }
 
     @PostMapping("/run_code")
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<?> runCode(@Valid @RequestBody RunCodeSubmitDto request) {
         UUID runCodeToken = runCodeService.sendToJudge(request);
         return ApiResponse.builder()
@@ -59,7 +62,13 @@ public class SubmissionController {
 
     }
 
+    /**
+     * Lấy kết quả submission. Chỉ lấy được nếu submission thuộc về user hoặc user có role ADMIN/MODERATOR. Kết quả trả về chỉ là thông tin cơ bản (không bao gồm test case detail).
+     * @param id
+     * @return
+     */
     @GetMapping("/{id}")
+    @PreAuthorize("@submissionSecurity.isSubmissionOwnerOrAdmin(#id, authentication)")
     public ApiResponse<?> getSubmissionResult(@PathVariable UUID id) {
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
@@ -69,6 +78,7 @@ public class SubmissionController {
     }
 
     @GetMapping("/run_code/result/{token}")
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<?> getRunCodeResult(@PathVariable UUID token) {
         RunCodeResponse response = submissionService.getRunCodeResult(token);
         return ApiResponse.builder()
@@ -100,10 +110,11 @@ public class SubmissionController {
             @PageableDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort
     ) {
         Pageable pageable = PageRequest.of(page, size, sort);
+        List<SubmissionVerdict> allowedVerdicts = SubmissionVerdict.getPublicVerdicts();
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Submissions retrieved successfully")
-                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, username, EStatus.ACTIVE, ProblemStatus.PUBLISHED, pageable))
+                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, username, EStatus.ACTIVE, ProblemStatus.PUBLISHED, allowedVerdicts, pageable))
                 .build();
     }
 }

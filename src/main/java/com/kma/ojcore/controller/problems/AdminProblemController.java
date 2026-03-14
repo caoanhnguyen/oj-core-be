@@ -33,10 +33,9 @@ import java.util.UUID;
  * CRUD các bài tập, quản lý test case, template code, driver code
  */
 @RestController
-@RequestMapping("/api/admin/problems")
+@RequestMapping("${app.api.prefix}/admin/problems")
 @RequiredArgsConstructor
 @Validate
-@PreAuthorize("hasAnyRole('ADMIN', 'MODERATOR')")
 public class AdminProblemController {
 
     private final ProblemService problemService;
@@ -48,26 +47,6 @@ public class AdminProblemController {
         return ApiResponse.<ProblemDetailsSdo>builder()
                 .status(HttpStatus.CREATED.value())
                 .message("Problem created successfully")
-                .data(result)
-                .build();
-    }
-
-    @GetMapping("/{id}")
-    public ApiResponse<ProblemDetailsSdo> getProblemById(@PathVariable UUID id) {
-        ProblemDetailsSdo result = problemService.getProblemById(id);
-        return ApiResponse.<ProblemDetailsSdo>builder()
-                .status(HttpStatus.OK.value())
-                .message("Get problem details successfully")
-                .data(result)
-                .build();
-    }
-
-    @GetMapping("/slug/{slug}")
-    public ApiResponse<ProblemDetailsSdo> getProblemBySlug(@PathVariable String slug) {
-        ProblemDetailsSdo result = problemService.getProblemBySlug(slug);
-        return ApiResponse.<ProblemDetailsSdo>builder()
-                .status(HttpStatus.OK.value())
-                .message("Get problem details successfully")
                 .data(result)
                 .build();
     }

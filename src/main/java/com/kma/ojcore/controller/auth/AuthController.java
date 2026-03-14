@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.*;
  * Refresh token được lưu vào database và set vào cookie (httpOnly)
  */
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 public class AuthController {
 

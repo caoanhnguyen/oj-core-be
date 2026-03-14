@@ -1,6 +1,10 @@
 server:
   port: 8088
 
+app:
+  api:
+    prefix: /api/v1
+
 spring:
   application:
     name: oj-core

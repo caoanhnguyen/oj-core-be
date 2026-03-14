@@ -9,19 +9,17 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.data.web.SortDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/admin/submissions")
+@RequestMapping("${app.api.prefix}/admin/submissions")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ROLE_ADMIN')")
 public class AdminSubmissionController {
 
     private final SubmissionService submissionService;
@@ -46,13 +44,24 @@ public class AdminSubmissionController {
             @RequestParam(required = false) String username,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @PageableDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort
+            @SortDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort
     ) {
         Pageable pageable = PageRequest.of(page, size, sort);
+
+        List<SubmissionVerdict> allowedVerdicts = SubmissionVerdict.getAllVerdicts();
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Submissions retrieved successfully")
-                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, username, null, null, pageable))
+                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, username, null, null, allowedVerdicts, pageable))
+                .build();
+    }
+
+    @GetMapping("/{id}")
+    public ApiResponse<?> getSubmissionResult(@PathVariable UUID id) {
+        return ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Submission result retrieved successfully")
+                .data(submissionService.getSubmissionBasicInfo(id))
                 .build();
     }
 

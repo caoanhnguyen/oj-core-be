@@ -15,7 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
  * Controller để xử lý upload và quản lý ảnh cho Problem
  */
 @RestController
-@RequestMapping("/api/images")
+@RequestMapping("${app.api.prefix}/images")
 @RequiredArgsConstructor
 public class ImageController {
 
@@ -32,7 +32,6 @@ public class ImageController {
      * @return ImageUploadSdo chứa objectKey và presigned URL
      */
     @PostMapping("/upload-temp")
-    @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<ImageUploadSdo> uploadTemporaryImage(
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
@@ -57,7 +56,6 @@ public class ImageController {
      * Xóa tất cả ảnh temporary đã quá 24 giờ
      */
     @DeleteMapping("/cleanup-temp")
-    @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Void> cleanupTemporaryImages() {
         imageStorageService.cleanupExpiredTemporaryImages();
 

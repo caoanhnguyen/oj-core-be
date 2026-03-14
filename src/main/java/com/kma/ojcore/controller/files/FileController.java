@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/files")
+@RequestMapping("${app.api.prefix}/files")
 @RequiredArgsConstructor
 public class FileController {
 
@@ -27,7 +27,7 @@ public class FileController {
      * (inputUrl/outputUrl/illustrationUrl).
      */
     @GetMapping("/download")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<InputStreamResource> downloadFile(@RequestParam("key") String objectKey) {
         try {
             Resource resource = fileDownloadService.downloadByObjectKey(objectKey);

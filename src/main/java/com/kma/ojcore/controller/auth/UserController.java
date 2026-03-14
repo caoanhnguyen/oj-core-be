@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("${app.api.prefix}/users")
 @RequiredArgsConstructor
 public class UserController {
 
@@ -25,7 +25,7 @@ public class UserController {
 
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ADMIN')")
     public ApiResponse<UserResponse> getUserById(@PathVariable UUID id) {
         UserResponse response = userService.getUserById(id);
         return ApiResponse.<UserResponse>builder()
@@ -36,7 +36,6 @@ public class UserController {
     }
 
     @GetMapping("/username/{username}")
-    @PreAuthorize("isAuthenticated()")
     public ApiResponse<UserResponse> getUserByUsername(@PathVariable String username) {
         UserResponse response = userService.getUserByUsername(username);
         return ApiResponse.<UserResponse>builder()
@@ -47,7 +46,6 @@ public class UserController {
     }
 
     @GetMapping("/me")
-    @PreAuthorize("isAuthenticated()")
     public ApiResponse<?> getCurrentUser(@AuthenticationPrincipal UserPrincipal currentUser) {
         UserResponse userResponse = authService.getCurrentUser(currentUser);
         return ApiResponse.<UserResponse>builder()

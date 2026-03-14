@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/admin/testcases")
+@RequestMapping("${app.api.prefix}/admin/testcases")
 @RequiredArgsConstructor
 public class TestcaseController {
 
