@@ -26,14 +26,16 @@ public interface ProblemRepository extends JpaRepository<Problem, UUID> {
 
     Optional<Problem> findById(UUID id);
 
-    @Query("SELECT new com.kma.ojcore.dto.response.problems.ProblemResponse(p.id, p.title, p.slug, p.difficulty, p.status, p.problemStatus, p.createdDate, p.updatedDate) " +
+    @Query("SELECT new com.kma.ojcore.dto.response.problems.ProblemResponse(" +
+            "p.id, p.title, p.slug, p.difficulty, p.status, p.problemStatus, " +
+            "p.submissionCount, p.acceptedCount, p.totalScore, p.ruleType, null, p.createdDate, p.updatedDate) " +
             "FROM Problem p " +
             "WHERE (:keyword IS NULL OR LOWER(p.title) LIKE LOWER(:keyword)) " +
             "AND (:difficulty IS NULL OR p.difficulty = :difficulty) " +
             "AND (:status IS NULL OR p.status = :status)" +
             "AND (:problemStatus IS NULL OR p.problemStatus = :problemStatus)" +
             "AND (:topicSlugs IS NULL OR EXISTS (SELECT t FROM p.topics t WHERE t.slug IN :topicSlugs))")
-    Page<ProblemResponse> searchProblemsForAdmin(@Param("keyword") String keyword,
+    Page<ProblemResponse> searchProblems(@Param("keyword") String keyword,
                                                  @Param("difficulty") ProblemDifficulty difficulty,
                                                  @Param("status") EStatus status,
                                                  @Param("problemStatus") ProblemStatus problemStatus,
@@ -47,5 +49,13 @@ public interface ProblemRepository extends JpaRepository<Problem, UUID> {
     @Modifying
     @Query("Update Problem p set p.problemStatus = :problemStatus where p.id = :id")
     void updateProblemStatusById(@Param("problemStatus") ProblemStatus problemStatus, @Param("id") UUID id);
+
+    @Modifying
+    @Query("UPDATE Problem p SET p.acceptedCount = p.acceptedCount + 1 WHERE p.id = :problemId")
+    void incrementAcceptedCount(@Param("problemId") UUID problemId);
+
+    @Modifying
+    @Query("UPDATE Problem p SET p.submissionCount = p.submissionCount + 1 WHERE p.id = :problemId")
+    void incrementSubmissionCount(@Param("problemId") UUID problemId);
 
 }

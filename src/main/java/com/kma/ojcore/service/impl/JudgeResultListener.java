@@ -6,9 +6,13 @@ import com.kma.ojcore.dto.request.submissions.JudgeResultSdi;
 import com.kma.ojcore.dto.response.submissions.RunCodeResponse;
 import com.kma.ojcore.entity.Problem;
 import com.kma.ojcore.entity.Submission;
+import com.kma.ojcore.entity.User;
+import com.kma.ojcore.entity.UserProblemStatus;
 import com.kma.ojcore.enums.SubmissionVerdict;
+import com.kma.ojcore.enums.UserProblemState;
 import com.kma.ojcore.repository.ProblemRepository;
 import com.kma.ojcore.repository.SubmissionRepository;
+import com.kma.ojcore.repository.UserProblemStatusRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -27,6 +31,7 @@ public class JudgeResultListener {
     private final ProblemRepository problemRepository;
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
+    private final UserProblemStatusRepository userProblemStatusRepo;
 
     // Cái tai nghe gắn chặt vào RESULT_QUEUE
     @RabbitListener(queues = RabbitMQConfig.RESULT_QUEUE)
@@ -51,23 +56,58 @@ public class JudgeResultListener {
 
             submissionRepository.save(submission);
 
+            Problem problem = submission.getProblem();
+
             // 3. Nếu kết quả là AC (Accepted), cộng thêm 1 lượt giải đúng cho Problem
             if (result.getSubmissionVerdict() == SubmissionVerdict.AC) {
-                Problem problem = submission.getProblem();
-                problem.setAcceptedCount(problem.getAcceptedCount() + 1L);
-                problemRepository.save(problem);
+                problemRepository.incrementAcceptedCount(problem.getId());
                 log.info("Submission [{}] AC! Đã cộng điểm cho Problem [{}]", submission.getId(), problem.getId());
             } else {
                 log.info("Submission [{}] Verdict: {}", submission.getId(), result.getSubmissionVerdict());
             }
+
+            // 4. CẬP NHẬT TRẠNG THÁI CHO USER (TÍCH XANH / ĐANG LÀM DỞ)
+            updateUserProblemState(submission.getUser(), problem, result.getSubmissionVerdict());
+
         } catch (Exception e) {
             log.error("Lỗi nghiêm trọng khi xử lý kết quả Submission: {}", e.getMessage(), e);
         }
 
     }
 
+    /**
+     * Hàm helper xử lý logic Upsert vào bảng UserProblemStatus
+     */
+    private void updateUserProblemState(User user, Problem problem, SubmissionVerdict verdict) {
+        // Tìm xem user này đã từng nộp bài này bao giờ chưa
+        UserProblemStatus status = userProblemStatusRepo.findByUserIdAndProblemId(user.getId(), problem.getId())
+                .orElse(null);
+
+        if (status == null) {
+            // Chưa từng nộp -> Tạo mới
+            status = UserProblemStatus.builder()
+                    .user(user)
+                    .problem(problem)
+                    .state(verdict == SubmissionVerdict.AC ? UserProblemState.SOLVED : UserProblemState.ATTEMPTED)
+                    .build();
+            userProblemStatusRepo.save(status);
+        } else {
+            // Đã từng nộp rồi
+            if (verdict == SubmissionVerdict.AC) {
+                // Lần này AC -> Cập nhật thành SOLVED (bất chấp trước đó ra sao)
+                status.setState(UserProblemState.SOLVED);
+                userProblemStatusRepo.save(status);
+            } else if (status.getState() != UserProblemState.SOLVED) {
+                // Lần này SAI, và trước đó cũng chưa từng SOLVED -> Đảm bảo trạng thái là ATTEMPTED
+                // (Nếu trước đó đã SOLVED rồi thì giữ nguyên SOLVED)
+                status.setState(UserProblemState.ATTEMPTED);
+                userProblemStatusRepo.save(status);
+            }
+        }
+    }
+
     // ========================================================
-    // LUỒNG 2: XỬ LÝ KẾT QUẢ CHẠY THỬ (RUN CODE) - MỚI THÊM
+    // LUỒNG 2: XỬ LÝ KẾT QUẢ CHẠY THỬ (RUN CODE)
     // ========================================================
     @RabbitListener(queues = RabbitMQConfig.RUN_CODE_RESULT_QUEUE)
     public void handleRunCodeResult(RunCodeResponse response) {
@@ -75,13 +115,9 @@ public class JudgeResultListener {
             log.info("Đã nhận kết quả Run Code từ RabbitMQ. Token: [{}]", response.getRunToken());
 
             String redisKey = "RUN_CODE_RESULT:" + response.getRunToken();
-
-            // Biến Object thành chuỗi JSON để lưu vào Redis
             String jsonValue = objectMapper.writeValueAsString(response);
 
-            // Lưu vào Redis, cho nó sống đúng 5 phút (TTL). Quá 5 phút tự bốc hơi dọn rác.
             redisTemplate.opsForValue().set(redisKey, jsonValue, 5, TimeUnit.MINUTES);
-
             log.info("Đã lưu kết quả Run Code vào Redis thành công. Sẵn sàng cho Frontend lấy!");
 
         } catch (Exception e) {

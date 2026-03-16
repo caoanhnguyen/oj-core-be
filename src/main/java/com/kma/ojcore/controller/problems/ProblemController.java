@@ -8,6 +8,7 @@ import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.ProblemDifficulty;
 import com.kma.ojcore.enums.ProblemStatus;
 import com.kma.ojcore.enums.SubmissionVerdict;
+import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.service.ProblemService;
 import com.kma.ojcore.service.SubmissionService;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -74,10 +76,12 @@ public class ProblemController {
             @RequestParam(required = false) List<String> topicSlugs,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @PageableDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort) {
+            @PageableDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
 
         Pageable pageable = PageRequest.of(page, size, sort);
-        Page<ProblemResponse> result = problemService.getProblems(keyword, difficulty, EStatus.ACTIVE, ProblemStatus.PUBLISHED, topicSlugs, pageable);
+        UUID userId = currentUser != null ? currentUser.getId() : null;
+        Page<ProblemResponse> result = problemService.getProblems(keyword, difficulty, EStatus.ACTIVE, ProblemStatus.PUBLISHED, topicSlugs, userId, pageable);
 
         return ApiResponse.<Page<ProblemResponse>>builder()
                 .status(HttpStatus.OK.value())

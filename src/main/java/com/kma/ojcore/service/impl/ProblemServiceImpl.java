@@ -4,13 +4,11 @@ import com.kma.ojcore.dto.request.problems.CreateProblemSdi;
 import com.kma.ojcore.dto.request.problems.UpdateProblemSdi;
 import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo;
 import com.kma.ojcore.dto.response.problems.ProblemResponse;
-import com.kma.ojcore.entity.Problem;
-import com.kma.ojcore.entity.ProblemExample;
-import com.kma.ojcore.entity.ProblemTemplate;
-import com.kma.ojcore.entity.Topic;
+import com.kma.ojcore.entity.*;
 import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.ProblemDifficulty;
 import com.kma.ojcore.enums.ProblemStatus;
+import com.kma.ojcore.enums.UserProblemState;
 import com.kma.ojcore.exception.ResourceAlreadyExistsException;
 import com.kma.ojcore.exception.ResourceNotFoundException;
 import com.kma.ojcore.mapper.ExampleMapper;
@@ -18,6 +16,7 @@ import com.kma.ojcore.mapper.ProblemMapper;
 import com.kma.ojcore.mapper.TemplateMapper;
 import com.kma.ojcore.repository.ProblemRepository;
 import com.kma.ojcore.repository.TopicRepository;
+import com.kma.ojcore.repository.UserProblemStatusRepository;
 import com.kma.ojcore.service.ImageStorageService;
 import com.kma.ojcore.service.ProblemService;
 import com.kma.ojcore.utils.EscapeHelper;
@@ -43,6 +42,7 @@ public class ProblemServiceImpl implements ProblemService {
     private final ExampleMapper exampleMapper;
     private final ImageStorageService imageStorageService;
     private final TopicRepository topicRepository;
+    private final UserProblemStatusRepository userProblemStatusRepo;
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
@@ -150,16 +150,43 @@ public class ProblemServiceImpl implements ProblemService {
     @Transactional(readOnly = true)
     @Override
     public Page<ProblemResponse> getProblems(String keyword, ProblemDifficulty difficulty, EStatus status,
-            ProblemStatus problemStatus, List<String> topicSlugs, Pageable pageable) {
+            ProblemStatus problemStatus, List<String> topicSlugs, UUID userId, Pageable pageable) {
         // Escape keyword để tránh lỗi khi dùng trong query
         String searchKeyword = EscapeHelper.escapeLike(keyword);
-        return problemRepository.searchProblemsForAdmin(
-                searchKeyword,
-                difficulty,
-                status,
-                problemStatus,
-                topicSlugs,
-                pageable);
+        // 1. Lấy danh sách 20 bài tập từ Database (Câu query cũ của bro)
+        Page<ProblemResponse> pageResult = problemRepository.searchProblems(
+                searchKeyword, difficulty, status, problemStatus, topicSlugs, pageable
+        );
+
+        // 2. Nếu User chưa đăng nhập (khách vãng lai) hoặc trang rỗng -> Trả về luôn cho nhẹ máy
+        if (userId == null || pageResult.isEmpty()) {
+            return pageResult;
+        }
+
+        // 3. Rút trích danh sách 20 UUID của các bài tập đang hiển thị
+        List<UUID> problemIds = pageResult.getContent().stream()
+                .map(ProblemResponse::getId)
+                .collect(Collectors.toList());
+
+        // 4. BATCH QUERY: Hỏi Database trạng thái của User này đối với 20 bài tập trên
+        // Chỉ tốn đúng 1 lệnh SELECT siêu nhanh!
+        List<UserProblemStatus> statuses = userProblemStatusRepo.findByUserIdAndProblemIdIn(userId, problemIds);
+
+        // 5. Gom kết quả vào một cái Map để tra cứu O(1) cho lẹ
+        Map<UUID, UserProblemState> statusMap = statuses.stream()
+                .collect(Collectors.toMap(
+                        s -> s.getProblem().getId(),
+                        UserProblemStatus::getState
+                ));
+
+        // 6. Gắn trạng thái vào DTO trả về cho Frontend
+        pageResult.getContent().forEach(problem -> {
+            if (statusMap.containsKey(problem.getId())) {
+                problem.setUserProblemState(statusMap.get(problem.getId()).name());
+            }
+        });
+
+        return pageResult;
     }
 
     @Transactional(rollbackFor = Throwable.class)

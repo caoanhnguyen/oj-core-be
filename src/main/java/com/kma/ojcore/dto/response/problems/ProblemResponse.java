@@ -1,9 +1,8 @@
 package com.kma.ojcore.dto.response.problems;
 
-import com.kma.ojcore.enums.EStatus;
-import com.kma.ojcore.enums.ProblemDifficulty;
-import com.kma.ojcore.enums.ProblemStatus;
+import com.kma.ojcore.enums.*;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.experimental.FieldDefaults;
@@ -13,6 +12,7 @@ import java.util.UUID;
 
 @Data
 @Builder
+@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ProblemResponse {
 
@@ -22,6 +22,11 @@ public class ProblemResponse {
     ProblemDifficulty difficulty;
     EStatus status;
     ProblemStatus problemStatus;
+    Long submissionCount;
+    Long acceptedCount;
+    Integer totalScore;
+    RuleType ruleType;
+    String userProblemState; // Trạng thái của người dùng hiện tại với bài toán này (Solved / Attempted)
     LocalDateTime createdDate;
     LocalDateTime updatedDate;
 }

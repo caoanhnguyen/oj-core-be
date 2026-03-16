@@ -32,4 +32,6 @@ public interface SubmissionService {
                            Pageable pageable);
 
     ProblemStatisticSdo getProblemStatistics(UUID problemId, List<SubmissionVerdict> allowedVerdicts);
+
+    String getLatestSubmissionCode(UUID problemId, UUID userId, String languageKey);
 }

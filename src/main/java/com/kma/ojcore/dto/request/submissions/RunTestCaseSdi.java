@@ -11,6 +11,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class RunTestCaseSdi {
 
-    String input;
+    String rawInput;
     String expectedOutput; // Mang giá trị null nếu là custom input, không có expected output
 }
