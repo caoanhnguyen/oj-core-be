@@ -3,7 +3,6 @@ package com.kma.ojcore.controller.submissions;
 import com.kma.ojcore.dto.request.submissions.RunCodeSubmitDto;
 import com.kma.ojcore.dto.request.submissions.SubmissionSdi;
 import com.kma.ojcore.dto.response.common.ApiResponse;
-import com.kma.ojcore.dto.response.problems.ProblemStatisticSdo;
 import com.kma.ojcore.dto.response.submissions.RunCodeResponse;
 import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.ProblemStatus;
@@ -29,7 +28,6 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/submissions")
 @RequiredArgsConstructor
-//@PreAuthorize("hasAnyRole('ADMIN', 'USER', 'MODERATOR')")
 public class SubmissionController {
 
     private final SubmissionService submissionService;
@@ -115,6 +113,22 @@ public class SubmissionController {
                 .status(HttpStatus.OK.value())
                 .message("Submissions retrieved successfully")
                 .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, username, EStatus.ACTIVE, ProblemStatus.PUBLISHED, allowedVerdicts, pageable))
+                .build();
+    }
+
+    @GetMapping("latest_source_code/{problemId}/{languageKey}")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<?> getLatestSourceCode(@PathVariable UUID problemId,
+                                               @PathVariable String languageKey) {
+        // Lấy ID của user hiện tại từ security context
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserPrincipal user = (UserPrincipal) authentication.getPrincipal();
+
+        String sourceCode = submissionService.getLatestSubmissionCode(problemId, user.getId(), languageKey);
+        return ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Latest source code retrieved successfully")
+                .data(sourceCode)
                 .build();
     }
 }

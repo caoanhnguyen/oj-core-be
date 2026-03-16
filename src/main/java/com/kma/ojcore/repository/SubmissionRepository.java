@@ -14,6 +14,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -61,4 +62,18 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
                                             @Param("problemStatus") ProblemStatus problemStatus,
                                             @Param("verdicts") List<SubmissionVerdict> allowedVerdicts,
                                             Pageable pageable);
+
+
+
+    @Query(value = "SELECT source_code FROM submissions " +
+            "WHERE problem_id = :problemId " +
+            "AND user_id = :userId " +
+            "AND language_key = :languageKey " +
+            "ORDER BY created_date DESC LIMIT 1",
+            nativeQuery = true)
+    Optional<String> findFirstSourceCodeByProblemIdAndUserIdAndLanguageKey(
+            @Param("problemId") UUID problemId,
+            @Param("userId") UUID userId,
+            @Param("languageKey") String languageKey
+    );
 }

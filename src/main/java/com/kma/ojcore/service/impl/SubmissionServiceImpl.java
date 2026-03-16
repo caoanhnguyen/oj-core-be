@@ -83,8 +83,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         submission = submissionRepository.save(submission);
 
         // Cộng lượt nộp vào Problem
-        problem.setSubmissionCount(problem.getSubmissionCount() + 1L);
-        problemRepository.save(problem);
+        problemRepository.incrementSubmissionCount(problem.getId());
 
         // --- 5. TÍNH TOÁN FINAL LIMIT VÀ ĐÓNG GÓI JUDGE SDI ---
         // Công thức: Final = (Base * Multiplier) + Allowance
@@ -192,8 +191,8 @@ public class SubmissionServiceImpl implements SubmissionService {
         for (SubmissionRepository.VerdictCountProjection p : projections) {
             SubmissionVerdict verdict = SubmissionVerdict.valueOf(p.getVerdict()); // Trả về kiểu Enum
 
-            // 🌟 CHỐT CHẶN: Nếu DB trả ra cái verdict KHÔNG NẰM TRONG danh sách cho phép -> Bỏ qua!
-            if (verdict == null || !allowedVerdicts.contains(verdict)) {
+            // Nếu DB trả ra cái verdict KHÔNG NẰM TRONG danh sách cho phép -> Bỏ qua!
+            if (!allowedVerdicts.contains(verdict)) {
                 continue;
             }
 
@@ -206,5 +205,10 @@ public class SubmissionServiceImpl implements SubmissionService {
                 .totalSubmissions(total)
                 .verdictCounts(counts)
                 .build();
+    }
+
+    @Override
+    public String getLatestSubmissionCode(UUID problemId, UUID userId, String languageKey) {
+        return submissionRepository.findFirstSourceCodeByProblemIdAndUserIdAndLanguageKey(problemId, userId, languageKey).orElse(null);
     }
 }
