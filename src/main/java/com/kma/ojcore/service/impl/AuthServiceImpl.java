@@ -39,8 +39,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.util.HashSet;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -84,14 +84,14 @@ public class AuthServiceImpl implements AuthService {
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
             UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-            User user = userRepository.findById(userPrincipal.getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+//            User user = userRepository.findById(userPrincipal.getId())
+//                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
             // Tạo access token
             String accessToken = tokenProvider.generateAccessToken(authentication);
 
             // Lưu refresh token vào database
-            RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+            RefreshToken refreshToken = refreshTokenService.createRefreshToken(userPrincipal.getId());
 
             // Set access token vào cookie
             tokenCookieUtil.setTokenCookies(httpResponse, accessToken, refreshToken.getToken());
@@ -100,7 +100,7 @@ public class AuthServiceImpl implements AuthService {
                     .userId(userPrincipal.getId())
                     .username(userPrincipal.getUsername())
                     .email(userPrincipal.getEmail())
-                    .fullName(user.getFullName())
+                    .fullName(userPrincipal.getFullName())
                     .build();
 
         } catch (Exception e) {
@@ -174,7 +174,7 @@ public class AuthServiceImpl implements AuthService {
             String newAccessToken = tokenProvider.generateAccessToken(userPrincipal);
 
             // Tạo refresh token mới và revoke token cũ
-            RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user);
+            RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user.getId());
 
             // Set access token vào cookie
             tokenCookieUtil.setTokenCookies(httpResponse, newAccessToken, newRefreshToken.getToken());
@@ -187,7 +187,8 @@ public class AuthServiceImpl implements AuthService {
                     .build();
         } catch (Exception e) {
             log.error("Token refresh failed: {}", e.getMessage());
-            throw new RuntimeException("Could not refresh token: " + e.getMessage());
+            tokenCookieUtil.clearCookies(httpResponse);
+            throw new BadCredentialsException("Refresh token không hợp lệ hoặc đã bị thu hồi. Vui lòng đăng nhập lại!");
         }
     }
 
@@ -196,21 +197,20 @@ public class AuthServiceImpl implements AuthService {
     public void logout(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
         try {
             String refreshTokenStr = tokenCookieUtil.getCookieValue(httpRequest, tokenCookieUtil.REFRESH_TOKEN_COOKIE_NAME);
+            if (refreshTokenStr != null && !refreshTokenStr.isEmpty()) {
+                refreshTokenService.revokeToken(refreshTokenStr);
+            }
 
-            // Revoke refresh token trong database
-            refreshTokenService.revokeToken(refreshTokenStr);
-
-            // Thêm access token vào blacklist
             String accessToken = tokenCookieUtil.getCookieValue(httpRequest, tokenCookieUtil.ACCESS_TOKEN_COOKIE_NAME);
             if (accessToken != null && !accessToken.isEmpty()) {
                 tokenBlacklistServiceImpl.blacklistToken(accessToken);
             }
-
-            // Xoá cookie access token và refresh token
-            tokenCookieUtil.clearCookies(httpResponse);
         } catch (Exception e) {
-            log.error("Logout failed: {}", e.getMessage());
-            throw new RuntimeException("Error orcurred");
+            // Chỉ log lại để biết, KHÔNG throw Exception làm sập API
+            log.warn("Có lỗi xảy ra khi revoke/blacklist token lúc logout: {}", e.getMessage());
+        } finally {
+            tokenCookieUtil.clearCookies(httpResponse);
+            SecurityContextHolder.clearContext(); // Dọn dẹp luôn context của Spring Security cho sạch sẽ
         }
     }
 
@@ -229,16 +229,21 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void forgotPassword(String email) {
-        // 1. Check user tồn tại
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        // Chuẩn hóa email: xóa khoảng trắng 2 đầu và đưa về chữ thường
+        String normalizedEmail = email.trim().toLowerCase();
 
-        // 2. Sinh OTP ngẫu nhiên (Ví dụ 6 số)
-        String otp = String.valueOf(new Random().nextInt(900000) + 100000);
+        // 1. Check user tồn tại bằng email đã chuẩn hóa
+        if (!userRepository.existsByEmail(normalizedEmail)) {
+            throw new ResourceNotFoundException("User not found");
+        }
 
-        // 3. Lưu OTP vào Redis (Sống 5 phút)
+        // 2. Sinh OTP ngẫu nhiên (Dùng SecureRandom chống đoán hạt giống)
+        SecureRandom secureRandom = new SecureRandom();
+        String otp = String.valueOf(secureRandom.nextInt(900000) + 100000);
+
+        // 3. Lưu OTP vào Redis với key là email đã chuẩn hóa (Sống 5 phút)
         redisTemplate.opsForValue().set(
-                RESET_PASS_PREFIX + email,
+                RESET_PASS_PREFIX + normalizedEmail,
                 otp,
                 5,
                 TimeUnit.MINUTES
@@ -246,7 +251,7 @@ public class AuthServiceImpl implements AuthService {
 
         // 4. Tạo nội dung email
         EmailMessage message = EmailMessage.builder()
-                .to(email)
+                .to(normalizedEmail) // Gửi tới email đã chuẩn hóa luôn cho an toàn
                 .subject("Reset Password - OJ Core")
                 .content("<h1>Mã xác thực của bạn là: " + otp + "</h1>" +
                         "<p>Mã này sẽ hết hạn sau 5 phút.</p>")
@@ -258,26 +263,30 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void resetPassword(ResetPasswordRequest request) throws BadRequestException {
-        // 1. Lấy OTP từ Redis
-        String cachedOtp = redisTemplate.opsForValue().get(RESET_PASS_PREFIX + request.getEmail());
+        // Chuẩn hóa email từ request
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
 
-        // 2. Validate
+        // 1. Lấy OTP từ Redis
+        String cachedOtp = redisTemplate.opsForValue().get(RESET_PASS_PREFIX + normalizedEmail);
+
+        // 2. Validate OTP
         if (cachedOtp == null) {
             throw new BadRequestException("OTP đã hết hạn hoặc không tồn tại.");
         }
         if (!cachedOtp.equals(request.getOtp())) {
+            // (Tùy chọn) Thêm logic tăng biến đếm sai ở đây để chống Brute-force nếu cần
             throw new BadRequestException("OTP không chính xác.");
         }
 
         // 3. Đổi mật khẩu
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
 
         // 4. Xóa OTP khỏi Redis (Tránh dùng lại)
-        redisTemplate.delete(RESET_PASS_PREFIX + request.getEmail());
+        redisTemplate.delete(RESET_PASS_PREFIX + normalizedEmail);
     }
 
     @Override

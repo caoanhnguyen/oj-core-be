@@ -55,6 +55,7 @@ public class JwtTokenProvider {
                 .subject(String.valueOf(userPrincipal.getId()))
                 .claim("username", userPrincipal.getUsername())
                 .claim("email", userPrincipal.getEmail())
+                .claim("fullName", userPrincipal.getFullName())
                 .claim("roles", userPrincipal.getRoles().stream()
                         .map(Role::getName)
                         .collect(Collectors.toList()))
