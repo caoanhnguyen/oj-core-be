@@ -4,9 +4,10 @@ import com.kma.ojcore.entity.RefreshToken;
 import com.kma.ojcore.entity.User;
 
 import java.util.Optional;
+import java.util.UUID;
 
 public interface RefreshTokenService {
-    RefreshToken createRefreshToken(User user);
+    RefreshToken createRefreshToken(UUID userId);
 
     Optional<RefreshToken> findByToken(String token);
 

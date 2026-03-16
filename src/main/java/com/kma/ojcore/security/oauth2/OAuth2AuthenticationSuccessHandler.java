@@ -67,7 +67,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         User user = userRepository.findUserWithRolesById(Objects.requireNonNull(userPrincipal).getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
 
         // Set access token vào cookie
         tokenCookieUtil.setTokenCookies(response, accessToken, refreshToken.getToken());

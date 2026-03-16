@@ -26,6 +26,7 @@ public class UserPrincipal implements UserDetails, OAuth2User {
 
     UUID id;
     String username;
+    String fullName;
     String email;
     @JsonIgnore
     String password;
@@ -44,6 +45,7 @@ public class UserPrincipal implements UserDetails, OAuth2User {
         return new UserPrincipal(
                 user.getId(),
                 user.getUsername(),
+                user.getFullName(),
                 user.getEmail(),
                 user.getPassword(),
                 user.getRoles(),

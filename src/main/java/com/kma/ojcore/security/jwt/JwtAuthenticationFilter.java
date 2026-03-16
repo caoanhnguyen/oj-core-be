@@ -71,6 +71,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UUID userId = UUID.fromString(claims.getSubject());
                 String username = claims.get("username", String.class);
                 String email = claims.get("email", String.class);
+                String fullName = claims.get("fullName", String.class);
 
                 // Lấy mảng roles mà bro đã ném vào lúc generate token
                 List<String> roles = claims.get("roles", List.class);
@@ -83,7 +84,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 // Tự tay nặn ra đối tượng UserPrincipal ngay trên RAM (Các trường entity để null)
                 UserPrincipal principal = new UserPrincipal(
-                        userId, username, email, null, null, null, authorities, null
+                        userId, username, fullName, email, null, null, null, authorities, null
                 );
 
                 // Gắn mác VIP (Authentication) cho thanh niên này

@@ -3,6 +3,7 @@ package com.kma.ojcore.service.impl;
 import com.kma.ojcore.entity.RefreshToken;
 import com.kma.ojcore.entity.User;
 import com.kma.ojcore.repository.RefreshTokenRepository;
+import com.kma.ojcore.repository.UserRepository;
 import com.kma.ojcore.security.jwt.JwtTokenProvider;
 import com.kma.ojcore.service.RefreshTokenService;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Service quản lý RefreshToken trong database
@@ -23,23 +25,26 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
-    public RefreshToken createRefreshToken(User user) {
-        // Revoke các token cũ của user
-        refreshTokenRepository.findByUserAndRevokedFalse(user).ifPresent(oldToken -> {
-            oldToken.setRevoked(true);
-            refreshTokenRepository.save(oldToken);
-        });
+    public RefreshToken createRefreshToken(UUID userId) { // 🌟 Chỉ nhận UUID
 
-        // Tạo token mới
-        String tokenString = jwtTokenProvider.generateRefreshToken(user.getId());
+        // 1. Thu hồi toàn bộ token cũ bằng 1 câu lệnh UPDATE siêu tốc
+        refreshTokenRepository.revokeAllUserTokens(userId);
+
+        // 2. Tạo token string và tính hạn sử dụng
+        String tokenString = jwtTokenProvider.generateRefreshToken(userId); // Nếu hàm cũ của bro cần UUID
         Instant expiryDate = Instant.now().plusMillis(jwtTokenProvider.getRefreshTokenExpirationMs());
 
+        // Lấy User ảo (Không chọc xuống DB)
+        User userProxy = userRepository.getReferenceById(userId);
+
+        // 4. Build và lưu Token mới
         RefreshToken refreshToken = RefreshToken.builder()
                 .token(tokenString)
-                .user(user)
+                .user(userProxy) // Gắn Proxy vào đây, JPA tự hiểu để lấy ID làm khóa ngoại
                 .expiryDate(expiryDate)
                 .revoked(false)
                 .build();
