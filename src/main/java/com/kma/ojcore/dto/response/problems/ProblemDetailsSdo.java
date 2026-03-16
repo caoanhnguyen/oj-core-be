@@ -77,5 +77,6 @@ public class ProblemDetailsSdo {
     public static class TopicsSummary {
         UUID topicId; // Map từ id của Topic
         String name;
+        String slug;
     }
 }

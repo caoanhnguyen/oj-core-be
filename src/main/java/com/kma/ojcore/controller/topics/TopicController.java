@@ -2,6 +2,8 @@ package com.kma.ojcore.controller.topics;
 
 import com.kma.ojcore.dto.response.common.ApiResponse;
 import com.kma.ojcore.dto.response.topics.TopicBasicSdo;
+import com.kma.ojcore.dto.response.topics.TopicDetailsStatisticsSdo;
+import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.service.TopicService;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -10,15 +12,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/topics")
 @AllArgsConstructor
-public class UserTopicController {
+public class TopicController {
 
     private final TopicService topicService;
 
@@ -34,6 +36,19 @@ public class UserTopicController {
                 .status(HttpStatus.OK.value())
                 .message("Topics retrieved successfully")
                 .data(topics)
+                .build();
+    }
+
+    @GetMapping("{slug}/details")
+    public ApiResponse<?> getTopicDetailsWithStatistics(@PathVariable String slug,
+                                                        @AuthenticationPrincipal UserPrincipal user) {
+        UUID userId = user.getId();
+        TopicDetailsStatisticsSdo detailsSdo = topicService.getDetailsWithStatisticsBySlug(slug, userId);
+
+        return ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Topic details with statistics retrieved successfully")
+                .data(detailsSdo)
                 .build();
     }
 }

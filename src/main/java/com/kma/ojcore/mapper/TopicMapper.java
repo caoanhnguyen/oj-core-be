@@ -3,6 +3,7 @@ package com.kma.ojcore.mapper;
 import com.kma.ojcore.dto.request.topics.CreateTopicSdi;
 import com.kma.ojcore.dto.request.topics.UpdateTopicSdi;
 import com.kma.ojcore.dto.response.topics.TopicDetailsSdo;
+import com.kma.ojcore.dto.response.topics.TopicDetailsStatisticsSdo;
 import com.kma.ojcore.entity.Topic;
 import org.mapstruct.*;
 
@@ -13,6 +14,9 @@ public interface TopicMapper {
 
     @Mapping(target = "topicId", source = "id")
     TopicDetailsSdo toDetailsSdo(Topic topic);
+
+    @Mapping(target = "topicId", source = "id")
+    TopicDetailsStatisticsSdo toDetailsStatisticsSdo(Topic topic);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     void updateEntityFromSdi(@MappingTarget Topic topic, UpdateTopicSdi updateTopicSdi);

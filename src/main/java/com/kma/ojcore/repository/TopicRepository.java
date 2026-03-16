@@ -1,9 +1,11 @@
 package com.kma.ojcore.repository;
 
+import com.kma.ojcore.dto.response.topics.DifficultyCountProjection;
 import com.kma.ojcore.dto.response.topics.TopicAdminSdo;
 import com.kma.ojcore.dto.response.topics.TopicBasicSdo;
 import com.kma.ojcore.entity.Topic;
 import com.kma.ojcore.enums.EStatus;
+import com.kma.ojcore.enums.ProblemDifficulty;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -41,7 +44,15 @@ public interface TopicRepository extends JpaRepository<Topic, UUID> {
 
     boolean existsBySlug(String slug);
 
+    Optional<Topic> findBySlug(String slug);
+
     @Modifying
     @Query("UPDATE Topic t SET t.status = :status WHERE t.id = :topicId")
     void updateStatusById(@Param("status") EStatus status, @Param("topicId") UUID topicId);
+
+    @Query("SELECT p.difficulty as difficulty, COUNT(p.id) as count " +
+            "FROM Problem p JOIN p.topics t " +
+            "WHERE t.slug = :slug AND p.status = 'ACTIVE' AND p.problemStatus = 'PUBLISHED' " +
+            "GROUP BY p.difficulty")
+    List<DifficultyCountProjection> countProblemsByDifficultyForTopic(@Param("slug") String slug);
 }

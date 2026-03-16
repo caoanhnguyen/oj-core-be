@@ -71,6 +71,7 @@ public interface ProblemMapper {
                 .map(t -> ProblemDetailsSdo.TopicsSummary.builder()
                         .topicId(t.getId())
                         .name(t.getName())
+                        .slug(t.getSlug())
                         .build())
                 .collect(Collectors.toList());
     }

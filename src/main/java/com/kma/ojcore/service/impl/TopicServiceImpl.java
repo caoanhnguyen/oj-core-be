@@ -2,13 +2,13 @@ package com.kma.ojcore.service.impl;
 
 import com.kma.ojcore.dto.request.topics.CreateTopicSdi;
 import com.kma.ojcore.dto.request.topics.UpdateTopicSdi;
-import com.kma.ojcore.dto.response.topics.TopicAdminSdo;
-import com.kma.ojcore.dto.response.topics.TopicBasicSdo;
-import com.kma.ojcore.dto.response.topics.TopicDetailsSdo;
+import com.kma.ojcore.dto.response.topics.*;
 import com.kma.ojcore.entity.Topic;
 import com.kma.ojcore.enums.EStatus;
+import com.kma.ojcore.exception.ResourceNotFoundException;
 import com.kma.ojcore.mapper.TopicMapper;
 import com.kma.ojcore.repository.TopicRepository;
+import com.kma.ojcore.repository.UserProblemStatusRepository;
 import com.kma.ojcore.service.TopicService;
 import com.kma.ojcore.utils.EscapeHelper;
 import org.springframework.data.domain.Page;
@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -23,10 +24,12 @@ public class TopicServiceImpl implements TopicService {
 
     private final TopicRepository topicRepository;
     private final TopicMapper topicMapper;
+    private final UserProblemStatusRepository userProblemStatusRepository;
 
-    public TopicServiceImpl(TopicRepository topicRepository, TopicMapper topicMapper) {
+    public TopicServiceImpl(TopicRepository topicRepository, TopicMapper topicMapper, UserProblemStatusRepository userProblemStatusRepository) {
         this.topicRepository = topicRepository;
         this.topicMapper = topicMapper;
+        this.userProblemStatusRepository = userProblemStatusRepository;
     }
 
     @Transactional(readOnly = true)
@@ -34,6 +37,45 @@ public class TopicServiceImpl implements TopicService {
     public Page<TopicBasicSdo> userSearchTopics(String name, Pageable pageable) {
         String searchName = EscapeHelper.escapeLike(name);
         return topicRepository.userSearchTopics(searchName, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public TopicDetailsStatisticsSdo getDetailsWithStatisticsBySlug(String slug, UUID userId) {
+        // 1. Lấy thông tin cơ bản
+        Topic topic = topicRepository.findBySlug(slug)
+                .orElseThrow(() -> new ResourceNotFoundException("Topic not found"));
+
+        TopicDetailsStatisticsSdo detailsSdo = topicMapper.toDetailsStatisticsSdo(topic);
+
+        // 2. Lấy thống kê số lượng problem theo độ khó
+        List<DifficultyCountProjection> totalStats = topicRepository.countProblemsByDifficultyForTopic(slug);
+        for(DifficultyCountProjection difficultyCount : totalStats) {
+            switch (difficultyCount.getDifficulty()) {
+                case EASY -> detailsSdo.setTotalEasy(difficultyCount.getCount());
+                case MEDIUM -> detailsSdo.setTotalMedium(difficultyCount.getCount());
+                case HARD -> detailsSdo.setTotalHard(difficultyCount.getCount());
+            }
+        }
+
+        // 3. Nếu chưa đăng nhập thì trả về luôn
+        if(userId == null) {
+            return detailsSdo;
+        }
+
+        // 4. Nếu đã đăng nhập, thấy thống kê số bài đã giải theo độ khó
+        List<DifficultyCountProjection> solvedStats = userProblemStatusRepository.countSolvedProblemsByDifficultyForTopic(userId, slug);
+        long solvedTotal = 0;
+        for (DifficultyCountProjection stat : solvedStats) {
+            solvedTotal+= stat.getCount();
+            switch (stat.getDifficulty()) {
+                case EASY -> detailsSdo.setSolvedEasy(stat.getCount());
+                case MEDIUM -> detailsSdo.setSolvedMedium(stat.getCount());
+                case HARD -> detailsSdo.setSolvedHard(stat.getCount());
+            }
+        }
+        detailsSdo.setSolvedTotal(solvedTotal);
+        return detailsSdo;
     }
 
     @Transactional(readOnly = true)
