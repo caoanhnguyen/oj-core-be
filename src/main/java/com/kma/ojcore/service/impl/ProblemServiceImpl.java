@@ -353,4 +353,10 @@ public class ProblemServiceImpl implements ProblemService {
         problemRepository.updateProblemStatusById(ProblemStatus.PUBLISHED, id);
         log.info("Problem published successfully: {}", id);
     }
+
+    @Transactional(readOnly = true)
+    @Override
+    public long countUserProblemsByUserIdAndState(UUID userId, UserProblemState state) {
+        return userProblemStatusRepo.countByUserIdAndState(userId, state);
+    }
 }

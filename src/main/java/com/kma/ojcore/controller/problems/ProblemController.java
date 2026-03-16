@@ -4,10 +4,7 @@ import com.kma.ojcore.dto.response.common.ApiResponse;
 import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo;
 import com.kma.ojcore.dto.response.problems.ProblemResponse;
 import com.kma.ojcore.dto.response.problems.ProblemStatisticSdo;
-import com.kma.ojcore.enums.EStatus;
-import com.kma.ojcore.enums.ProblemDifficulty;
-import com.kma.ojcore.enums.ProblemStatus;
-import com.kma.ojcore.enums.SubmissionVerdict;
+import com.kma.ojcore.enums.*;
 import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.service.ProblemService;
 import com.kma.ojcore.service.SubmissionService;
@@ -29,7 +26,6 @@ import java.util.UUID;
 @RequestMapping("/api/v1/problems")
 @RequiredArgsConstructor
 @Validate
-//@PreAuthorize("hasAnyRole('ADMIN', 'MODERATOR', 'USER')")
 public class ProblemController {
 
     private final SubmissionService submissionService;
@@ -87,6 +83,17 @@ public class ProblemController {
                 .status(HttpStatus.OK.value())
                 .message("Get problems successfully")
                 .data(result)
+                .build();
+    }
+
+    @GetMapping("/solved/count")
+    public ApiResponse<Long> countUserSolvedProblems(@AuthenticationPrincipal UserPrincipal currentUser) {
+        UUID userId = currentUser.getId();
+        long count = problemService.countUserProblemsByUserIdAndState(userId, UserProblemState.SOLVED);
+        return ApiResponse.<Long>builder()
+                .status(HttpStatus.OK.value())
+                .message("Count solved problems successfully")
+                .data(count)
                 .build();
     }
 }

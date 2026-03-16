@@ -1,5 +1,6 @@
 package com.kma.ojcore.repository;
 
+import com.kma.ojcore.entity.User;
 import com.kma.ojcore.entity.UserProblemStatus;
 import com.kma.ojcore.enums.UserProblemState;
 import org.springframework.data.jpa.repository.JpaRepository;
