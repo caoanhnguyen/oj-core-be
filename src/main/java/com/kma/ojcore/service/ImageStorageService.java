@@ -6,7 +6,6 @@ import com.kma.ojcore.entity.User;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -30,15 +29,24 @@ public interface ImageStorageService {
      *
      * @param temporaryKeys Danh sách object keys temporary (VD: ["temp/abc.png"])
      * @param problem       Problem được gắn ảnh
-     * @return Map<oldKey, newKey> để replace URLs trong HTML content
      */
-    Map<String, String> commitImages(List<String> temporaryKeys, Problem problem);
+    void commitImages(List<String> temporaryKeys, Problem problem);
 
     /**
      * Xóa các ảnh temporary đã quá hạn (> 24 giờ)
      * Được gọi bởi scheduled job
      */
     void cleanupExpiredTemporaryImages();
+
+        /**
+        * Đồng bộ ảnh khi cập nhật Problem
+        * - Xóa những ảnh không còn được sử dụng (không có trong usedImageKeys)
+        * - Commit những ảnh mới được thêm vào (có trong usedImageKeys nhưng chưa commit)
+        *
+        * @param usedImageKeys Danh sách object keys đang được sử dụng trong Problem (có thể là temporary hoặc committed)
+        * @param problem       Problem đang được cập nhật
+        */
+    void syncProblemImages(List<String> usedImageKeys, Problem problem);
 
     /**
      * Xóa tất cả ảnh của một Problem (khi delete Problem)
