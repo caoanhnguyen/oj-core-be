@@ -2,45 +2,36 @@ package com.kma.ojcore.controller.files;
 
 import com.kma.ojcore.dto.response.common.ApiResponse;
 import com.kma.ojcore.dto.response.problems.ImageUploadSdo;
+import com.kma.ojcore.entity.User;
+import com.kma.ojcore.repository.UserRepository;
 import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.service.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-/**
- * Controller để xử lý upload và quản lý ảnh cho Problem
- */
 @RestController
 @RequestMapping("${app.api.prefix}/images")
 @RequiredArgsConstructor
 public class ImageController {
 
     private final ImageStorageService imageStorageService;
+    private final UserRepository userRepository;
 
     /**
-     * Upload ảnh tạm thời cho Problem description/examples
-     * Chỉ ADMIN mới được upload
-     * Ảnh sẽ được lưu vào MinIO với prefix "temp/" và tự động cleanup sau 24h nếu
-     * không được commit
-     *
-     * @param file          MultipartFile ảnh cần upload
-     * @param userPrincipal User hiện tại (từ Security Context)
-     * @return ImageUploadSdo chứa objectKey và presigned URL
+     * API upload ảnh tạm thời cho trình soạn thảo (editor).
+     * FE sẽ gọi API này khi người dùng chèn ảnh vào trình soạn thảo.
+     * Ảnh sẽ được lưu tạm thời với trạng thái "TEMPORARY" và có thể được xóa sau 24h nếu không được sử dụng.
+     * Trả về URL tạm thời từ minIO để FE có thể hiển thị ngay trong editor.
      */
-    @PostMapping("/upload-temp")
-    public ApiResponse<ImageUploadSdo> uploadTemporaryImage(
+    @PostMapping("/editor/upload")
+    public ApiResponse<ImageUploadSdo> uploadEditorImage(
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
-        // Create User entity from UserPrincipal
-        com.kma.ojcore.entity.User uploader = new com.kma.ojcore.entity.User();
-        uploader.setId(userPrincipal.getId());
-        uploader.setUsername(userPrincipal.getUsername());
-        uploader.setEmail(userPrincipal.getEmail());
+        User uploader = userRepository.getReferenceById(userPrincipal.getId());
 
         ImageUploadSdo result = imageStorageService.uploadTemporaryImage(file, uploader);
 
@@ -52,10 +43,10 @@ public class ImageController {
     }
 
     /**
-     * Cleanup ảnh temporary thủ công (Admin only)
-     * Xóa tất cả ảnh temporary đã quá 24 giờ
+     * API dọn dẹp ảnh tạm thời đã hết hạn (hết 24h).
+     * Có thể được gọi định kỳ bằng cron job hoặc scheduler.
      */
-    @DeleteMapping("/cleanup-temp")
+    @DeleteMapping("/editor/cleanup")
     public ApiResponse<Void> cleanupTemporaryImages() {
         imageStorageService.cleanupExpiredTemporaryImages();
 

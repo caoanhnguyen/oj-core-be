@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Cảnh vệ xử lý các file PRIVATE của hệ thống (Ví dụ: Testcase, file cấu hình chấm điểm...)
+ */
 @RestController
 @RequestMapping("${app.api.prefix}/files")
 @RequiredArgsConstructor
@@ -23,8 +26,8 @@ public class FileController {
     private final FileDownloadService fileDownloadService;
 
     /**
-     * Download file từ MinIO dựa trên object key đã lưu trong DB
-     * (inputUrl/outputUrl/illustrationUrl).
+     * Download file tuyệt mật từ MinIO (Chỉ Admin mới có quyền)
+     * Thường dùng để tải file testcase (.zip) về kiểm tra
      */
     @GetMapping("/download")
     @PreAuthorize("hasAuthority('ADMIN')")
@@ -34,7 +37,6 @@ public class FileController {
             InputStreamResource streamResource = new InputStreamResource(resource.getInputStream());
 
             String fileName = objectKey.substring(objectKey.lastIndexOf('/') + 1);
-
             MediaType mediaType = MediaTypeFactory.getMediaType(fileName)
                     .orElse(MediaType.APPLICATION_OCTET_STREAM);
 
@@ -48,14 +50,14 @@ public class FileController {
     }
 
     /**
-     * Trả về presigned URL để FE có thể load trực tiếp từ MinIO.
-     * FE truyền objectKey (chính là inputUrl/outputUrl/illustrationUrl) và thời
-     * gian sống (giây).
+     * Lấy Presigned URL cho những file Private mà hệ thống cần đọc giới hạn thời gian
      */
     @GetMapping("/presigned-url")
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<String> getPresignedUrl(@RequestParam("key") String objectKey,
+    public ApiResponse<String> getPresignedUrl(
+            @RequestParam("key") String objectKey,
             @RequestParam(value = "expiry", defaultValue = "7200") int expiryInSeconds) {
+
         String url = fileDownloadService.getPresignedUrlByObjectKey(objectKey, expiryInSeconds);
         return ApiResponse.<String>builder()
                 .status(200)
@@ -63,28 +65,4 @@ public class FileController {
                 .data(url)
                 .build();
     }
-
-    /**
-     * Endpoint public để xem ảnh (render inline)
-     * URL này sẽ được nhúng vào thẻ <img src="...">
-     */
-    @GetMapping("/view")
-    public ResponseEntity<InputStreamResource> viewFile(@RequestParam("key") String objectKey) {
-        try {
-            Resource resource = fileDownloadService.downloadByObjectKey(objectKey);
-            InputStreamResource streamResource = new InputStreamResource(resource.getInputStream());
-
-            String fileName = objectKey.substring(objectKey.lastIndexOf('/') + 1);
-            MediaType mediaType = MediaTypeFactory.getMediaType(fileName)
-                    .orElse(MediaType.IMAGE_PNG);
-
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"")
-                    .contentType(mediaType)
-                    .body(streamResource);
-        } catch (Exception e) {
-            return ResponseEntity.notFound().build();
-        }
-    }
-
 }
