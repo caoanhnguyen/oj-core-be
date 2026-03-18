@@ -8,6 +8,7 @@ import com.kma.ojcore.dto.response.problems.ProblemResponse;
 import com.kma.ojcore.entity.Problem;
 import com.kma.ojcore.entity.ProblemTemplate;
 import com.kma.ojcore.entity.Topic;
+import com.kma.ojcore.entity.User;
 import org.mapstruct.*;
 
 import java.util.List;
@@ -34,11 +35,19 @@ public interface ProblemMapper {
 
     ProblemResponse toProblemResponse(Problem problem);
 
-    @Mapping(target = "authorName", source = "author.username") // Map tên tác giả
+    @Mapping(target = "author", expression = "java(toAuthorSummaries(problem.getAuthor()))")
     @Mapping(target = "templates", expression = "java(toTemplateSummaries(problem.getTemplates()))")
     @Mapping(target = "examples", expression = "java(toExampleSummaries(problem.getExamples()))")
     @Mapping(target = "topics", expression = "java(toTopicSummaries(problem.getTopics()))")
     ProblemDetailsSdo toProblemDetailsSdo(Problem problem);
+
+    default ProblemDetailsSdo.AuthorSummary toAuthorSummaries(User author) {
+        if (author == null) return null;
+        return ProblemDetailsSdo.AuthorSummary.builder()
+                .authorId(author.getId())
+                .authorName(author.getUsername())
+                .build();
+    }
 
     default List<ProblemTemplateSummary> toTemplateSummaries(List<ProblemTemplate> templates) {
         if (templates == null) return null;
