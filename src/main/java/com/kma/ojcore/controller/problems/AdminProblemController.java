@@ -44,8 +44,9 @@ public class AdminProblemController {
     private final SubmissionService submissionService;
 
     @PostMapping
-    public ApiResponse<ProblemDetailsSdo> createProblem(@Valid @RequestBody CreateProblemSdi request) throws BadRequestException {
-        ProblemDetailsSdo result = problemService.createProblem(request);
+    public ApiResponse<ProblemDetailsSdo> createProblem(@Valid @RequestBody CreateProblemSdi request,
+                                                        @AuthenticationPrincipal UserPrincipal currentUser) throws BadRequestException {
+        ProblemDetailsSdo result = problemService.createProblem(request, currentUser.getId());
         return ApiResponse.<ProblemDetailsSdo>builder()
                 .status(HttpStatus.CREATED.value())
                 .message("Problem created successfully")

@@ -17,7 +17,7 @@ import java.util.UUID;
 
 public interface ProblemService {
 
-    ProblemDetailsSdo createProblem(CreateProblemSdi request) throws BadRequestException;
+    ProblemDetailsSdo createProblem(CreateProblemSdi request, UUID userId) throws BadRequestException;
 
     ProblemDetailsSdo getProblemById(UUID id);
 

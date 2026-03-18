@@ -34,7 +34,7 @@ public class ProblemDetailsSdo {
     Integer totalScore;
     String source;
     String hint;
-    String authorName;
+    AuthorSummary author;
     String inputFormat;
     String outputFormat;
 
@@ -48,8 +48,6 @@ public class ProblemDetailsSdo {
     List<ProblemTemplateSummary> templates;
     List<ExampleSummary> examples;
     List<TopicsSummary> topics;
-
-    // ĐÃ XÓA TestCaseSummary VÌ LƯU Ở MINIO RỒI
 
     @Data
     @Builder
@@ -65,8 +63,8 @@ public class ProblemDetailsSdo {
     @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class ExampleSummary {
         UUID id;
-        String rawInput;   // Đổi tên cho chuẩn Entity
-        String rawOutput;  // Đổi tên cho chuẩn Entity
+        String rawInput;
+        String rawOutput;
         String explanation;
         Integer orderIndex;
     }
@@ -78,5 +76,13 @@ public class ProblemDetailsSdo {
         UUID topicId; // Map từ id của Topic
         String name;
         String slug;
+    }
+
+    @Data
+    @Builder
+    @FieldDefaults(level = AccessLevel.PRIVATE)
+    public static class AuthorSummary {
+        UUID authorId;
+        String authorName;
     }
 }
