@@ -16,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.data.web.SortDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -105,7 +106,7 @@ public class SubmissionController {
             @RequestParam(required = false) String username,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @PageableDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort
+            @SortDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort
     ) {
         Pageable pageable = PageRequest.of(page, size, sort);
         List<SubmissionVerdict> allowedVerdicts = SubmissionVerdict.getPublicVerdicts();

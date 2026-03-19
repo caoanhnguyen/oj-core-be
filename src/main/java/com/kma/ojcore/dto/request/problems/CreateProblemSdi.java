@@ -27,7 +27,6 @@ public class CreateProblemSdi {
     @NotBlank(message = "Mô tả bài toán không được để trống")
     String description;
 
-    @NotBlank(message = "Ràng buộc (constraints) không được để trống")
     String constraints;
 
     @NotNull(message = "Phải chọn độ khó")
