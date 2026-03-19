@@ -13,12 +13,8 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ExampleSdi {
 
-    // Đổi thành rawInput cho chuẩn với Entity
-    @NotBlank(message = "Input thô là bắt buộc cho Example")
     String rawInput;
 
-    // Đổi thành rawOutput cho chuẩn với Entity
-    @NotBlank(message = "Output thô là bắt buộc cho Example")
     String rawOutput;
 
     /**
