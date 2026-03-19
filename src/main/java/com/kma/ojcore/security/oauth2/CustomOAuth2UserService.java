@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -103,9 +104,13 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 if (existingUserByEmail.isPresent()) {
                     User existingUser = existingUserByEmail.get();
                     log.error("Email already registered with provider: {}", existingUser.getProvider());
-                    throw new OAuth2AuthenticationException(
-                            "Email already registered with provider: " + existingUser.getProvider()
+                    // Tạo Error Object chuẩn của Spring OAuth2
+                    OAuth2Error oauth2Error = new OAuth2Error(
+                            "invalid_provider",
+                            "Email đã được dùng để đăng ký tài khoản khác. Vui lòng đăng nhập bằng mật khẩu!",
+                            null
                     );
+                    throw new OAuth2AuthenticationException(oauth2Error, oauth2Error.getDescription());
                 }
             }
 
