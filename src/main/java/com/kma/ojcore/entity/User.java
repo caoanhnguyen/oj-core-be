@@ -81,6 +81,10 @@ public class User extends BaseEntity {
     @Builder.Default
     Integer submissionCount = 0;
 
+    @Column(name = "total-score", nullable = false)
+    @Builder.Default
+    Double totalScore = 0.0;
+
     @Column(name = "email_verified", nullable = false)
     @Builder.Default
     Boolean emailVerified = false;

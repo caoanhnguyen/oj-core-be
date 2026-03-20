@@ -8,11 +8,12 @@ import com.kma.ojcore.entity.Problem;
 import com.kma.ojcore.entity.Submission;
 import com.kma.ojcore.entity.User;
 import com.kma.ojcore.entity.UserProblemStatus;
-import com.kma.ojcore.enums.SubmissionVerdict;
+import com.kma.ojcore.enums.RuleType;
 import com.kma.ojcore.enums.UserProblemState;
 import com.kma.ojcore.repository.ProblemRepository;
 import com.kma.ojcore.repository.SubmissionRepository;
 import com.kma.ojcore.repository.UserProblemStatusRepository;
+import com.kma.ojcore.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -29,81 +30,93 @@ public class JudgeResultListener {
 
     private final SubmissionRepository submissionRepository;
     private final ProblemRepository problemRepository;
+    private final UserProblemStatusRepository userProblemStatusRepo;
+    private final UserRepository userRepository;
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
-    private final UserProblemStatusRepository userProblemStatusRepo;
 
-    // Cái tai nghe gắn chặt vào RESULT_QUEUE
+    // ========================================================
+    // LUỒNG 1: XỬ LÝ KẾT QUẢ CHẤM SUBMIT
+    // ========================================================
     @RabbitListener(queues = RabbitMQConfig.RESULT_QUEUE)
-    @Transactional(rollbackFor = Throwable.class)
+    @Transactional
     public void handleJudgeResult(JudgeResultSdi result) {
-        try {
-            log.info("Nhận được kết quả chấm bài từ Judge Service cho Submission [{}]", result.getSubmissionId());
+        log.info("Đã nhận kết quả chấm từ RabbitMQ cho Submission ID: [{}] - Verdict: {}", result.getSubmissionId(), result.getSubmissionVerdict());
 
-            // 1. Tìm lại bài nộp trong DB
-            Submission submission = submissionRepository.findById(result.getSubmissionId())
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy Submission ID: " + result.getSubmissionId()));
+        Submission submission = submissionRepository.findById(result.getSubmissionId()).orElse(null);
+        if (submission == null) {
+            log.error("Không tìm thấy Submission [{}] trong DB!", result.getSubmissionId());
+            return;
+        }
 
-            // 2. Cập nhật mọi thông số máy chấm trả về
-            submission.setSubmissionStatus(result.getSubmissionStatus());
-            submission.setVerdict(result.getSubmissionVerdict());
-            submission.setScore(result.getScore());
-            submission.setPassedTestCount(result.getPassedTestCount());
-            submission.setTotalTestCount(result.getTotalTestCount());
-            submission.setExecutionTimeMs(result.getExecutionTimeMs());
-            submission.setExecutionMemoryMb(result.getExecutionMemoryMb());
-            submission.setErrorMessage(result.getErrorMessage());
+        // Cập nhật Submission
+        submission.setVerdict(result.getSubmissionVerdict());
+        submission.setScore(result.getScore());
+        submission.setPassedTestCount(result.getPassedTestCount());
+        submission.setTotalTestCount(result.getTotalTestCount());
+        submission.setExecutionTimeMs(result.getExecutionTimeMs());
+        submission.setExecutionMemoryMb(result.getExecutionMemoryMb());
+        submission.setErrorMessage(result.getErrorMessage());
 
-            submissionRepository.save(submission);
+        // Lấy User và Problem
+        User user = submission.getUser();
+        Problem problem = submission.getProblem();
 
-            Problem problem = submission.getProblem();
+        if (user != null && problem != null) {
+            UserProblemStatus status = userProblemStatusRepo
+                    .findByUserIdAndProblemId(user.getId(), problem.getId())
+                    .orElse(UserProblemStatus.builder()
+                            .user(user)
+                            .problem(problem)
+                            .state(UserProblemState.ATTEMPTED)
+                            .maxScore(0.0)
+                            .build());
 
-            // 3. Nếu kết quả là AC (Accepted), cộng thêm 1 lượt giải đúng cho Problem
-            if (result.getSubmissionVerdict() == SubmissionVerdict.AC) {
-                problemRepository.incrementAcceptedCount(problem.getId());
-                log.info("Submission [{}] AC! Đã cộng điểm cho Problem [{}]", submission.getId(), problem.getId());
+            boolean isAc = "AC".equals(result.getSubmissionVerdict().toString());
+
+            // CHẺ NHÁNH LOGIC: ACM và OI
+            if (problem.getRuleType() == RuleType.ACM) {
+                // LOGIC ACM: Sử dụng solvedCount có sẵn
+                if (isAc) {
+                    if (status.getState() != UserProblemState.SOLVED) {
+                        status.setState(UserProblemState.SOLVED);
+
+                        int currentSolved = user.getSolvedCount() != null ? user.getSolvedCount() : 0;
+                        user.setSolvedCount(currentSolved + 1);
+                        userRepository.save(user);
+                    }
+                } else if (status.getState() != UserProblemState.SOLVED) {
+                    status.setState(UserProblemState.ATTEMPTED);
+                }
             } else {
-                log.info("Submission [{}] Verdict: {}", submission.getId(), result.getSubmissionVerdict());
+                // LOGIC OI: Cập nhật điểm số nếu cao hơn, và cập nhật trạng thái dựa trên max score hoặc AC
+                double currentScore = result.getScore() != null ? result.getScore().doubleValue() : 0.0;
+                double previousMax = status.getMaxScore() != null ? status.getMaxScore() : 0.0;
+
+                if (currentScore > previousMax) {
+                    double scoreDiff = currentScore - previousMax;
+                    status.setMaxScore(currentScore);
+
+                    double userTotalScore = user.getTotalScore() != null ? user.getTotalScore() : 0.0;
+                    user.setTotalScore(userTotalScore + scoreDiff);
+                    userRepository.save(user);
+                }
+
+                // Cập nhật state (Đạt max điểm của bài hoặc Verdict AC)
+                double problemTotalScore = problem.getTotalScore() != null ? problem.getTotalScore().doubleValue() : 0.0;
+                if (isAc || currentScore >= problemTotalScore) {
+                    status.setState(UserProblemState.SOLVED);
+                } else if (status.getState() != UserProblemState.SOLVED) {
+                    status.setState(UserProblemState.ATTEMPTED);
+                }
             }
 
-            // 4. CẬP NHẬT TRẠNG THÁI CHO USER (TÍCH XANH / ĐANG LÀM DỞ)
-            updateUserProblemState(submission.getUser(), problem, result.getSubmissionVerdict());
-
-        } catch (Exception e) {
-            log.error("Lỗi nghiêm trọng khi xử lý kết quả Submission: {}", e.getMessage(), e);
-        }
-
-    }
-
-    /**
-     * Hàm helper xử lý logic Upsert vào bảng UserProblemStatus
-     */
-    private void updateUserProblemState(User user, Problem problem, SubmissionVerdict verdict) {
-        // Tìm xem user này đã từng nộp bài này bao giờ chưa
-        UserProblemStatus status = userProblemStatusRepo.findByUserIdAndProblemId(user.getId(), problem.getId())
-                .orElse(null);
-
-        if (status == null) {
-            // Chưa từng nộp -> Tạo mới
-            status = UserProblemStatus.builder()
-                    .user(user)
-                    .problem(problem)
-                    .state(verdict == SubmissionVerdict.AC ? UserProblemState.SOLVED : UserProblemState.ATTEMPTED)
-                    .build();
             userProblemStatusRepo.save(status);
-        } else {
-            // Đã từng nộp rồi
-            if (verdict == SubmissionVerdict.AC) {
-                // Lần này AC -> Cập nhật thành SOLVED (bất chấp trước đó ra sao)
-                status.setState(UserProblemState.SOLVED);
-                userProblemStatusRepo.save(status);
-            } else if (status.getState() != UserProblemState.SOLVED) {
-                // Lần này SAI, và trước đó cũng chưa từng SOLVED -> Đảm bảo trạng thái là ATTEMPTED
-                // (Nếu trước đó đã SOLVED rồi thì giữ nguyên SOLVED)
-                status.setState(UserProblemState.ATTEMPTED);
-                userProblemStatusRepo.save(status);
-            }
         }
+
+        // Lưu trạng thái cuối cùng
+        submission.setSubmissionStatus(result.getSubmissionStatus());
+        submissionRepository.save(submission);
     }
 
     // ========================================================
@@ -121,7 +134,7 @@ public class JudgeResultListener {
             log.info("Đã lưu kết quả Run Code vào Redis thành công. Sẵn sàng cho Frontend lấy!");
 
         } catch (Exception e) {
-            log.error("Lỗi nghiêm trọng khi lưu kết quả Run Code vào Redis. Token [{}]: {}", response.getRunToken(), e.getMessage(), e);
+            log.error("Lỗi nghiêm trọng khi lưu kết quả Run Code...", e);
         }
     }
 }

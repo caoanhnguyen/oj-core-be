@@ -1,7 +1,10 @@
 package com.kma.ojcore.repository;
 
+import com.kma.ojcore.dto.response.UserRankSdo;
 import com.kma.ojcore.entity.User;
 import com.kma.ojcore.enums.Provider;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -30,4 +33,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("SELECT u FROM User u WHERE (u.username = :usernameOrEmail OR u.email = :usernameOrEmail)")
     Optional<User> findByUsernameOrEmail(String usernameOrEmail);
+
+    @Query("SELECT new com.kma.ojcore.dto.response.UserRankSdo(u.id, u.username, u.avatarUrl, u.solvedCount, u.submissionCount, u.totalScore) " +
+            "FROM User u " +
+            "ORDER BY u.solvedCount DESC")
+    Page<UserRankSdo> getACMRanking(Pageable pageable);
+
+    @Query("SELECT new com.kma.ojcore.dto.response.UserRankSdo(u.id, u.username, u.avatarUrl, u.solvedCount, u.submissionCount, u.totalScore) " +
+            "FROM User u " +
+            "ORDER BY u.totalScore DESC")
+    Page<UserRankSdo> getOIRanking(Pageable pageable);
 }
