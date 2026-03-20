@@ -33,6 +33,9 @@ public class Submission extends BaseEntity {
     @Column(nullable = false, length = 10)
     SubmissionVerdict verdict = SubmissionVerdict.PENDING;
 
+    @Column(name = "retry_count")
+    Integer retryCount = 0;
+
     // --- Kết quả đo lường ---
     @Column(name = "score")
     Integer score; // Điểm đạt được
