@@ -34,13 +34,29 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("SELECT u FROM User u WHERE (u.username = :usernameOrEmail OR u.email = :usernameOrEmail)")
     Optional<User> findByUsernameOrEmail(String usernameOrEmail);
 
-    @Query("SELECT new com.kma.ojcore.dto.response.UserRankSdo(u.id, u.username, u.avatarUrl, u.solvedCount, u.submissionCount, u.totalScore) " +
+    /**
+     * Get ACM ranking: chỉ lấy user có ROLE_USER, loại ADMIN và MODERATOR,
+     * và chỉ lấy những user có solvedCount > 0.
+     */
+    @Query("SELECT new com.kma.ojcore.dto.response.UserRankSdo(" +
+            "u.id, u.username, u.avatarUrl, u.solvedCount, u.submissionCount, u.totalScore) " +
             "FROM User u " +
+            "JOIN u.roles r " +
+            "WHERE r.name = 'ROLE_USER' " +
+            "AND NOT EXISTS (SELECT 1 FROM u.roles r2 WHERE r2.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR')) " +
             "ORDER BY u.solvedCount DESC")
     Page<UserRankSdo> getACMRanking(Pageable pageable);
 
-    @Query("SELECT new com.kma.ojcore.dto.response.UserRankSdo(u.id, u.username, u.avatarUrl, u.solvedCount, u.submissionCount, u.totalScore) " +
+    /**
+     * Get OI ranking: tương tự, chỉ lấy user có ROLE_USER,
+     * và chỉ lấy những user có totalScore > 0 (tuỳ logic bạn có thể bỏ điều kiện này).
+     */
+    @Query("SELECT new com.kma.ojcore.dto.response.UserRankSdo(" +
+            "u.id, u.username, u.avatarUrl, u.solvedCount, u.submissionCount, u.totalScore) " +
             "FROM User u " +
+            "JOIN u.roles r " +
+            "WHERE r.name = 'ROLE_USER' " +
+            "AND NOT EXISTS (SELECT 1 FROM u.roles r2 WHERE r2.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR')) " +
             "ORDER BY u.totalScore DESC")
     Page<UserRankSdo> getOIRanking(Pageable pageable);
 }
