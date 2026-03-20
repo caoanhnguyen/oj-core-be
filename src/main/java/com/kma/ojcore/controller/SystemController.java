@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/system")
+@RequestMapping("${app.api.prefix}/system")
 @RequiredArgsConstructor
 public class SystemController {
     private final SystemService systemService;

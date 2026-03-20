@@ -21,6 +21,9 @@ public class UserProblemStatus extends BaseEntity {
     @Column(nullable = false)
     UserProblemState state;
 
+    @Column(name = "max_score")
+    Double maxScore; // Điểm cao nhất đạt được (dùng cho OI, có thể null nếu chưa nộp hoặc chỉ nộp ACM)
+
     // -- Relationships -- //
 
     // User
