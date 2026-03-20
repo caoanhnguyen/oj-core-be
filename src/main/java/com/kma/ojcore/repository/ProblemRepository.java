@@ -5,6 +5,7 @@ import com.kma.ojcore.entity.Problem;
 import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.ProblemDifficulty;
 import com.kma.ojcore.enums.ProblemStatus;
+import com.kma.ojcore.enums.RuleType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -32,15 +33,17 @@ public interface ProblemRepository extends JpaRepository<Problem, UUID> {
             "FROM Problem p " +
             "WHERE (:keyword IS NULL OR LOWER(p.title) LIKE LOWER(:keyword)) " +
             "AND (:difficulty IS NULL OR p.difficulty = :difficulty) " +
+            "AND (:ruleType IS NULL OR p.ruleType = :ruleType) " +
+            "AND (:topicSlugs IS NULL OR EXISTS (SELECT t FROM p.topics t WHERE t.slug IN :topicSlugs)) " +
             "AND (:status IS NULL OR p.status = :status)" +
-            "AND (:problemStatus IS NULL OR p.problemStatus = :problemStatus)" +
-            "AND (:topicSlugs IS NULL OR EXISTS (SELECT t FROM p.topics t WHERE t.slug IN :topicSlugs))")
+            "AND (:problemStatus IS NULL OR p.problemStatus = :problemStatus)")
     Page<ProblemResponse> searchProblems(@Param("keyword") String keyword,
-                                                 @Param("difficulty") ProblemDifficulty difficulty,
-                                                 @Param("status") EStatus status,
-                                                 @Param("problemStatus") ProblemStatus problemStatus,
-                                                 @Param("topicSlugs") List<String> topicSlugs,
-                                                 Pageable pageable);
+                                         @Param("difficulty") ProblemDifficulty difficulty,
+                                         @Param("ruleType") RuleType ruleType,
+                                         @Param("topicSlugs") List<String> topicSlugs,
+                                         @Param("status") EStatus status,
+                                         @Param("problemStatus") ProblemStatus problemStatus,
+                                         Pageable pageable);
 
     @Modifying
     @Query("Update Problem p set p.status = :status where p.id = :id")
