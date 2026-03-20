@@ -5,10 +5,7 @@ import com.kma.ojcore.dto.request.problems.UpdateProblemSdi;
 import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo;
 import com.kma.ojcore.dto.response.problems.ProblemResponse;
 import com.kma.ojcore.entity.*;
-import com.kma.ojcore.enums.EStatus;
-import com.kma.ojcore.enums.ProblemDifficulty;
-import com.kma.ojcore.enums.ProblemStatus;
-import com.kma.ojcore.enums.UserProblemState;
+import com.kma.ojcore.enums.*;
 import com.kma.ojcore.exception.ResourceAlreadyExistsException;
 import com.kma.ojcore.exception.ResourceNotFoundException;
 import com.kma.ojcore.mapper.ExampleMapper;
@@ -123,12 +120,17 @@ public class ProblemServiceImpl implements ProblemService {
 
     @Transactional(readOnly = true)
     @Override
-    public Page<ProblemResponse> getProblems(String keyword, ProblemDifficulty difficulty, EStatus status,
-                                             ProblemStatus problemStatus, List<String> topicSlugs, UUID userId, Pageable pageable) {
+    public Page<ProblemResponse> getProblems(String keyword,
+                                             ProblemDifficulty difficulty,
+                                             RuleType ruleType,
+                                             List<String> topicSlugs,
+                                             EStatus status,
+                                             ProblemStatus problemStatus,
+                                             UUID userId,
+                                             Pageable pageable) {
         String searchKeyword = EscapeHelper.escapeLike(keyword);
-        Page<ProblemResponse> pageResult = problemRepository.searchProblems(
-                searchKeyword, difficulty, status, problemStatus, topicSlugs, pageable
-        );
+        Page<ProblemResponse> pageResult = problemRepository.searchProblems(searchKeyword,
+                difficulty, ruleType, topicSlugs, status, problemStatus, pageable);
 
         if (userId == null || pageResult.isEmpty()) {
             return pageResult;

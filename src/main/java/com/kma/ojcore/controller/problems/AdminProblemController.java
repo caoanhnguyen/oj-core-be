@@ -6,10 +6,7 @@ import com.kma.ojcore.dto.response.common.ApiResponse;
 import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo;
 import com.kma.ojcore.dto.response.problems.ProblemResponse;
 import com.kma.ojcore.dto.response.problems.ProblemStatisticSdo;
-import com.kma.ojcore.enums.EStatus;
-import com.kma.ojcore.enums.ProblemDifficulty;
-import com.kma.ojcore.enums.ProblemStatus;
-import com.kma.ojcore.enums.SubmissionVerdict;
+import com.kma.ojcore.enums.*;
 import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.service.ProblemService;
 import com.kma.ojcore.service.SubmissionService;
@@ -59,6 +56,7 @@ public class AdminProblemController {
     public ApiResponse<Page<ProblemResponse>> getProblems(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) ProblemDifficulty difficulty,
+            @RequestParam(required = false) RuleType ruleType,
             @RequestParam(required = false) EStatus status,
             @RequestParam(required = false) ProblemStatus problemStatus,
             @RequestParam(required = false) List<String> topicSlugs,
@@ -70,7 +68,7 @@ public class AdminProblemController {
         UUID userId = currentUser != null ? currentUser.getId() : null;
 
         Pageable pageable = PageRequest.of(page, size, sort);
-        Page<ProblemResponse> result = problemService.getProblems(keyword, difficulty, status, problemStatus, topicSlugs, userId, pageable);
+        Page<ProblemResponse> result = problemService.getProblems(keyword, difficulty, ruleType, topicSlugs, status, problemStatus, userId, pageable);
 
         return ApiResponse.<Page<ProblemResponse>>builder()
                 .status(HttpStatus.OK.value())

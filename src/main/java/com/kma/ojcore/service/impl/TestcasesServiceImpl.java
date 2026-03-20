@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -59,8 +60,12 @@ public class TestcasesServiceImpl implements TestcaseService {
 
                     // Lấy tên file gốc (bỏ qua các thư mục lồng nhau nếu có)
                     String fileName = Paths.get(entry.getName()).getFileName().toString();
-                    if (fileName.endsWith(".in") || fileName.endsWith(".out")) {
-                        fileMap.put(fileName, zis.readAllBytes());
+
+                    // Loại bỏ các file rác ẩn của MacOS
+                    if (!fileName.startsWith("._") && !fileName.equals(".DS_Store") && !entry.getName().contains("__MACOSX")) {
+                        if (fileName.endsWith(".in") || fileName.endsWith(".out")) {
+                            fileMap.put(fileName, zis.readAllBytes());
+                        }
                     }
                 }
             }
@@ -91,13 +96,22 @@ public class TestcasesServiceImpl implements TestcaseService {
                     throw new RuntimeException("Thiếu file kết quả tương ứng cho: " + inName);
                 }
 
+                byte[] inBytes = fileMap.get(inName);
+                byte[] outBytes = fileMap.get(outName);
+
+                // LÀM SẠCH OUTPUT TRƯỚC KHI BĂM MD5
+                String rawOutputStr = new String(outBytes, StandardCharsets.UTF_8);
+                String strippedOutputStr = rawOutputStr.replaceAll("(?m)[ \\t]+$", "").replace("\r\n", "\n").trim();
+                String strippedOutputMd5 = DigestUtils.md5Hex(strippedOutputStr.getBytes(StandardCharsets.UTF_8));
+
                 Map<String, Object> tcInfo = new HashMap<>();
                 tcInfo.put("inputName", inName);
                 tcInfo.put("outputName", outName);
-                tcInfo.put("inputSize", fileMap.get(inName).length);
-                tcInfo.put("outputSize", fileMap.get(outName).length);
-                tcInfo.put("inputMd5", DigestUtils.md5Hex(fileMap.get(inName)));
-                tcInfo.put("outputMd5", DigestUtils.md5Hex(fileMap.get(outName)));
+                tcInfo.put("inputSize", inBytes.length);
+                tcInfo.put("outputSize", outBytes.length);
+
+                // Lưu lại MD5 đã được làm sạch để máy chấm lấy ra so sánh trực tiếp
+                tcInfo.put("strippedOutputMd5", strippedOutputMd5);
 
                 // Chia điểm: dồn phần dư vào thằng cuối cùng
                 tcInfo.put("score", (i == numTests - 1) ? (scorePerTest + extraScore) : scorePerTest);

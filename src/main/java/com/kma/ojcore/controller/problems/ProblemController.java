@@ -14,7 +14,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.data.web.SortDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -70,6 +69,7 @@ public class ProblemController {
     public ApiResponse<Page<ProblemResponse>> getProblems(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) ProblemDifficulty difficulty,
+            @RequestParam(required = false) RuleType ruleType,
             @RequestParam(required = false) List<String> topicSlugs,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -78,7 +78,7 @@ public class ProblemController {
 
         Pageable pageable = PageRequest.of(page, size, sort);
         UUID userId = currentUser != null ? currentUser.getId() : null;
-        Page<ProblemResponse> result = problemService.getProblems(keyword, difficulty, EStatus.ACTIVE, ProblemStatus.PUBLISHED, topicSlugs, userId, pageable);
+        Page<ProblemResponse> result = problemService.getProblems(keyword, difficulty, ruleType, topicSlugs, EStatus.ACTIVE, ProblemStatus.PUBLISHED, userId, pageable);
 
         return ApiResponse.<Page<ProblemResponse>>builder()
                 .status(HttpStatus.OK.value())
