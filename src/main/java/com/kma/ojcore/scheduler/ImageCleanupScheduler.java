@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Scheduled job để tự động cleanup ảnh temporary đã hết hạn
@@ -21,6 +22,7 @@ public class ImageCleanupScheduler {
      * Cron expression: "0 0
      */
 
+    @Transactional(rollbackFor = Throwable.class)
     @Scheduled(cron = "0 0 */6 * * *")
     public void cleanupExpiredImages() {
         log.info("Starting scheduled cleanup of expired temporary images");
