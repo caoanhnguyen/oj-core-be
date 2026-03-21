@@ -112,7 +112,7 @@ public class SubmissionController {
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Submissions retrieved successfully")
-                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, username, EStatus.ACTIVE, ProblemStatus.PUBLISHED, allowedVerdicts, pageable))
+                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, username, EStatus.ACTIVE, ProblemStatus.PUBLISHED, allowedVerdicts, true, pageable))
                 .build();
     }
 

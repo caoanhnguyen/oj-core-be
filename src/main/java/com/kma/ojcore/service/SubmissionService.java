@@ -29,6 +29,7 @@ public interface SubmissionService {
                            EStatus status,
                            ProblemStatus problemStatus,
                            List<SubmissionVerdict> allowedVerdicts,
+                           boolean hideStaff,
                            Pageable pageable);
 
     ProblemStatisticSdo getProblemStatistics(UUID problemId, List<SubmissionVerdict> allowedVerdicts);

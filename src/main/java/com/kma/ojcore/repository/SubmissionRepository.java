@@ -22,13 +22,14 @@ import java.util.UUID;
 public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
 
     interface VerdictCountProjection {
-        String getVerdict(); // Trả về tên Enum dạng String
+        String getVerdict();
         Long getCount();
     }
 
     @Query("SELECT s.verdict AS verdict, COUNT(s.id) AS count " +
             "FROM Submission s " +
             "WHERE s.problem.id = :problemId " +
+            "AND NOT EXISTS (SELECT 1 FROM s.user.roles r WHERE r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR')) " +
             "GROUP BY s.verdict")
     List<VerdictCountProjection> countSubmissionsByVerdict(@Param("problemId") UUID problemId);
 
@@ -52,9 +53,10 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             "AND (:submissionVerdict IS NULL OR s.verdict = :submissionVerdict) " +
             "AND (:keyword IS NULL OR LOWER(s.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
             "                      OR LOWER(s.problem.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
-            "AND (:problemStatus IS NULL OR s.problem.status = :status)" +
-            "AND (:problemStatus IS NULL OR s.problem.problemStatus = :problemStatus)" +
-            "AND (s.verdict IN :verdicts)")
+            "AND (:status IS NULL OR s.problem.status = :status) " +
+            "AND (:problemStatus IS NULL OR s.problem.problemStatus = :problemStatus) " +
+            "AND (s.verdict IN :verdicts) " +
+            "AND (:hideStaff = false OR NOT EXISTS (SELECT 1 FROM s.user.roles r WHERE r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR')))")
     Page<SubmissionBasicSdo> getSubmissions(@Param("problemId") UUID problemId,
                                             @Param("userId") UUID userId,
                                             @Param("submissionVerdict") SubmissionVerdict submissionVerdict,
@@ -62,9 +64,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
                                             @Param("status") EStatus status,
                                             @Param("problemStatus") ProblemStatus problemStatus,
                                             @Param("verdicts") List<SubmissionVerdict> allowedVerdicts,
+                                            @Param("hideStaff") boolean hideStaff,
                                             Pageable pageable);
-
-
 
     @Query(value = "SELECT source_code FROM submissions " +
             "WHERE problem_id = :problemId " +

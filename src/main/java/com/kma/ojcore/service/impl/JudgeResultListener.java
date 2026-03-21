@@ -58,11 +58,26 @@ public class JudgeResultListener {
         submission.setExecutionMemoryMb(result.getExecutionMemoryMb());
         submission.setErrorMessage(result.getErrorMessage());
 
+        // Đưa việc lưu trạng thái Submission lên đây
+        // Đảm bảo Admin vẫn lưu được lịch sử nộp bài dù có bị ngắt luồng phía dưới
+        submission.setSubmissionStatus(result.getSubmissionStatus());
+        submissionRepository.save(submission);
+
         // Lấy User và Problem
         User user = submission.getUser();
         Problem problem = submission.getProblem();
 
         if (user != null && problem != null) {
+
+            // Kiểm tra Role (Cơ chế Ghost Mode chuẩn QDUOJ)
+            boolean isStaff = user.getRoles().stream()
+                    .anyMatch(r -> r.getName().name().equals("ROLE_ADMIN") || r.getName().name().equals("ROLE_MODERATOR"));
+
+            if (isStaff) {
+                log.info("Staff debug mode: Đã lưu kết quả test đề, BỎ QUA cộng điểm và Ranking cho Submission [{}]", submission.getId());
+                return; // Ngắt luồng tại đây! Không chạy xuống logic OI/ACM bên dưới.
+            }
+
             UserProblemStatus status = userProblemStatusRepo
                     .findByUserIdAndProblemId(user.getId(), problem.getId())
                     .orElse(UserProblemStatus.builder()
@@ -89,34 +104,41 @@ public class JudgeResultListener {
                     status.setState(UserProblemState.ATTEMPTED);
                 }
             } else {
-                // LOGIC OI: Cập nhật điểm số nếu cao hơn, và cập nhật trạng thái dựa trên max score hoặc AC
+                // =============== LOGIC OI ===============
                 double currentScore = result.getScore() != null ? result.getScore().doubleValue() : 0.0;
                 double previousMax = status.getMaxScore() != null ? status.getMaxScore() : 0.0;
 
+                // 1. Cập nhật Kỷ lục điểm (totalScore)
                 if (currentScore > previousMax) {
                     double scoreDiff = currentScore - previousMax;
                     status.setMaxScore(currentScore);
 
                     double userTotalScore = user.getTotalScore() != null ? user.getTotalScore() : 0.0;
                     user.setTotalScore(userTotalScore + scoreDiff);
-                    userRepository.save(user);
                 }
 
-                // Cập nhật state (Đạt max điểm của bài hoặc Verdict AC)
+                // 2. Cập nhật Trạng thái bài làm & Solved Count
                 double problemTotalScore = problem.getTotalScore() != null ? problem.getTotalScore().doubleValue() : 0.0;
+
                 if (isAc || currentScore >= problemTotalScore) {
-                    status.setState(UserProblemState.SOLVED);
+                    // NẾU FULL ĐIỂM HOẶC AC -> Chuyển trạng thái thành SOLVED
+                    if (status.getState() != UserProblemState.SOLVED) {
+                        status.setState(UserProblemState.SOLVED);
+
+                        int currentSolved = user.getSolvedCount() != null ? user.getSolvedCount() : 0;
+                        user.setSolvedCount(currentSolved + 1);
+                    }
                 } else if (status.getState() != UserProblemState.SOLVED) {
+                    // Nếu chưa full điểm và trước đó cũng chưa từng Full điểm -> ATTEMPTED
                     status.setState(UserProblemState.ATTEMPTED);
                 }
+
+                // 3. Save User và Status
+                userRepository.save(user);
             }
 
             userProblemStatusRepo.save(status);
         }
-
-        // Lưu trạng thái cuối cùng
-        submission.setSubmissionStatus(result.getSubmissionStatus());
-        submissionRepository.save(submission);
     }
 
     // ========================================================
