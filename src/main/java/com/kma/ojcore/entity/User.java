@@ -69,10 +69,6 @@ public class User extends BaseEntity {
     @Column(name = "website", length = 255)
     String website;
 
-    @Column(name = "rating", nullable = false)
-    @Builder.Default
-    Integer rating = 0;
-
     @Column(name = "solved_count", nullable = false)
     @Builder.Default
     Integer solvedCount = 0;
@@ -80,6 +76,10 @@ public class User extends BaseEntity {
     @Column(name = "submission_count", nullable = false)
     @Builder.Default
     Integer submissionCount = 0;
+
+    @Column(name = "ac_count", nullable = false)
+    @Builder.Default
+    Integer acCount = 0;
 
     @Column(name = "total-score", nullable = false)
     @Builder.Default

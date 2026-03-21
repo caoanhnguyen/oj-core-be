@@ -69,7 +69,7 @@ public class JudgeResultListener {
 
         if (user != null && problem != null) {
 
-            // Kiểm tra Role (Cơ chế Ghost Mode chuẩn QDUOJ)
+            // 1. Kiểm tra Role (Cơ chế Ghost Mode chuẩn QDUOJ)
             boolean isStaff = user.getRoles().stream()
                     .anyMatch(r -> r.getName().name().equals("ROLE_ADMIN") || r.getName().name().equals("ROLE_MODERATOR"));
 
@@ -78,6 +78,27 @@ public class JudgeResultListener {
                 return; // Ngắt luồng tại đây! Không chạy xuống logic OI/ACM bên dưới.
             }
 
+            // 2. LUÔN CỘNG SUBMISSION_COUNT CHO USER VÀ PROBLEM
+            int currentUserSub = user.getSubmissionCount() != null ? user.getSubmissionCount() : 0;
+            user.setSubmissionCount(currentUserSub + 1);
+
+            long currentProbSub = problem.getSubmissionCount() != null ? problem.getSubmissionCount() : 0L;
+            problem.setSubmissionCount(currentProbSub + 1L);
+
+            boolean isAc = "AC".equals(result.getSubmissionVerdict().toString());
+
+            // 3. NẾU AC -> CỘNG AC_COUNT CHO USER VÀ PROBLEM (ĐẾM MÙ)
+            if (isAc) {
+                int currentUserAc = user.getAcCount() != null ? user.getAcCount() : 0;
+                user.setAcCount(currentUserAc + 1);
+
+                long currentProbAc = problem.getAcceptedCount() != null ? problem.getAcceptedCount() : 0L;
+                problem.setAcceptedCount(currentProbAc + 1L);
+            }
+
+            // =========================================================
+            // 4. LOGIC BẢO VỆ SOLVED_COUNT VÀ TÍNH ĐIỂM (BẢNG STATUS)
+            // =========================================================
             UserProblemStatus status = userProblemStatusRepo
                     .findByUserIdAndProblemId(user.getId(), problem.getId())
                     .orElse(UserProblemStatus.builder()
@@ -87,18 +108,16 @@ public class JudgeResultListener {
                             .maxScore(0.0)
                             .build());
 
-            boolean isAc = "AC".equals(result.getSubmissionVerdict().toString());
-
             // CHẺ NHÁNH LOGIC: ACM và OI
             if (problem.getRuleType() == RuleType.ACM) {
-                // LOGIC ACM: Sử dụng solvedCount có sẵn
+                // LOGIC ACM
                 if (isAc) {
                     if (status.getState() != UserProblemState.SOLVED) {
                         status.setState(UserProblemState.SOLVED);
 
+                        // Cộng số BÀI TẬP ĐÃ GIẢI (Solved Count)
                         int currentSolved = user.getSolvedCount() != null ? user.getSolvedCount() : 0;
                         user.setSolvedCount(currentSolved + 1);
-                        userRepository.save(user);
                     }
                 } else if (status.getState() != UserProblemState.SOLVED) {
                     status.setState(UserProblemState.ATTEMPTED);
@@ -108,7 +127,7 @@ public class JudgeResultListener {
                 double currentScore = result.getScore() != null ? result.getScore().doubleValue() : 0.0;
                 double previousMax = status.getMaxScore() != null ? status.getMaxScore() : 0.0;
 
-                // 1. Cập nhật Kỷ lục điểm (totalScore)
+                // 4.1 Cập nhật Kỷ lục điểm (totalScore)
                 if (currentScore > previousMax) {
                     double scoreDiff = currentScore - previousMax;
                     status.setMaxScore(currentScore);
@@ -117,11 +136,10 @@ public class JudgeResultListener {
                     user.setTotalScore(userTotalScore + scoreDiff);
                 }
 
-                // 2. Cập nhật Trạng thái bài làm & Solved Count
+                // 4.2 Cập nhật Trạng thái bài làm & Solved Count
                 double problemTotalScore = problem.getTotalScore() != null ? problem.getTotalScore().doubleValue() : 0.0;
 
                 if (isAc || currentScore >= problemTotalScore) {
-                    // NẾU FULL ĐIỂM HOẶC AC -> Chuyển trạng thái thành SOLVED
                     if (status.getState() != UserProblemState.SOLVED) {
                         status.setState(UserProblemState.SOLVED);
 
@@ -129,14 +147,13 @@ public class JudgeResultListener {
                         user.setSolvedCount(currentSolved + 1);
                     }
                 } else if (status.getState() != UserProblemState.SOLVED) {
-                    // Nếu chưa full điểm và trước đó cũng chưa từng Full điểm -> ATTEMPTED
                     status.setState(UserProblemState.ATTEMPTED);
                 }
-
-                // 3. Save User và Status
-                userRepository.save(user);
             }
 
+            // 5. LƯU TẤT CẢ VÀO DB CÙNG 1 LÚC (Tối ưu hiệu năng)
+            userRepository.save(user);
+            problemRepository.save(problem);
             userProblemStatusRepo.save(status);
         }
     }

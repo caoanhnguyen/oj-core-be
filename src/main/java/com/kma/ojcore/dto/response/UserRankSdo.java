@@ -14,6 +14,7 @@ public class UserRankSdo {
     UUID id;
     String username;
     String avatarUrl;
+    Integer acCount;
     Integer solvedCount;
     Integer submissionCount;
     Double totalScore;

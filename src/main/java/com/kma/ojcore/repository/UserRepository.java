@@ -39,7 +39,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      * và chỉ lấy những user có solvedCount > 0.
      */
     @Query("SELECT new com.kma.ojcore.dto.response.UserRankSdo(" +
-            "u.id, u.username, u.avatarUrl, u.solvedCount, u.submissionCount, u.totalScore) " +
+            "u.id, u.username, u.avatarUrl, u.acCount, u.solvedCount, u.submissionCount, u.totalScore) " +
             "FROM User u " +
             "JOIN u.roles r " +
             "WHERE r.name = 'ROLE_USER' " +
@@ -52,7 +52,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      * và chỉ lấy những user có totalScore > 0 (tuỳ logic bạn có thể bỏ điều kiện này).
      */
     @Query("SELECT new com.kma.ojcore.dto.response.UserRankSdo(" +
-            "u.id, u.username, u.avatarUrl, u.solvedCount, u.submissionCount, u.totalScore) " +
+            "u.id, u.username, u.avatarUrl, u.acCount, u.solvedCount, u.submissionCount, u.totalScore) " +
             "FROM User u " +
             "JOIN u.roles r " +
             "WHERE r.name = 'ROLE_USER' " +
