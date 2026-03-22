@@ -82,9 +82,6 @@ public class SubmissionServiceImpl implements SubmissionService {
                 .build();
         submission = submissionRepository.save(submission);
 
-        // Cộng lượt nộp vào Problem
-        problemRepository.incrementSubmissionCount(problem.getId());
-
         // --- 5. TÍNH TOÁN FINAL LIMIT VÀ ĐÓNG GÓI JUDGE SDI ---
         // Công thức: Final = (Base * Multiplier) + Allowance
         int finalTimeLimit = (int) (problem.getTimeLimitMs() * langConfig.getTimeMultiplier()) + langConfig.getTimeLimitAllowance();

@@ -44,7 +44,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             "JOIN u.roles r " +
             "WHERE r.name = 'ROLE_USER' " +
             "AND NOT EXISTS (SELECT 1 FROM u.roles r2 WHERE r2.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR')) " +
-            "ORDER BY u.solvedCount DESC")
+            "ORDER BY u.solvedCount DESC, u.submissionCount ASC, u.acCount DESC")
     Page<UserRankSdo> getACMRanking(Pageable pageable);
 
     /**
@@ -57,6 +57,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             "JOIN u.roles r " +
             "WHERE r.name = 'ROLE_USER' " +
             "AND NOT EXISTS (SELECT 1 FROM u.roles r2 WHERE r2.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR')) " +
-            "ORDER BY u.totalScore DESC")
+            "ORDER BY u.totalScore DESC, u.solvedCount DESC, u.submissionCount ASC")
     Page<UserRankSdo> getOIRanking(Pageable pageable);
 }
