@@ -40,6 +40,37 @@ public class ImageStorageServiceImpl implements ImageStorageService {
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
     @Override
+    public void deleteImageByUrl(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) return;
+        try {
+            String prefix = minioUrl + "/" + imagesBucket + "/";
+            if (imageUrl.startsWith(prefix)) {
+                String objectKey = imageUrl.substring(prefix.length());
+                fileStorageService.delete(imagesBucket, objectKey);
+            }
+        } catch (Exception e) {
+            log.error("Không thể xóa ảnh cũ trên MinIO: {}", imageUrl, e);
+        }
+    }
+
+    @Override
+    public String uploadImage(MultipartFile file, String folder) {
+        validateImageFile(file);
+        try {
+            String extension = getFileExtension(file.getOriginalFilename());
+            String uniqueFilename = UUID.randomUUID().toString() + "." + extension;
+            String objectKey = folder + "/" + uniqueFilename;
+
+            fileStorageService.upload(
+                    imagesBucket, objectKey, file.getInputStream(), file.getSize(), file.getContentType());
+
+            return minioUrl + "/" + imagesBucket + "/" + objectKey;
+        } catch (IOException e) {
+            throw new StorageException("Failed to upload image: " + e.getMessage());
+        }
+    }
+
+    @Override
     @Transactional
     public ImageUploadSdo uploadTemporaryImage(MultipartFile file, User uploader) {
         validateImageFile(file);

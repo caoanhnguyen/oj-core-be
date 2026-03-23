@@ -1,6 +1,6 @@
 package com.kma.ojcore.service.impl;
 
-import com.kma.ojcore.dto.response.UserRankSdo;
+import com.kma.ojcore.dto.response.users.UserRankSdo;
 import com.kma.ojcore.enums.RuleType;
 import com.kma.ojcore.repository.UserRepository;
 import com.kma.ojcore.service.RankingService;
