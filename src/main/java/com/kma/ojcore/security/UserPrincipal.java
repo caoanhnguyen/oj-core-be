@@ -32,6 +32,7 @@ public class UserPrincipal implements UserDetails, OAuth2User {
     String password;
     Set<Role> roles;
     EStatus status;
+    boolean accountNonLocked;
 
     Collection<? extends GrantedAuthority> authorities;
 
@@ -50,6 +51,7 @@ public class UserPrincipal implements UserDetails, OAuth2User {
                 user.getPassword(),
                 user.getRoles(),
                 user.getStatus(),
+                user.getAccountNonLocked(),
                 authorities,
                 null
         );
@@ -78,7 +80,7 @@ public class UserPrincipal implements UserDetails, OAuth2User {
 
     @Override
     public boolean isAccountNonLocked() {
-        return true;
+        return accountNonLocked;
     }
 
     @Override
@@ -88,7 +90,7 @@ public class UserPrincipal implements UserDetails, OAuth2User {
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return status == EStatus.ACTIVE;
     }
 
     @Override

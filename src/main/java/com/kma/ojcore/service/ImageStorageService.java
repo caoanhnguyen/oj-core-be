@@ -13,6 +13,10 @@ import java.util.UUID;
  */
 public interface ImageStorageService {
 
+    String uploadImage(MultipartFile file, String folder);
+
+    void deleteImageByUrl(String imageUrl);
+
     /**
      * Upload ảnh tạm thời (temporary) vào MinIO với prefix "temp/"
      * Ảnh sẽ được lưu vào bucket "oj-images" với path: temp/{uuid}.{extension}

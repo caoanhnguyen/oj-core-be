@@ -1,7 +1,6 @@
 package com.kma.ojcore.security.jwt;
 
 import com.kma.ojcore.security.CustomUserDetailsService;
-import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.service.impl.TokenBlacklistServiceImpl;
 import com.kma.ojcore.utils.TokenCookieUtil;
 import io.jsonwebtoken.Claims;
@@ -12,8 +11,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -22,10 +19,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * JWT Authentication Filter: Lấy JWT từ cookie, xác thực và thiết lập thông tin người dùng trong SecurityContext
@@ -38,6 +32,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider tokenProvider;
     private final TokenCookieUtil tokenCookieUtil;
     private final TokenBlacklistServiceImpl tokenBlacklistServiceImpl;
+    private final CustomUserDetailsService customUserDetailsService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -47,9 +42,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         // Bỏ qua các path public
         if (path.startsWith("/oauth2/") ||
-            path.startsWith("/login/oauth2/") ||
-            path.startsWith("/login/") ||
-            path.startsWith("/api/v1/auth/")) {
+                path.startsWith("/login/oauth2/") ||
+                path.startsWith("/login/") ||
+                path.startsWith("/api/v1/auth/")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -64,32 +59,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     return;
                 }
 
-                // GIẢI MÃ ĐÚNG 1 LẦN DUY NHẤT LẤY RA TOÀN BỘ DATA
+                // Giải mã Token để lấy userId
                 Claims claims = tokenProvider.getAccessTokenClaims(jwt);
-
-                // Moi móc dữ liệu từ trong Token ra (KHÔNG CHỌC DB NỮA)
                 UUID userId = UUID.fromString(claims.getSubject());
-                String username = claims.get("username", String.class);
-                String email = claims.get("email", String.class);
-                String fullName = claims.get("fullName", String.class);
 
-                // Lấy mảng roles mà bro đã ném vào lúc generate token
-                List<String> roles = claims.get("roles", List.class);
-                if (roles == null) roles = new ArrayList<>();
+                // 🌟 2. TRẠM KIỂM SOÁT TỬ THẦN: Lấy thông tin user tươi (fresh) từ DB lên
+                // (Đánh đổi 1 câu query DB để đổi lấy sự an toàn tuyệt đối)
+                UserDetails userDetails = customUserDetailsService.loadUserById(userId);
 
-                // Chuyển mảng chuỗi thành mảng Quyền (GrantedAuthority)
-                List<GrantedAuthority> authorities = roles.stream()
-                        .map(SimpleGrantedAuthority::new)
-                        .collect(Collectors.toList());
+                // 🌟 3. Check trạng thái khóa: Nếu accountNonLocked = false -> Sút văng ngay!
+                if (!userDetails.isAccountNonLocked()) {
+                    log.warn("Tài khoản {} đang bị khóa nhưng vẫn cố dùng token cũ", userId);
+                    sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Tài khoản của bạn đã bị khóa bởi Admin!", request.getServletPath());
+                    return;
+                }
 
-                // Tự tay nặn ra đối tượng UserPrincipal ngay trên RAM (Các trường entity để null)
-                UserPrincipal principal = new UserPrincipal(
-                        userId, username, fullName, email, null, null, null, authorities, null
-                );
-
-                // Gắn mác VIP (Authentication) cho thanh niên này
+                // 🌟 4. Gắn đối tượng userDetails mới nhất (đã ngậm đủ Role, Status real-time) vào SecurityContext
                 UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(principal, null, authorities);
+                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -113,7 +100,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private void sendErrorResponse(HttpServletResponse response, int status, String message, String path) throws IOException {
         response.setStatus(status);
-        response.setContentType("application/json");
+        response.setContentType("application/json; charset=UTF-8"); // Thêm UTF-8 để hiển thị tiếng Việt chuẩn
         response.getWriter().write("{\"status\":" + status + ",\"error\":\"Unauthorized\",\"message\":\"" + message + "\",\"path\":\"" + path + "\"}");
     }
 }

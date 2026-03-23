@@ -1,6 +1,6 @@
 package com.kma.ojcore.service;
 
-import com.kma.ojcore.dto.response.UserRankSdo;
+import com.kma.ojcore.dto.response.users.UserRankSdo;
 import com.kma.ojcore.enums.RuleType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

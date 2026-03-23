@@ -1,4 +1,4 @@
-package com.kma.ojcore.dto.response;
+package com.kma.ojcore.dto.response.users;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
