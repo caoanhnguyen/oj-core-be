@@ -4,47 +4,52 @@ import com.kma.ojcore.dto.request.auth.ResetPasswordRequest;
 import com.kma.ojcore.dto.response.auth.JwtAuthenticationResponse;
 import com.kma.ojcore.dto.request.auth.LoginRequest;
 import com.kma.ojcore.dto.request.auth.RegisterRequest;
-import com.kma.ojcore.dto.response.auth.UserResponse;
+import com.kma.ojcore.dto.response.users.UserDetailsSdo;
 import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.service.AuthService;
 import com.kma.ojcore.dto.response.common.ApiResponse;
+import com.kma.ojcore.utils.TokenCookieUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.coyote.BadRequestException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * Authentication Controller:
- * Access token được set vào cookie (httpOnly)
- * Refresh token được lưu vào database và set vào cookie (httpOnly)
- */
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping("${app.api.prefix}/auth")
 @RequiredArgsConstructor
+@Slf4j
 public class AuthController {
 
     private final AuthService authService;
+    private final TokenCookieUtil tokenCookieUtil;
 
     @PostMapping("/login")
-    public ApiResponse<?> login(@Valid @RequestBody LoginRequest loginRequest,
-                                HttpServletResponse httpResponse) {
-        JwtAuthenticationResponse response = authService.login(loginRequest, httpResponse);
-        return ApiResponse.<JwtAuthenticationResponse>builder()
+    public ApiResponse<UserDetailsSdo> login(@Valid @RequestBody LoginRequest loginRequest, HttpServletResponse response) {
+        // 1. Gọi Service để xác thực và lấy cặp Token + Profile
+        JwtAuthenticationResponse jwtResponse = authService.login(loginRequest);
+
+        // 2. Set Cookie
+        tokenCookieUtil.setTokenCookies(response, jwtResponse.getAccessToken(), jwtResponse.getRefreshToken());
+
+        // 3. Chỉ trả về thông tin User (UserDetailsSdo)
+        return ApiResponse.<UserDetailsSdo>builder()
                 .status(200)
-                .message("Login successful")
-                .data(response)
+                .message("Login successfully!")
+                .data(jwtResponse.getUser())
                 .build();
     }
 
     @PostMapping("/register")
-    public ApiResponse<?> register(@Valid @RequestBody RegisterRequest registerRequest) {
-        UserResponse response =  authService.register(registerRequest);
-        return ApiResponse.<UserResponse>builder()
+    public ApiResponse<UserDetailsSdo> register(@Valid @RequestBody RegisterRequest registerRequest) {
+        UserDetailsSdo response =  authService.register(registerRequest);
+        return ApiResponse.<UserDetailsSdo>builder()
                 .status(201)
                 .message("User registered successfully")
                 .data(response)
@@ -52,38 +57,57 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public JwtAuthenticationResponse refreshToken(HttpServletRequest httpServletRequest, HttpServletResponse httpResponse) {
-        return authService.refreshToken(httpServletRequest, httpResponse);
+    public ApiResponse<UserDetailsSdo> refreshToken(HttpServletRequest httpServletRequest, HttpServletResponse httpResponse) {
+        try {
+            String refreshTokenStr = tokenCookieUtil.getCookieValue(httpServletRequest, tokenCookieUtil.REFRESH_TOKEN_COOKIE_NAME);
+
+            if (refreshTokenStr == null || refreshTokenStr.isBlank()) {
+                throw new BadCredentialsException("Không tìm thấy Refresh Token trong Cookie");
+            }
+
+            JwtAuthenticationResponse jwtResponse = authService.refreshToken(refreshTokenStr);
+
+            tokenCookieUtil.setTokenCookies(httpResponse, jwtResponse.getAccessToken(), jwtResponse.getRefreshToken());
+
+            return ApiResponse.<UserDetailsSdo>builder()
+                    .status(200)
+                    .message("Gia hạn Token thành công!")
+                    .data(jwtResponse.getUser())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Token refresh failed: {}", e.getMessage());
+            tokenCookieUtil.clearCookies(httpResponse);
+            throw new BadCredentialsException("Refresh token không hợp lệ hoặc đã bị thu hồi. Vui lòng đăng nhập lại!");
+        }
     }
 
     @PostMapping("/logout")
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<?> logout(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
-        authService.logout(httpRequest, httpResponse);
+        // 1. Bóc Cookie ra
+        String accessToken = tokenCookieUtil.getCookieValue(httpRequest, tokenCookieUtil.ACCESS_TOKEN_COOKIE_NAME);
+        String refreshToken = tokenCookieUtil.getCookieValue(httpRequest, tokenCookieUtil.REFRESH_TOKEN_COOKIE_NAME);
+
+        // 2. Báo cho Service biết để đưa vào Blacklist / Thu hồi
+        authService.logout(accessToken, refreshToken);
+
+        // 3. Xóa Cookie trên trình duyệt
+        tokenCookieUtil.clearCookies(httpResponse);
+
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Logout successful")
                 .build();
     }
 
-    // Kiểm tra email đã được đăng ký chưa
     @PostMapping("/check-email")
-    public ApiResponse<?> checkEmail(@RequestParam String email) {
+    public ApiResponse<Boolean> checkEmail(@RequestParam String email) {
         boolean isRegistered = authService.checkEmailExists(email);
-        return ApiResponse.builder()
+        return ApiResponse.<Boolean>builder()
                 .status(200)
                 .message("Email is " + (isRegistered ? "already registered" : "available"))
                 .data(isRegistered)
-                .build();
-    }
-
-    @GetMapping("/me")
-    @PreAuthorize("isAuthenticated()")
-    public ApiResponse<?> getCurrentUser(@AuthenticationPrincipal UserPrincipal currentUser) {
-        UserResponse userResponse = authService.getCurrentUser(currentUser);
-        return ApiResponse.<UserResponse>builder()
-                .status(200)
-                .message("Get current user successful")
-                .data(userResponse)
                 .build();
     }
 
@@ -124,4 +148,3 @@ public class AuthController {
                 .build();
     }
 }
-

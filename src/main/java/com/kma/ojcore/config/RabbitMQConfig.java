@@ -19,14 +19,14 @@ public class RabbitMQConfig {
     public static final String JUDGE_QUEUE = "judge.queue";
     public static final String RESULT_QUEUE = "result.queue";
     public static final String RUN_CODE_QUEUE = "judge.run.queue";
-    public static final String RUN_CODE_RESULT_QUEUE = "judge.run.result.queue"; // 🌟 Mới thêm
+    public static final String RUN_CODE_RESULT_QUEUE = "judge.run.result.queue";
 
     // 3. Khai báo CÁC NHÃN ĐỊA CHỈ (Routing Keys)
     public static final String EMAIL_ROUTING_KEY = "email.routing.key";
     public static final String JUDGE_ROUTING_KEY = "judge.routing.key";
     public static final String RESULT_ROUTING_KEY = "result.routing.key";
     public static final String RUN_CODE_ROUTING_KEY = "judge.run.routing.key";
-    public static final String RUN_CODE_RESULT_ROUTING_KEY = "judge.run.result.routing.key"; // 🌟 Mới thêm
+    public static final String RUN_CODE_RESULT_ROUTING_KEY = "judge.run.result.routing.key";
 
     // ==========================================
     // KHỞI TẠO CÁC BEAN

@@ -6,7 +6,7 @@ import com.kma.ojcore.dto.request.auth.RegisterRequest;
 import com.kma.ojcore.dto.request.auth.ResetPasswordRequest;
 import com.kma.ojcore.dto.response.auth.EmailMessage;
 import com.kma.ojcore.dto.response.auth.JwtAuthenticationResponse;
-import com.kma.ojcore.dto.response.auth.UserResponse;
+import com.kma.ojcore.dto.response.users.UserDetailsSdo;
 import com.kma.ojcore.entity.RefreshToken;
 import com.kma.ojcore.entity.Role;
 import com.kma.ojcore.entity.User;
@@ -17,13 +17,12 @@ import com.kma.ojcore.exception.ResourceNotFoundException;
 import com.kma.ojcore.mapper.UserMapper;
 import com.kma.ojcore.repository.RoleRepository;
 import com.kma.ojcore.repository.UserRepository;
+import com.kma.ojcore.security.CustomUserDetailsService;
 import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.security.jwt.JwtTokenProvider;
 import com.kma.ojcore.service.AuthService;
 import com.kma.ojcore.service.RefreshTokenService;
-import com.kma.ojcore.utils.TokenCookieUtil;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import com.kma.ojcore.service.TokenBlacklistService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.coyote.BadRequestException;
@@ -35,19 +34,18 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Authentication Service xử lý các chức năng liên quan đến xác thực và quản lý người dùng.
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -60,69 +58,58 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider tokenProvider;
     private final UserMapper userMapper;
     private final RefreshTokenService refreshTokenService;
-    private final TokenCookieUtil tokenCookieUtil;
-    private final TokenBlacklistServiceImpl tokenBlacklistServiceImpl;
+    private final TokenBlacklistService tokenBlacklistService;
     private final RedisTemplate<String, String> redisTemplate;
+    private final CustomUserDetailsService customUserDetailsService;
+    private final RabbitTemplate rabbitTemplate;
+
     private static final String RESET_PASS_PREFIX = "RESET_PASS:";
     private static final String VERIFY_EMAIL_PREFIX = "VERIFY_EMAIL:";
-    private final RabbitTemplate rabbitTemplate;
+    private final SecureRandom secureRandom = new SecureRandom();
 
     @Value("${FRONTEND_URL}")
     private String frontendUrl;
 
     @Transactional
     @Override
-    public JwtAuthenticationResponse login(LoginRequest loginRequest, HttpServletResponse httpResponse) {
+    public JwtAuthenticationResponse login(LoginRequest loginRequest) {
         try {
             Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            loginRequest.getUsername(),
-                            loginRequest.getPassword()
-                    )
+                    new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword())
             );
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
-
             UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-//            User user = userRepository.findById(userPrincipal.getId())
-//                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-            // Tạo access token
-            String accessToken = tokenProvider.generateAccessToken(authentication);
-
-            // Lưu refresh token vào database
+            String accessToken = tokenProvider.generateAccessToken(userPrincipal);
             RefreshToken refreshToken = refreshTokenService.createRefreshToken(userPrincipal.getId());
 
-            // Set access token vào cookie
-            tokenCookieUtil.setTokenCookies(httpResponse, accessToken, refreshToken.getToken());
+            User user = userRepository.findById(userPrincipal.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user!"));
+            UserDetailsSdo userDetailsSdo = userMapper.toUserDetailsSdo(user, true);
 
             return JwtAuthenticationResponse.builder()
-                    .userId(userPrincipal.getId())
-                    .username(userPrincipal.getUsername())
-                    .email(userPrincipal.getEmail())
-                    .fullName(userPrincipal.getFullName())
+                    .accessToken(accessToken)
+                    .refreshToken(refreshToken.getToken())
+                    .user(userDetailsSdo)
                     .build();
 
         } catch (Exception e) {
             log.error("Login failed: {}", e.getMessage());
-            throw new BadCredentialsException("Invalid username or password");
+            throw new BadCredentialsException("Tài khoản hoặc mật khẩu không chính xác!");
         }
     }
 
     @Transactional
     @Override
-    public UserResponse register(RegisterRequest registerRequest) {
-        // Check if username already exists
+    public UserDetailsSdo register(RegisterRequest registerRequest) {
         if (userRepository.existsByUsername(registerRequest.getUsername())) {
-            throw new ResourceAlreadyExistsException("Username is already taken");
+            throw new ResourceAlreadyExistsException("Tên đăng nhập đã tồn tại");
         }
-
-        // Check if email already exists
         if (userRepository.existsByEmail(registerRequest.getEmail())) {
-            throw new ResourceAlreadyExistsException("Email is already in use");
+            throw new ResourceAlreadyExistsException("Email đã được sử dụng");
         }
 
-        // Create new user
         User user = User.builder()
                 .username(registerRequest.getUsername())
                 .email(registerRequest.getEmail())
@@ -133,84 +120,62 @@ public class AuthServiceImpl implements AuthService {
                 .build();
         user.setStatus(EStatus.INACTIVE);
 
-        // Assign default role
         Role userRole = roleRepository.getUserRole();
-
         Set<Role> roles = new HashSet<>();
         roles.add(userRole);
-
         user.setRoles(roles);
+
         User savedUser = userRepository.save(user);
 
-        // Tự động gửi email xác thực
         try {
             sendVerificationEmail(savedUser.getId());
-            log.info("Verification email sent to: {}", savedUser.getEmail());
         } catch (Exception e) {
-            log.error("Failed to send verification email to {}: {}", savedUser.getEmail(), e.getMessage(), e);
-            // Không throw exception để không block quá trình đăng ký
+            log.error("Failed to send verification email: {}", e.getMessage());
         }
 
-        return userMapper.toUserResponse(savedUser);
+        return userMapper.toUserDetailsSdo(user, true);
     }
 
     @Transactional
     @Override
-    public JwtAuthenticationResponse refreshToken(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
-        try {
-            String refreshTokenStr = tokenCookieUtil.getCookieValue(httpRequest, tokenCookieUtil.REFRESH_TOKEN_COOKIE_NAME);
+    public JwtAuthenticationResponse refreshToken(String reqRefreshTokenStr) {
+        RefreshToken oldRefreshToken = refreshTokenService.findByToken(reqRefreshTokenStr)
+                .orElseThrow(() -> new BadCredentialsException("Refresh token không tồn tại"));
 
-            // Tìm refresh token trong database
-            RefreshToken refreshToken = refreshTokenService.findByToken(refreshTokenStr)
-                    .orElseThrow(() -> new BadCredentialsException("Refresh token not found"));
+        oldRefreshToken = refreshTokenService.verifyExpiration(oldRefreshToken);
+        User user = oldRefreshToken.getUser();
 
-            // Verify token chưa expired và chưa revoked
-            refreshToken = refreshTokenService.verifyExpiration(refreshToken);
+        // Check Redis
+        UserDetails userDetails = customUserDetailsService.loadUserById(user.getId());
+        UserPrincipal principal = (UserPrincipal) userDetails;
 
-            User user = refreshToken.getUser();
-            UserPrincipal userPrincipal = UserPrincipal.create(user);
-
-            // Tạo access token mới
-            String newAccessToken = tokenProvider.generateAccessToken(userPrincipal);
-
-            // Tạo refresh token mới và revoke token cũ
-            RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user.getId());
-
-            // Set access token vào cookie
-            tokenCookieUtil.setTokenCookies(httpResponse, newAccessToken, newRefreshToken.getToken());
-
-            return JwtAuthenticationResponse.builder()
-                    .userId(user.getId())
-                    .username(user.getUsername())
-                    .email(user.getEmail())
-                    .fullName(user.getFullName())
-                    .build();
-        } catch (Exception e) {
-            log.error("Token refresh failed: {}", e.getMessage());
-            tokenCookieUtil.clearCookies(httpResponse);
-            throw new BadCredentialsException("Refresh token không hợp lệ hoặc đã bị thu hồi. Vui lòng đăng nhập lại!");
+        if (!principal.isAccountNonLocked()) {
+            throw new BadCredentialsException("Tài khoản của bạn đã bị Admin khóa!");
         }
+
+        String newAccessToken = tokenProvider.generateAccessToken(principal);
+        RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user.getId());
+        UserDetailsSdo userDetailsSdo = userMapper.toUserDetailsSdo(user, true);
+
+        return JwtAuthenticationResponse.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(newRefreshToken.getToken())
+                .user(userDetailsSdo)
+                .build();
     }
 
     @Transactional
     @Override
-    public void logout(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+    public void logout(String accessToken, String refreshToken) {
         try {
-            String refreshTokenStr = tokenCookieUtil.getCookieValue(httpRequest, tokenCookieUtil.REFRESH_TOKEN_COOKIE_NAME);
-            if (refreshTokenStr != null && !refreshTokenStr.isEmpty()) {
-                refreshTokenService.revokeToken(refreshTokenStr);
+            if (refreshToken != null && !refreshToken.isBlank()) {
+                refreshTokenService.revokeToken(refreshToken);
             }
-
-            String accessToken = tokenCookieUtil.getCookieValue(httpRequest, tokenCookieUtil.ACCESS_TOKEN_COOKIE_NAME);
-            if (accessToken != null && !accessToken.isEmpty()) {
-                tokenBlacklistServiceImpl.blacklistToken(accessToken);
+            if (accessToken != null && !accessToken.isBlank()) {
+                tokenBlacklistService.blacklistToken(accessToken);
             }
         } catch (Exception e) {
-            // Chỉ log lại để biết, KHÔNG throw Exception làm sập API
             log.warn("Có lỗi xảy ra khi revoke/blacklist token lúc logout: {}", e.getMessage());
-        } finally {
-            tokenCookieUtil.clearCookies(httpResponse);
-            SecurityContextHolder.clearContext(); // Dọn dẹp luôn context của Spring Security cho sạch sẽ
         }
     }
 
@@ -220,28 +185,15 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public UserResponse getCurrentUser(UserPrincipal currentUser) {
-        User user = userRepository.findUserWithRolesById(currentUser.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        return userMapper.toUserResponse(user);
-    }
-
-    @Override
     public void forgotPassword(String email) {
-        // Chuẩn hóa email: xóa khoảng trắng 2 đầu và đưa về chữ thường
         String normalizedEmail = email.trim().toLowerCase();
 
-        // 1. Check user tồn tại bằng email đã chuẩn hóa
         if (!userRepository.existsByEmail(normalizedEmail)) {
             throw new ResourceNotFoundException("User not found");
         }
 
-        // 2. Sinh OTP ngẫu nhiên (Dùng SecureRandom chống đoán hạt giống)
-        SecureRandom secureRandom = new SecureRandom();
         String otp = String.valueOf(secureRandom.nextInt(900000) + 100000);
 
-        // 3. Lưu OTP vào Redis với key là email đã chuẩn hóa (Sống 5 phút)
         redisTemplate.opsForValue().set(
                 RESET_PASS_PREFIX + normalizedEmail,
                 otp,
@@ -249,133 +201,94 @@ public class AuthServiceImpl implements AuthService {
                 TimeUnit.MINUTES
         );
 
-        // 4. Tạo nội dung email
         EmailMessage message = EmailMessage.builder()
-                .to(normalizedEmail) // Gửi tới email đã chuẩn hóa luôn cho an toàn
-                .subject("Reset Password - OJ Core")
-                .content("<h1>Mã xác thực của bạn là: " + otp + "</h1>" +
-                        "<p>Mã này sẽ hết hạn sau 5 phút.</p>")
+                .to(normalizedEmail)
+                .subject("Khôi phục mật khẩu - OJ Core")
+                .content("<h1>Mã xác thực của bạn là: " + otp + "</h1><p>Mã này sẽ hết hạn sau 5 phút.</p>")
                 .build();
 
-        // 5. Bắn sang RabbitMQ (Async)
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EMAIL_QUEUE, message);
+        rabbitTemplate.convertAndSend(RabbitMQConfig.JUDGE_EXCHANGE, RabbitMQConfig.EMAIL_ROUTING_KEY, message);
     }
 
+    @Transactional
     @Override
     public void resetPassword(ResetPasswordRequest request) throws BadRequestException {
-        // Chuẩn hóa email từ request
         String normalizedEmail = request.getEmail().trim().toLowerCase();
-
-        // 1. Lấy OTP từ Redis
         String cachedOtp = redisTemplate.opsForValue().get(RESET_PASS_PREFIX + normalizedEmail);
 
-        // 2. Validate OTP
-        if (cachedOtp == null) {
-            throw new BadRequestException("OTP đã hết hạn hoặc không tồn tại.");
-        }
-        if (!cachedOtp.equals(request.getOtp())) {
-            // (Tùy chọn) Thêm logic tăng biến đếm sai ở đây để chống Brute-force nếu cần
-            throw new BadRequestException("OTP không chính xác.");
+        if (cachedOtp == null || !cachedOtp.equals(request.getOtp())) {
+            throw new BadRequestException("OTP đã hết hạn hoặc không chính xác.");
         }
 
-        // 3. Đổi mật khẩu
         User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+
+        user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
 
-        // 4. Xóa OTP khỏi Redis (Tránh dùng lại)
+        refreshTokenService.revokeAllUserTokens(user); // Đuổi sạch thiết bị cũ
+        redisTemplate.delete("userDetails::" + user.getId());  // Ép cập nhật version trên Redis
+
         redisTemplate.delete(RESET_PASS_PREFIX + normalizedEmail);
     }
 
     @Override
     public void sendVerificationEmail(UUID userId) {
-        log.info("Starting sendVerificationEmail for userId: {}", userId);
-
-        // 1. Tìm user
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        log.info("Found user: {}, email: {}", user.getUsername(), user.getEmail());
-
-        // 2. Check user đã verify chưa
         if (user.getEmailVerified()) {
-            log.warn("Email already verified for user: {}", user.getEmail());
             throw new ResourceAlreadyExistsException("Email đã được xác thực");
         }
 
-        // 3. Sinh token ngẫu nhiên (UUID)
-        String token = UUID.randomUUID().toString();
-        log.info("Generated verification token: {}", token);
+        byte[] randomBytes = new byte[48];
+        secureRandom.nextBytes(randomBytes);
+        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
 
-        // 4. Lưu token vào Redis với userId (Sống 24 giờ)
         redisTemplate.opsForValue().set(
                 VERIFY_EMAIL_PREFIX + token,
                 userId.toString(),
                 24,
                 TimeUnit.HOURS
         );
-        log.info("Saved token to Redis with key: {}", VERIFY_EMAIL_PREFIX + token);
 
-        // 5. Tạo link xác thực
         String verificationLink = frontendUrl + "/verify-email?token=" + token;
 
-        // 6. Tạo nội dung email
         EmailMessage message = EmailMessage.builder()
                 .to(user.getEmail())
                 .subject("Xác thực Email - OJ Core")
                 .content("<h1>Chào " + user.getFullName() + ",</h1>" +
-                        "<p>Cảm ơn bạn đã đăng ký tài khoản tại OJ Core!</p>" +
-                        "<p>Vui lòng click vào link bên dưới để xác thực email của bạn:</p>" +
-                        "<p><a href=\"" + verificationLink + "\" style=\"background-color: #4CAF50; color: white; padding: 14px 20px; text-align: center; text-decoration: none; display: inline-block; border-radius: 4px;\">Xác thực Email</a></p>" +
-                        "<p>Hoặc copy link này vào trình duyệt:</p>" +
-                        "<p>" + verificationLink + "</p>" +
-                        "<p>Link này sẽ hết hạn sau 24 giờ.</p>" +
-                        "<p>Nếu bạn không thực hiện đăng ký này, vui lòng bỏ qua email này.</p>")
+                        "<p>Vui lòng click vào link bên dưới để xác thực tài khoản của bạn:</p>" +
+                        "<a href=\"" + verificationLink + "\">Xác thực Email ngay</a>" +
+                        "<p>Link này sẽ hết hạn sau 24 giờ.</p>")
                 .build();
 
-        log.info("Email message created for: {}", user.getEmail());
-
-        // 7. Bắn sang RabbitMQ (Async)
-        try {
-            rabbitTemplate.convertAndSend(RabbitMQConfig.EMAIL_QUEUE, message);
-            log.info("Email message sent to RabbitMQ queue: {}", RabbitMQConfig.EMAIL_QUEUE);
-        } catch (Exception e) {
-            log.error("Failed to send message to RabbitMQ: {}", e.getMessage(), e);
-            throw e;
-        }
+        // Bắn RabbitMQ
+        rabbitTemplate.convertAndSend(RabbitMQConfig.JUDGE_EXCHANGE, RabbitMQConfig.EMAIL_ROUTING_KEY, message);
     }
 
     @Transactional
     @Override
     public void verifyEmail(String token) throws BadRequestException {
-        // 1. Lấy userId từ Redis
         String userIdStr = redisTemplate.opsForValue().get(VERIFY_EMAIL_PREFIX + token);
 
-        // 2. Validate token
         if (userIdStr == null) {
             throw new BadRequestException("Link xác thực đã hết hạn hoặc không hợp lệ.");
         }
 
-        UUID userId = UUID.fromString(userIdStr);
-
-        // 3. Tìm user và cập nhật trạng thái
-        User user = userRepository.findById(userId)
+        User user = userRepository.findById(UUID.fromString(userIdStr))
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        // Check nếu đã verify rồi
         if (user.getEmailVerified()) {
             throw new BadRequestException("Email đã được xác thực trước đó.");
         }
 
-        // Cập nhật email verified và active account
         user.setEmailVerified(true);
         user.setStatus(EStatus.ACTIVE);
         userRepository.save(user);
 
-        // 4. Xóa token khỏi Redis (Tránh dùng lại)
         redisTemplate.delete(VERIFY_EMAIL_PREFIX + token);
     }
 }
-
