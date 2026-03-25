@@ -75,7 +75,6 @@ public class SecurityConfig {
 
                                     .requestMatchers(apiPrefix + "/auth/**").permitAll()
 
-                                    // Giữ nguyên mấy thằng không thuộc API v1 (như OAuth2, Swagger)
                                     .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                                     .requestMatchers("/v3/api-docs/**", "/swagger-ui/**").permitAll()
 
@@ -89,13 +88,13 @@ public class SecurityConfig {
                                             apiPrefix + "/problems/*/statistics").permitAll()
                                     .requestMatchers(HttpMethod.GET, apiPrefix + "/submissions", apiPrefix + "/submissions/statistics").permitAll()
                                     .requestMatchers(HttpMethod.GET, apiPrefix + "/files/view").permitAll()
+                                    .requestMatchers(HttpMethod.GET, apiPrefix + "/rankings").permitAll()
 
-                                    // Admin API (Dùng hasAnyAuthority như đã bàn để fix lỗi Role)
-                                    .requestMatchers(apiPrefix + "/admin/**").hasAnyRole("ADMIN", "MODERATOR")
+                                    .requestMatchers(apiPrefix + "/admin/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_MODERATOR")
 
                                     // Bắt buộc đăng nhập cho các request còn lại
                                     .anyRequest().authenticated()
-                        )
+                                )
                                 .oauth2Login(oauth2 -> oauth2
                                                 // Custom OAuth2 user service to load user info
                                                 .userInfoEndpoint(userInfo -> userInfo

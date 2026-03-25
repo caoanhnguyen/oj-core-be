@@ -1,19 +1,20 @@
 package com.kma.ojcore.security;
 
-import com.kma.ojcore.entity.Role;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.kma.ojcore.entity.User;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.kma.ojcore.enums.EStatus;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -22,21 +23,24 @@ import java.util.stream.Collectors;
  */
 @Data
 @AllArgsConstructor
-public class UserPrincipal implements UserDetails, OAuth2User {
+@NoArgsConstructor
+public class UserPrincipal implements UserDetails, OAuth2User, Serializable {
 
     UUID id;
     String username;
     String fullName;
     String email;
+    String avatarUrl;
     @JsonIgnore
     String password;
-    Set<Role> roles;
     EStatus status;
     boolean accountNonLocked;
+    Integer tokenVersion;
 
+    @JsonDeserialize(contentAs = SimpleGrantedAuthority.class)
     Collection<? extends GrantedAuthority> authorities;
 
-    Map<String, Object> attributes;
+    Map<String, Object> attributes; // Dùng để lưu trữ thông tin từ OAuth2 provider
 
     public static UserPrincipal create(User user) {
         Collection<GrantedAuthority> authorities = user.getRoles().stream()
@@ -48,10 +52,11 @@ public class UserPrincipal implements UserDetails, OAuth2User {
                 user.getUsername(),
                 user.getFullName(),
                 user.getEmail(),
+                user.getAvatarUrl(),
                 user.getPassword(),
-                user.getRoles(),
                 user.getStatus(),
                 user.getAccountNonLocked(),
+                user.getTokenVersion(),
                 authorities,
                 null
         );

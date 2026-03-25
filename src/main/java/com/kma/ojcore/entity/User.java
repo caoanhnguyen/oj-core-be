@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
@@ -18,7 +19,7 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class User extends BaseEntity {
+public class User extends BaseEntity implements Serializable {
 
     @Column(name = "username", nullable = false, unique = true, length = 50)
     String username;
@@ -99,6 +100,10 @@ public class User extends BaseEntity {
 
     @Column(name = "provider_id", length = 100)
     String providerId;
+
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    Integer tokenVersion = 1;
 
     // -- Relationships -- //
 
