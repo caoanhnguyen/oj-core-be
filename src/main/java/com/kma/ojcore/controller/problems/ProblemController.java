@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.SortDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -88,6 +89,7 @@ public class ProblemController {
     }
 
     @GetMapping("/solved/count")
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<Long> countUserSolvedProblems(@AuthenticationPrincipal UserPrincipal currentUser) {
         UUID userId = currentUser.getId();
         long count = problemService.countUserProblemsByUserIdAndState(userId, UserProblemState.SOLVED);

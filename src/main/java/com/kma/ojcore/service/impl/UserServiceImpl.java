@@ -16,6 +16,7 @@ import com.kma.ojcore.service.UserService;
 import com.kma.ojcore.utils.EscapeHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -138,6 +139,7 @@ public class UserServiceImpl implements UserService {
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
+    @CacheEvict(value = "userDetails", allEntries = true)
     public void bulkToggleUserLock(UUID adminId, List<UUID> userTargetIds, boolean accountNonLocked) {
         if (userTargetIds.contains(adminId)) {
             throw new IllegalArgumentException("Không thể tự khóa/mở khóa tài khoản của mình!");
@@ -153,6 +155,7 @@ public class UserServiceImpl implements UserService {
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
+    @CacheEvict(value = "userDetails", key = "#targetUserId")
     public void updateUserRoles(UUID adminId, UUID targetUserId, Set<RoleName> roleNames) {
         // 1. Kiểm tra không cho admin tự thay đổi role của mình
         if (adminId.equals(targetUserId)) {

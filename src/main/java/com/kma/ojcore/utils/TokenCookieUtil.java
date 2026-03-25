@@ -12,9 +12,6 @@ import org.springframework.web.util.WebUtils;
 @Component
 public class TokenCookieUtil {
 
-    @Value("${jwt.access-expiration}")
-    private long jwtAccessExpirationMs;
-
     @Value("${jwt.refresh-expiration}")
     private long jwtRefreshExpirationMs;
 

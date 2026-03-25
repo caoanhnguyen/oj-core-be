@@ -30,7 +30,7 @@ public class FileController {
      * Thường dùng để tải file testcase (.zip) về kiểm tra
      */
     @GetMapping("/download")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<InputStreamResource> downloadFile(@RequestParam("key") String objectKey) {
         try {
             Resource resource = fileDownloadService.downloadByObjectKey(objectKey);

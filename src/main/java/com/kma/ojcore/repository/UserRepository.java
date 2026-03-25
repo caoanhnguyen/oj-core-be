@@ -1,6 +1,5 @@
 package com.kma.ojcore.repository;
 
-import com.kma.ojcore.dto.response.users.UserBasicSdo;
 import com.kma.ojcore.dto.response.users.UserRankSdo;
 import com.kma.ojcore.entity.User;
 import com.kma.ojcore.enums.Provider;
@@ -39,7 +38,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("SELECT u FROM User u WHERE u.provider = :provider AND u.providerId = :providerId")
     Optional<User> findByProviderAndProviderId(Provider provider, String providerId);
 
-    @Query("SELECT u FROM User u WHERE (u.username = :usernameOrEmail OR u.email = :usernameOrEmail)")
+    @Query("SELECT u FROM User u JOIN FETCH u.roles WHERE (u.username = :usernameOrEmail OR u.email = :usernameOrEmail)")
     Optional<User> findByUsernameOrEmail(String usernameOrEmail);
 
     /**

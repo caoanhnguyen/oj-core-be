@@ -16,6 +16,10 @@ public interface UserMapper {
     @Mapping(source = "roles", target = "roles", qualifiedByName = "rolesToRoleNames")
     UserResponse toUserResponse(User user);
 
+    default String ignoreEmail(User user, boolean isMine) {
+        return isMine ? user.getEmail() : null;
+    }
+
     @Named("rolesToRoleNames")
     default Set<String> rolesToRoleNames(Set<Role> roles) {
         return roles.stream()
@@ -23,10 +27,7 @@ public interface UserMapper {
                 .collect(Collectors.toSet());
     }
 
-    default String ignoreEmail(User user, boolean isMine) {
-        return isMine ? user.getEmail() : null;
-    }
-
+    @Mapping(source = "user.roles", target = "roles", qualifiedByName = "rolesToRoleNames")
     @Mapping(target = "email", expression = "java(ignoreEmail(user, isMine))")
     UserDetailsSdo toUserDetailsSdo(User user, boolean isMine);
 

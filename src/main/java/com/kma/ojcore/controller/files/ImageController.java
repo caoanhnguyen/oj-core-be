@@ -8,6 +8,7 @@ import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.service.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -27,6 +28,7 @@ public class ImageController {
      * Trả về URL tạm thời từ minIO để FE có thể hiển thị ngay trong editor.
      */
     @PostMapping("/editor/upload")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MODERATOR')")
     public ApiResponse<ImageUploadSdo> uploadEditorImage(
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
@@ -47,6 +49,7 @@ public class ImageController {
      * Có thể được gọi định kỳ bằng cron job hoặc scheduler.
      */
     @DeleteMapping("/editor/cleanup")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ApiResponse<Void> cleanupTemporaryImages() {
         imageStorageService.cleanupExpiredTemporaryImages();
 

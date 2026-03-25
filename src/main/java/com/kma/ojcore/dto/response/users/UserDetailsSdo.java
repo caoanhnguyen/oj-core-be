@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.experimental.FieldDefaults;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.UUID;
 
 @Data
@@ -30,6 +31,7 @@ public class UserDetailsSdo {
     String githubUrl;
     String linkedinUrl;
     String website;
+    Set<String> roles;
 
     Boolean emailVerified;
     String provider;
