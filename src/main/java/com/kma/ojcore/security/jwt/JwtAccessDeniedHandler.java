@@ -1,7 +1,6 @@
 package com.kma.ojcore.security.jwt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +27,7 @@ public class JwtAccessDeniedHandler implements AccessDeniedHandler {
     @Override
     public void handle(HttpServletRequest request,
                        HttpServletResponse response,
-                       AccessDeniedException accessDeniedException) throws IOException, ServletException {
+                       AccessDeniedException accessDeniedException) throws IOException {
 
         log.error("Access Denied error: {}", accessDeniedException.getMessage());
 

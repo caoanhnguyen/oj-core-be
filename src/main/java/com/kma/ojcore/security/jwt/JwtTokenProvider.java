@@ -1,6 +1,5 @@
 package com.kma.ojcore.security.jwt;
 
-import com.kma.ojcore.entity.Role;
 import com.kma.ojcore.security.UserPrincipal;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
@@ -15,10 +14,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
- * JWT Token Provider for generating and validating JWT tokens
+ * JWT Token Provider: Chịu trách nhiệm tạo, giải mã và xác thực JWT cho cả Access Token và Refresh Token
  */
 @Component
 @Slf4j
@@ -53,12 +51,9 @@ public class JwtTokenProvider {
     public String generateAccessToken(UserPrincipal userPrincipal) {
         return Jwts.builder()
                 .subject(String.valueOf(userPrincipal.getId()))
+                .id(UUID.randomUUID().toString()) // JWT ID (jti) để nhận biết duy nhất từng token, dùng cho blacklist
                 .claim("username", userPrincipal.getUsername())
-                .claim("email", userPrincipal.getEmail())
-                .claim("fullName", userPrincipal.getFullName())
-                .claim("roles", userPrincipal.getRoles().stream()
-                        .map(Role::getName)
-                        .collect(Collectors.toList()))
+                .claim("token_version", userPrincipal.getTokenVersion())
                 .issuedAt(new Date())
                 .expiration(new Date((new Date()).getTime() + jwtAccessExpirationMs))
                 .signWith(getSigningKey(accessSecret))
@@ -84,16 +79,6 @@ public class JwtTokenProvider {
                 .getPayload();
 
         return UUID.fromString(claims.getSubject());
-    }
-
-    public String getUsernameFromAccessToken(String token) {
-        Claims claims = Jwts.parser()
-                .verifyWith(getSigningKey(refreshSecret))
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-
-        return claims.get("username", String.class);
     }
 
     // Thêm hàm này vào JwtTokenProvider

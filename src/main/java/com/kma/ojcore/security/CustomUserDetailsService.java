@@ -3,6 +3,7 @@ package com.kma.ojcore.security;
 import com.kma.ojcore.repository.UserRepository;
 import com.kma.ojcore.entity.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -21,7 +22,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     private final UserRepository userRepository;
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String usernameOrEmail) throws UsernameNotFoundException {
         User user = userRepository.findByUsernameOrEmail(usernameOrEmail)
                 .orElseThrow(() ->
@@ -31,7 +32,8 @@ public class CustomUserDetailsService implements UserDetailsService {
         return UserPrincipal.create(user);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
+    @Cacheable(value = "userDetails", key = "#id")
     public UserDetails loadUserById(UUID id) {
         User user = userRepository.findUserWithRolesById(id)
                 .orElseThrow(() ->
