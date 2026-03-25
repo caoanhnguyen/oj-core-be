@@ -5,6 +5,7 @@ import com.kma.ojcore.dto.request.auth.RegisterRequest;
 import com.kma.ojcore.dto.request.auth.ResetPasswordRequest;
 import com.kma.ojcore.dto.response.auth.JwtAuthenticationResponse;
 import com.kma.ojcore.dto.response.auth.UserResponse;
+import com.kma.ojcore.dto.response.users.UserDetailsSdo;
 import com.kma.ojcore.security.UserPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -14,17 +15,15 @@ import java.util.UUID;
 
 public interface AuthService {
 
-    JwtAuthenticationResponse login(LoginRequest loginRequest, HttpServletResponse httpResponse);
+    JwtAuthenticationResponse login(LoginRequest loginRequest);
 
-    UserResponse register(RegisterRequest registerRequest);
+    UserDetailsSdo register(RegisterRequest registerRequest);
 
-    JwtAuthenticationResponse refreshToken(HttpServletRequest httpRequest, HttpServletResponse httpResponse);
+    JwtAuthenticationResponse refreshToken(String reqRefreshTokenStr);
 
-    void logout(HttpServletRequest httpRequest, HttpServletResponse httpResponse);
+    void logout(String accessToken, String refreshToken);
 
     boolean checkEmailExists(String email);
-
-    UserResponse getCurrentUser(UserPrincipal currentUser);
 
     void forgotPassword(String email);
 

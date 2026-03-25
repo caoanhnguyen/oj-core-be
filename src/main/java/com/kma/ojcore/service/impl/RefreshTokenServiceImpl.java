@@ -29,9 +29,9 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     @Override
     @Transactional
-    public RefreshToken createRefreshToken(UUID userId) { // 🌟 Chỉ nhận UUID
+    public RefreshToken createRefreshToken(UUID userId) { // Chỉ nhận UUID
 
-        // 1. Thu hồi toàn bộ token cũ bằng 1 câu lệnh UPDATE siêu tốc
+        // 1. Thu hồi toàn bộ token cũ bằng 1 câu lệnh UPDATE
         refreshTokenRepository.revokeAllUserTokens(userId);
 
         // 2. Tạo token string và tính hạn sử dụng
@@ -44,7 +44,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         // 4. Build và lưu Token mới
         RefreshToken refreshToken = RefreshToken.builder()
                 .token(tokenString)
-                .user(userProxy) // Gắn Proxy vào đây, JPA tự hiểu để lấy ID làm khóa ngoại
+                .user(userProxy)
                 .expiryDate(expiryDate)
                 .revoked(false)
                 .build();
