@@ -21,6 +21,6 @@ public class UpdateUserSdi {
     String school;
     String major;
     String githubUrl;
-    String linkedinUrl;
+    String linkedInUrl;
     String website;
 }

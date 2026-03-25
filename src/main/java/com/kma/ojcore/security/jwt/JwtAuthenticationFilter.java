@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -34,6 +35,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final TokenCookieUtil tokenCookieUtil;
     private final TokenBlacklistServiceImpl tokenBlacklistServiceImpl;
     private final CustomUserDetailsService customUserDetailsService;
+    @Value("${app.api.prefix}")
+    private String apiPrefix;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -45,7 +48,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (path.startsWith("/oauth2/") ||
                 path.startsWith("/login/oauth2/") ||
                 path.startsWith("/login/") ||
-                path.startsWith("${app.api.prefix}/auth/")) {
+                path.startsWith(apiPrefix + "/auth/")) {
             filterChain.doFilter(request, response);
             return;
         }

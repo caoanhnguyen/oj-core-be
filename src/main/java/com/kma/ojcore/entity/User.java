@@ -67,6 +67,9 @@ public class User extends BaseEntity implements Serializable {
     @Column(name = "github_url", length = 255)
     String githubUrl;
 
+    @Column(name = "linked_in_url", length = 255)
+    String linkedInUrl;
+
     @Column(name = "website", length = 255)
     String website;
 

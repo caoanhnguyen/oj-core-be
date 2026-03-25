@@ -29,7 +29,7 @@ public class UserDetailsSdo {
     String school;
     String major;
     String githubUrl;
-    String linkedinUrl;
+    String linkedInUrl;
     String website;
     Set<String> roles;
 
