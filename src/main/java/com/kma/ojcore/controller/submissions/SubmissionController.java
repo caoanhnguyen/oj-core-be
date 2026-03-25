@@ -18,8 +18,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.SortDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -35,12 +34,10 @@ public class SubmissionController {
 
     @PostMapping
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<?> submitCode(@Valid @RequestBody SubmissionSdi request) {
-        // Lấy ID của user hiện tại từ security context
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        UserPrincipal user = (UserPrincipal) authentication.getPrincipal();
+    public ApiResponse<?> submitCode(@Valid @RequestBody SubmissionSdi request,
+                                     @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
-        UUID submissionId = submissionService.submitCode(request, user.getId());
+        UUID submissionId = submissionService.submitCode(request, userPrincipal.getId());
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Code submitted successfully")
@@ -119,12 +116,9 @@ public class SubmissionController {
     @GetMapping("latest_source_code/{problemId}/{languageKey}")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<?> getLatestSourceCode(@PathVariable UUID problemId,
-                                               @PathVariable String languageKey) {
-        // Lấy ID của user hiện tại từ security context
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        UserPrincipal user = (UserPrincipal) authentication.getPrincipal();
-
-        String sourceCode = submissionService.getLatestSubmissionCode(problemId, user.getId(), languageKey);
+                                              @PathVariable String languageKey,
+                                              @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        String sourceCode = submissionService.getLatestSubmissionCode(problemId, userPrincipal.getId(), languageKey);
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Latest source code retrieved successfully")

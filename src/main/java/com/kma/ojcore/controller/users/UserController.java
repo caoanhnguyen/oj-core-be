@@ -1,10 +1,8 @@
 package com.kma.ojcore.controller.users;
 
 import com.kma.ojcore.dto.request.users.UpdateUserSdi;
-import com.kma.ojcore.dto.response.auth.UserResponse;
 import com.kma.ojcore.dto.response.users.UserDetailsSdo;
 import com.kma.ojcore.security.UserPrincipal;
-import com.kma.ojcore.service.AuthService;
 import com.kma.ojcore.service.UserService;
 import com.kma.ojcore.dto.response.common.ApiResponse;
 import lombok.RequiredArgsConstructor;
@@ -14,26 +12,12 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.UUID;
-
 @RestController
 @RequestMapping("${app.api.prefix}/users")
 @RequiredArgsConstructor
 public class UserController {
 
     private final UserService userService;
-    private final AuthService authService;
-
-
-//    @GetMapping("/{id}")
-//    public ApiResponse<?> getUserById(@PathVariable UUID id) {
-//        UserDetailsSdo userProfile = userService.getUserProfileById(id, false);
-//        return ApiResponse.<UserDetailsSdo>builder()
-//                .status(200)
-//                .message("Get user profile successfully!")
-//                .data(userProfile)
-//                .build();
-//    }
 
     @GetMapping("/{username}")
     public ApiResponse<?> getUserByUsername(@PathVariable String username) {
@@ -45,22 +29,11 @@ public class UserController {
                 .build();
     }
 
-//    @GetMapping("/me")
-//    @PreAuthorize("isAuthenticated()")
-//    public ApiResponse<?> getCurrentUser(@AuthenticationPrincipal UserPrincipal currentUser) {
-//        UserDetailsSdo userProfile = userService.getUserProfileById(currentUser.getId(), true);
-//        return ApiResponse.<UserDetailsSdo>builder()
-//                .status(200)
-//                .message("Get current user successfully!")
-//                .data(userProfile)
-//                .build();
-//    }
-
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<?> getCurrentUser(@AuthenticationPrincipal UserPrincipal currentUser) {
-        UserResponse userResponse = authService.getCurrentUser(currentUser);
-        return ApiResponse.<UserResponse>builder()
+        UserDetailsSdo userResponse = userService.getUserProfileById(currentUser.getId(), true);
+        return ApiResponse.<UserDetailsSdo>builder()
                 .status(200)
                 .message("Get current user successful")
                 .data(userResponse)
@@ -85,16 +58,15 @@ public class UserController {
                                        @RequestParam("file") MultipartFile file) {
 
         if (file.isEmpty()) {
-            throw new IllegalArgumentException("File ảnh không được để trống!");
+            throw new IllegalArgumentException("File ảnh trống!");
         }
 
         String newAvatarUrl = userService.updateAvatar(currentUser.getId(), file);
 
         return ApiResponse.<String>builder()
                 .status(200)
-                .message("Cập nhật ảnh đại diện thành công!")
+                .message("Cập nhật avatar thành công!")
                 .data(newAvatarUrl)
                 .build();
     }
 }
-

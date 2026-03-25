@@ -4,6 +4,7 @@ import com.kma.ojcore.enums.RoleName;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -14,7 +15,7 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Role extends BaseEntity {
+public class Role extends BaseEntity implements Serializable {
 
     @Column(name = "name", nullable = false, unique = true, length = 50)
     @Enumerated(EnumType.STRING)

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import java.util.UUID;
 
 @Slf4j
-@Component("submissionSecurity") // 🌟 Tên này phải match chính xác với tên trong @PreAuthorize
+@Component("submissionSecurity") // Tên này phải match chính xác với tên trong @PreAuthorize
 @RequiredArgsConstructor
 public class SubmissionSecurity {
 

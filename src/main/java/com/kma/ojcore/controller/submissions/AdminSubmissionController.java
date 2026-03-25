@@ -1,14 +1,12 @@
 package com.kma.ojcore.controller.submissions;
 
 import com.kma.ojcore.dto.response.common.ApiResponse;
-import com.kma.ojcore.dto.response.problems.ProblemStatisticSdo;
 import com.kma.ojcore.enums.SubmissionVerdict;
 import com.kma.ojcore.service.SubmissionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.data.web.SortDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,6 +18,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("${app.api.prefix}/admin/submissions")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MODERATOR')")
 public class AdminSubmissionController {
 
     private final SubmissionService submissionService;

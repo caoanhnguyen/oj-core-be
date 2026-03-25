@@ -7,7 +7,6 @@ import com.kma.ojcore.dto.response.users.UserBasicSdo;
 import com.kma.ojcore.dto.response.users.UserDetailsSdo;
 import com.kma.ojcore.enums.RoleName;
 import com.kma.ojcore.security.UserPrincipal;
-import com.kma.ojcore.service.AuthService;
 import com.kma.ojcore.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,11 +24,10 @@ import java.util.UUID;
 @RestController
 @RequestMapping("${app.api.prefix}/admin/users")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AdminUserController {
 
     private final UserService userService;
-    private final AuthService authService;
 
     @GetMapping("")
     public ApiResponse<?> getAllUsersForAdmin(@RequestParam(required = false) String keyword,
@@ -58,15 +56,6 @@ public class AdminUserController {
                 .data(user)
                 .build();
     }
-
-//    @PostMapping("/reset-password")
-//    public ApiResponse<?> resetPassword(@RequestBody @Valid ResetPasswordRequest request) throws BadRequestException {
-//        authService.resetPassword(request);
-//        return ApiResponse.builder()
-//                .status(200)
-//                .message("Mật khẩu đã được đặt lại thành công.")
-//                .build();
-//    }
 
     @PatchMapping("/bulk-toggle-lock")
     public ApiResponse<?> bulkToggleLock(@Valid @RequestBody BulkUpdateLockSdi request,
