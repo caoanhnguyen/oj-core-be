@@ -4,11 +4,7 @@ import com.kma.ojcore.dto.request.auth.LoginRequest;
 import com.kma.ojcore.dto.request.auth.RegisterRequest;
 import com.kma.ojcore.dto.request.auth.ResetPasswordRequest;
 import com.kma.ojcore.dto.response.auth.JwtAuthenticationResponse;
-import com.kma.ojcore.dto.response.auth.UserResponse;
 import com.kma.ojcore.dto.response.users.UserDetailsSdo;
-import com.kma.ojcore.security.UserPrincipal;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import org.apache.coyote.BadRequestException;
 
 import java.util.UUID;
