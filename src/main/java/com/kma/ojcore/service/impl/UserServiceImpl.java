@@ -1,8 +1,10 @@
 package com.kma.ojcore.service.impl;
 
 import com.kma.ojcore.dto.request.users.UpdateUserSdi;
+import com.kma.ojcore.dto.response.users.HeatMapItemSdo;
 import com.kma.ojcore.dto.response.users.UserBasicSdo;
 import com.kma.ojcore.dto.response.users.UserDetailsSdo;
+import com.kma.ojcore.dto.response.users.UserHeatMapSdo;
 import com.kma.ojcore.entity.Role;
 import com.kma.ojcore.entity.User;
 import com.kma.ojcore.enums.RoleName;
@@ -10,6 +12,7 @@ import com.kma.ojcore.exception.BusinessException;
 import com.kma.ojcore.exception.ResourceNotFoundException;
 import com.kma.ojcore.mapper.UserMapper;
 import com.kma.ojcore.repository.RoleRepository;
+import com.kma.ojcore.repository.SubmissionRepository;
 import com.kma.ojcore.repository.UserRepository;
 import com.kma.ojcore.service.ImageStorageService;
 import com.kma.ojcore.service.UserService;
@@ -23,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,6 +45,7 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     private final RoleRepository roleRepository;
     private final ImageStorageService imageStorageService;
+    private final SubmissionRepository submissionRepo;
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
@@ -64,6 +69,29 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
 
         return newAvatarUrl;
+    }
+
+    @Override
+    public UserHeatMapSdo getContributionHeatMap(UUID userId) {
+        // 1. Lấy mốc thời gian cách đây 1 năm
+        LocalDateTime oneYearAgo = LocalDateTime.now().minusYears(1);
+
+        // 2. Query DB lấy tất cả submission của user trong vòng 1 năm qua
+        List<LocalDateTime> submissionDates = submissionRepo.findSubmissionDatesByUserIdAndStartDate(userId, oneYearAgo);
+
+        // 3. Đếm số lượng submission theo từng ngày, map thành List<UserHeatMapSdo>
+        Map<LocalDateTime, Long> dateCountMap = submissionDates.stream()
+                .collect(Collectors.groupingBy(date -> date.toLocalDate().atStartOfDay(), Collectors.counting()));
+
+        // 4. Chuyển Map thành List<UserHeatMapSdo>
+        List<HeatMapItemSdo> heatmapItems = dateCountMap.entrySet().stream()
+                .map(entry -> new HeatMapItemSdo(entry.getKey(), entry.getValue().intValue()))
+                .toList();
+
+        return UserHeatMapSdo.builder()
+                .totalSubmissions(submissionDates.size())
+                .heatmapItems(heatmapItems)
+                .build();
     }
 
     @Transactional(readOnly = true)

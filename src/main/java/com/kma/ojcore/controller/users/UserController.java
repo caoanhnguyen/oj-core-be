@@ -2,6 +2,7 @@ package com.kma.ojcore.controller.users;
 
 import com.kma.ojcore.dto.request.users.UpdateUserSdi;
 import com.kma.ojcore.dto.response.users.UserDetailsSdo;
+import com.kma.ojcore.dto.response.users.UserHeatMapSdo;
 import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.service.UserService;
 import com.kma.ojcore.dto.response.common.ApiResponse;
@@ -11,6 +12,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("${app.api.prefix}/users")
@@ -67,6 +70,17 @@ public class UserController {
                 .status(200)
                 .message("Cập nhật avatar thành công!")
                 .data(newAvatarUrl)
+                .build();
+    }
+
+    @GetMapping("/{id}/heatmap")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<?> getContributionHeatMap(@PathVariable UUID id) {
+        UserHeatMapSdo heatMapData = userService.getContributionHeatMap(id);
+        return ApiResponse.<UserHeatMapSdo>builder()
+                .status(200)
+                .message("Get contribution heatmap successfully!")
+                .data(heatMapData)
                 .build();
     }
 }

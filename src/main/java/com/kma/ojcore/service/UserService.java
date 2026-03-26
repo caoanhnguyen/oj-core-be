@@ -3,6 +3,7 @@ package com.kma.ojcore.service;
 import com.kma.ojcore.dto.request.users.UpdateUserSdi;
 import com.kma.ojcore.dto.response.users.UserBasicSdo;
 import com.kma.ojcore.dto.response.users.UserDetailsSdo;
+import com.kma.ojcore.dto.response.users.UserHeatMapSdo;
 import com.kma.ojcore.enums.RoleName;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,6 +22,8 @@ public interface UserService {
     UserDetailsSdo updateUserProfile(UUID userId, UpdateUserSdi request);
 
     String updateAvatar(UUID userId, MultipartFile avatarFile);
+
+    UserHeatMapSdo getContributionHeatMap(UUID userId);
 
     // ADMIN
     Page<UserBasicSdo> getAllUsersForAdmin(String keyword, Boolean isLocked, RoleName role, Pageable pageable);

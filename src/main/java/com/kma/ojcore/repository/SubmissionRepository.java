@@ -3,6 +3,7 @@ package com.kma.ojcore.repository;
 import com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo;
 import com.kma.ojcore.dto.response.submissions.SubmissionDetailsSdo;
 import com.kma.ojcore.entity.Submission;
+import com.kma.ojcore.entity.User;
 import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.ProblemStatus;
 import com.kma.ojcore.enums.SubmissionVerdict;
@@ -21,10 +22,18 @@ import java.util.UUID;
 @Repository
 public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
 
+    UUID user(User user);
+
     interface VerdictCountProjection {
         String getVerdict();
         Long getCount();
     }
+
+    @Query("SELECT s.createdDate FROM Submission s " +
+            "WHERE s.user.id = :userId " +
+            "AND s.createdDate >= :startDate " +
+            "ORDER BY s.createdDate DESC")
+    List<LocalDateTime> findSubmissionDatesByUserIdAndStartDate(UUID userId, LocalDateTime startDate);
 
     @Query("SELECT s.verdict AS verdict, COUNT(s.id) AS count " +
             "FROM Submission s " +
