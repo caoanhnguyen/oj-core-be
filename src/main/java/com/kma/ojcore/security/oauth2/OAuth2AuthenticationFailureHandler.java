@@ -24,7 +24,7 @@ public class OAuth2AuthenticationFailureHandler extends SimpleUrlAuthenticationF
                                         HttpServletResponse response,
                                         AuthenticationException exception) throws IOException {
 
-        String errorMessage = "Đăng nhập thất bại. Vui lòng thử lại!";
+        String errorMessage = "Authentication failed. Please try again.";
         if (exception instanceof OAuth2AuthenticationException) {
             errorMessage = ((OAuth2AuthenticationException) exception).getError().getDescription();
         } else if (exception.getLocalizedMessage() != null) {
@@ -34,7 +34,7 @@ public class OAuth2AuthenticationFailureHandler extends SimpleUrlAuthenticationF
         String targetUrl = UriComponentsBuilder.fromUriString(redirectUri)
                 .queryParam("error", errorMessage)
                 .build()
-                .encode() // Bắt buộc encode để chuỗi tiếng Việt không bị lỗi font
+                .encode()
                 .toUriString();
 
         log.error("OAuth2 authentication failed: {}", errorMessage);

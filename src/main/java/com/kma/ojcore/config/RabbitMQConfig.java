@@ -70,9 +70,9 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(runCodeResultQueue).to(judgeExchange).with(RUN_CODE_RESULT_ROUTING_KEY);
     }
 
-    // ==========================================
-    // CẤU HÌNH CONVERTER (Giữ nguyên)
-    // ==========================================
+    // ====================
+    // CẤU HÌNH CONVERTER
+    // ====================
     @Bean
     public MessageConverter jsonMessageConverter() {
         return new Jackson2JsonMessageConverter();

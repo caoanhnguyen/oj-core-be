@@ -5,8 +5,8 @@ import com.kma.ojcore.entity.Problem;
 import com.kma.ojcore.entity.ProblemImage;
 import com.kma.ojcore.entity.User;
 import com.kma.ojcore.enums.ImageStatus;
-import com.kma.ojcore.exception.InvalidDataException;
-import com.kma.ojcore.exception.StorageException;
+import com.kma.ojcore.exception.BusinessException;
+import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.repository.ProblemImageRepository;
 import com.kma.ojcore.service.FileStorageService;
 import com.kma.ojcore.service.ImageStorageService;
@@ -37,7 +37,7 @@ public class ImageStorageServiceImpl implements ImageStorageService {
 
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
             "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp");
-    private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    private static final long MAX_FILE_SIZE = 5 * 1024 * 1024;
 
     @Override
     public void deleteImageByUrl(String imageUrl) {
@@ -49,7 +49,7 @@ public class ImageStorageServiceImpl implements ImageStorageService {
                 fileStorageService.delete(imagesBucket, objectKey);
             }
         } catch (Exception e) {
-            log.error("Không thể xóa ảnh cũ trên MinIO: {}", imageUrl, e);
+            log.error("Failed to delete old image on MinIO: {}", imageUrl, e);
         }
     }
 
@@ -66,7 +66,7 @@ public class ImageStorageServiceImpl implements ImageStorageService {
 
             return minioUrl + "/" + imagesBucket + "/" + objectKey;
         } catch (IOException e) {
-            throw new StorageException("Failed to upload image: " + e.getMessage());
+            throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED, "Failed to upload image: " + e.getMessage());
         }
     }
 
@@ -105,7 +105,7 @@ public class ImageStorageServiceImpl implements ImageStorageService {
                     .build();
 
         } catch (IOException e) {
-            throw new StorageException("Failed to upload image: " + e.getMessage());
+            throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED, "Failed to upload image: " + e.getMessage());
         }
     }
 
@@ -133,9 +133,7 @@ public class ImageStorageServiceImpl implements ImageStorageService {
         for (ProblemImage image : existingImages) {
             if (!usedImageKeys.contains(image.getObjectKey())) {
                 try {
-                    // Xóa file trên MinIO
                     fileStorageService.delete(imagesBucket, image.getObjectKey());
-                    // HARD DELETE: Xóa luôn bản ghi rác trong DB
                     problemImageRepository.delete(image);
                     log.info("Deleted orphaned image completely: {}", image.getObjectKey());
                 } catch (Exception e) {
@@ -148,16 +146,13 @@ public class ImageStorageServiceImpl implements ImageStorageService {
     @Override
     @Transactional
     public void cleanupExpiredTemporaryImages() {
-        // Quét các ảnh nháp (TEMPORARY) đã tồn tại quá 24 giờ
         LocalDateTime cutoffTime = LocalDateTime.now().minusHours(24);
         List<ProblemImage> expiredImages = problemImageRepository
                 .findByImageStatusAndUploadedAtBefore(ImageStatus.TEMPORARY, cutoffTime);
 
         for (ProblemImage image : expiredImages) {
             try {
-                // Xóa file vật lý trên MinIO
                 fileStorageService.delete(imagesBucket, image.getObjectKey());
-                // HARD DELETE: Tiêu hủy luôn bản ghi
                 problemImageRepository.delete(image);
                 log.info("Cleaned up expired temporary image: {}", image.getObjectKey());
             } catch (Exception e) {
@@ -181,12 +176,12 @@ public class ImageStorageServiceImpl implements ImageStorageService {
     }
 
     private void validateImageFile(MultipartFile file) {
-        if (file.isEmpty()) throw new InvalidDataException("File is empty");
+        if (file.isEmpty()) throw new BusinessException(ErrorCode.FILE_EMPTY);
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase())) {
-            throw new InvalidDataException("Invalid file type.");
+            throw new BusinessException(ErrorCode.INVALID_FILE_FORMAT);
         }
-        if (file.getSize() > MAX_FILE_SIZE) throw new InvalidDataException("File size exceeds 5MB");
+        if (file.getSize() > MAX_FILE_SIZE) throw new BusinessException(ErrorCode.FILE_TOO_LARGE);
     }
 
     private String getFileExtension(String filename) {

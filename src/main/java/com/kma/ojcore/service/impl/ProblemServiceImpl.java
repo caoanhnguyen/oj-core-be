@@ -6,8 +6,8 @@ import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo;
 import com.kma.ojcore.dto.response.problems.ProblemResponse;
 import com.kma.ojcore.entity.*;
 import com.kma.ojcore.enums.*;
-import com.kma.ojcore.exception.ResourceAlreadyExistsException;
-import com.kma.ojcore.exception.ResourceNotFoundException;
+import com.kma.ojcore.exception.BusinessException;
+import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.mapper.ExampleMapper;
 import com.kma.ojcore.mapper.ProblemMapper;
 import com.kma.ojcore.mapper.TemplateMapper;
@@ -20,7 +20,6 @@ import com.kma.ojcore.service.ProblemService;
 import com.kma.ojcore.utils.EscapeHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.coyote.BadRequestException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -45,11 +44,11 @@ public class ProblemServiceImpl implements ProblemService {
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
-    public ProblemDetailsSdo createProblem(CreateProblemSdi request, UUID currentUserId) throws BadRequestException {
+    public ProblemDetailsSdo createProblem(CreateProblemSdi request, UUID currentUserId) {
         log.info("Creating problem with slug: {}", request.getSlug());
 
         if (problemRepository.existsBySlug(request.getSlug())) {
-            throw new ResourceAlreadyExistsException("Problem slug already exists");
+            throw new BusinessException(ErrorCode.PROBLEM_ALREADY_EXISTS);
         }
 
         Problem problem = problemMapper.toEntity(request);
@@ -91,7 +90,7 @@ public class ProblemServiceImpl implements ProblemService {
         if (request.getTopicIds() != null && !request.getTopicIds().isEmpty()) {
             List<Topic> topics = topicRepository.findByIdInAndStatus(request.getTopicIds(), EStatus.ACTIVE);
             if (topics.size() != request.getTopicIds().size()) {
-                throw new BadRequestException("One or more topics not found or not active");
+                throw new BusinessException(ErrorCode.TOPIC_NOT_FOUND, "One or more topics not found or not active");
             }
             saved.setTopics(new HashSet<>(topics));
         }
@@ -106,7 +105,7 @@ public class ProblemServiceImpl implements ProblemService {
     @Override
     public ProblemDetailsSdo getProblemById(UUID id) {
         Problem problem = problemRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Problem not found with id: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
         return problemMapper.toProblemDetailsSdo(problem);
     }
 
@@ -114,7 +113,7 @@ public class ProblemServiceImpl implements ProblemService {
     @Override
     public ProblemDetailsSdo getProblemBySlug(String slug) {
         Problem problem = problemRepository.findBySlug(slug)
-                .orElseThrow(() -> new ResourceNotFoundException("Problem not found with slug: " + slug));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
         return problemMapper.toProblemDetailsSdo(problem);
     }
 
@@ -159,19 +158,18 @@ public class ProblemServiceImpl implements ProblemService {
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
-    public ProblemDetailsSdo updateProblem(UUID id, UpdateProblemSdi request) throws BadRequestException {
+    public ProblemDetailsSdo updateProblem(UUID id, UpdateProblemSdi request) {
         log.info("Updating problem: {}", id);
 
         Problem problem = problemRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Problem not found with id: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
 
         if (!problem.getSlug().equals(request.getSlug()) && problemRepository.existsBySlug(request.getSlug())) {
-            throw new ResourceAlreadyExistsException("Problem slug already exists");
+            throw new BusinessException(ErrorCode.PROBLEM_ALREADY_EXISTS);
         }
 
         problemMapper.updateEntityFromRequest(request, problem);
 
-        // 🌟 FIX: Gọi syncProblemImages để xử lý ảnh thừa và loại bỏ điều kiện isEmpty()
         if (request.getTemporaryImageKeys() != null) {
             log.info("Syncing {} images for problem update", request.getTemporaryImageKeys().size());
             imageStorageService.syncProblemImages(request.getTemporaryImageKeys(), problem);
@@ -210,7 +208,7 @@ public class ProblemServiceImpl implements ProblemService {
         if (request.getTopicIds() != null) {
             List<Topic> topics = topicRepository.findByIdInAndStatus(request.getTopicIds(), EStatus.ACTIVE);
             if (topics.size() != request.getTopicIds().size()) {
-                throw new BadRequestException("One or more topics not found or not active");
+                throw new BusinessException(ErrorCode.TOPIC_NOT_FOUND, "One or more topics not found or not active");
             }
             problem.getTopics().clear();
             problem.getTopics().addAll(topics);
@@ -227,7 +225,7 @@ public class ProblemServiceImpl implements ProblemService {
     public void deleteProblem(UUID id) {
         log.info("Deleting problem: {}", id);
         if (!problemRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Problem not found with id: " + id);
+            throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND);
         }
         problemRepository.updateStatusById(EStatus.DELETED, id);
         log.info("Problem deleted successfully: {}", id);
@@ -238,7 +236,7 @@ public class ProblemServiceImpl implements ProblemService {
     public void restoreProblem(UUID id) {
         log.info("Restoring problem: {}", id);
         if (!problemRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Problem not found with id: " + id);
+            throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND);
         }
         problemRepository.updateStatusById(EStatus.ACTIVE, id);
         log.info("Problem restored successfully: {}", id);
@@ -249,7 +247,7 @@ public class ProblemServiceImpl implements ProblemService {
     public void publishProblem(UUID id) {
         log.info("Publishing problem: {}", id);
         if (!problemRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Problem not found with id: " + id);
+            throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND);
         }
         problemRepository.updateProblemStatusById(ProblemStatus.PUBLISHED, id);
         log.info("Problem published successfully: {}", id);

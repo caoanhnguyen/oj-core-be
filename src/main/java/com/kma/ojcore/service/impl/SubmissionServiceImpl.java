@@ -17,7 +17,7 @@ import com.kma.ojcore.enums.ProblemStatus;
 import com.kma.ojcore.enums.SubmissionStatus;
 import com.kma.ojcore.enums.SubmissionVerdict;
 import com.kma.ojcore.exception.BusinessException;
-import com.kma.ojcore.exception.ResourceNotFoundException;
+import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.repository.ProblemRepository;
 import com.kma.ojcore.repository.SubmissionRepository;
 import com.kma.ojcore.repository.UserRepository;
@@ -55,23 +55,20 @@ public class SubmissionServiceImpl implements SubmissionService {
     @Override
     public UUID submitCode(SubmissionSdi request, UUID currentUserId) {
 
-        // 1 & 2: Tìm Problem và Validate
         Problem problem = problemRepository.findById(request.getProblemId())
-                .orElseThrow(() -> new BusinessException("Không tìm thấy bài toán!"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
 
         if (!problem.getAllowedLanguages().contains(request.getLanguageKey())) {
-            throw new BusinessException("Ngôn ngữ " + request.getLanguageKey() + " không được hỗ trợ!");
+            throw new BusinessException(ErrorCode.LANGUAGE_NOT_SUPPORTED);
         }
 
-        // Lấy cấu hình ngôn ngữ từ LanguageLoader
         LanguageConfig langConfig = languageLoader.getConfigByKey(request.getLanguageKey());
         if (langConfig == null) {
-            throw new BusinessException("Hệ thống chưa cấu hình ngôn ngữ này!");
+            throw new BusinessException(ErrorCode.LANGUAGE_NOT_SUPPORTED);
         }
 
         User user = userRepository.getReferenceById(currentUserId);
 
-        // 3 & 4: Khởi tạo Submission và Lưu DB
         Submission submission = Submission.builder()
                 .problem(problem)
                 .user(user)
@@ -82,15 +79,13 @@ public class SubmissionServiceImpl implements SubmissionService {
                 .build();
         submission = submissionRepository.save(submission);
 
-        // --- 5. TÍNH TOÁN FINAL LIMIT VÀ ĐÓNG GÓI JUDGE SDI ---
-        // Công thức: Final = (Base * Multiplier) + Allowance
         int finalTimeLimit = (int) (problem.getTimeLimitMs() * langConfig.getTimeMultiplier()) + langConfig.getTimeLimitAllowance();
         int finalMemoryLimit = (int) (problem.getMemoryLimitMb() * langConfig.getMemoryMultiplier()) + langConfig.getMemoryLimitAllowance();
 
         JudgeSdi sdi = JudgeSdi.builder()
                 .submissionId(submission.getId())
                 .problemId(problem.getId())
-                .ruleType(problem.getRuleType().name()) // Bắn chữ "ACM" hoặc "OI" sang cho máy chấm
+                .ruleType(problem.getRuleType().name())
                 .sourceCode(request.getSourceCode())
                 .languageKey(request.getLanguageKey())
                 .compileCommand(langConfig.getCompileCommand())
@@ -102,17 +97,12 @@ public class SubmissionServiceImpl implements SubmissionService {
                 .finalMemoryLimitMb(finalMemoryLimit)
                 .build();
 
-        // 6. PHÓNG VÀO RABBITMQ
-        // Bọc lệnh gửi MQ vào AfterCommit. Về cơ bản là nó sẽ đợi đến khi transaction DB hoàn tất và commit thành công
-        // thì mới thực sự gửi message đi. Nếu trong quá trình xử lý có lỗi và transaction bị rollback,
-        // thì lệnh gửi MQ sẽ không được thực thi, tránh tình trạng "điếc không sợ súng" gửi đi một cái submissionId
-        // mà sau đó lại rollback DB thì máy chấm sẽ không tìm thấy submission đó để chấm.
         Submission finalSubmission = submission;
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
                 rabbitTemplate.convertAndSend(RabbitMQConfig.JUDGE_EXCHANGE, RabbitMQConfig.JUDGE_ROUTING_KEY, sdi);
-                log.info("Đã ném Submission [{}] vào RabbitMQ SAU KHI DB ĐÃ COMMIT!", finalSubmission.getId());
+                log.info("Sent Submission [{}] to RabbitMQ AFTER DB COMMIT!", finalSubmission.getId());
             }
         });
 
@@ -123,7 +113,7 @@ public class SubmissionServiceImpl implements SubmissionService {
     @Override
     public SubmissionDetailsSdo getSubmissionBasicInfo(UUID submissionId) {
         if(!submissionRepository.existsById(submissionId)) {
-            throw new ResourceNotFoundException("Không tìm thấy submission với ID: " + submissionId);
+            throw new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND);
         }
 
         return submissionRepository.getDetails(submissionId);
@@ -133,20 +123,18 @@ public class SubmissionServiceImpl implements SubmissionService {
     public RunCodeResponse getRunCodeResult(UUID token) {
         String redisKey = "RUN_CODE_RESULT:" + token.toString();
 
-        // Chọc vào Redis tìm xem có đồ không
         String jsonResult = redisTemplate.opsForValue().get(redisKey);
 
         if (jsonResult != null) {
             try {
-                // Parse lại chuỗi JSON thành Object để Spring Boot trả về dạng JSON chuẩn
                 return objectMapper.readValue(jsonResult, RunCodeResponse.class);
             } catch (Exception e) {
-                log.error("Lỗi khi xử lý kết quả Run Code từ Redis", e);
-                throw new BusinessException("Lỗi khi xử lý kết quả Run Code");
+                log.error("Error processing Run Code result from Redis", e);
+                throw new BusinessException(ErrorCode.UNCATEGORIZED_EXCEPTION, "Failed to parse Run Code result.");
             }
         } else {
-            log.info("Kết quả đang được xử lý hoặc đã bị xóa khỏi REDIS. Token: [{}]", token);
-            throw new BusinessException("Kết quả Run Code vẫn đang được xử lý. Vui lòng thử lại sau vài giây.");
+            log.info("Result is processing or removed from REDIS. Token: [{}]", token);
+            throw new BusinessException(ErrorCode.RUN_CODE_IN_PROGRESS);
         }
     }
 
@@ -160,13 +148,13 @@ public class SubmissionServiceImpl implements SubmissionService {
                                   List<SubmissionVerdict> allowedVerdicts,
                                   boolean hideStaff,
                                   Pageable pageable) {
-        // Validate problem và user
+
         if (problemId != null && !problemRepository.existsById(problemId)) {
-            throw new ResourceNotFoundException("Không tìm thấy bài toán với ID: " + problemId);
+            throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND);
         }
 
         if (userId != null && !userRepository.existsById(userId)) {
-            throw new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + userId);
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
         return submissionRepository.getSubmissions(problemId, userId, submissionVerdict, username, status, problemStatus, allowedVerdicts, hideStaff, pageable);
@@ -180,23 +168,20 @@ public class SubmissionServiceImpl implements SubmissionService {
         long total = 0;
         Map<String, Long> counts = new HashMap<>();
 
-        // 1. Khởi tạo sẵn giá trị 0 dựa trên danh sách Controller cho phép
         for (SubmissionVerdict v : allowedVerdicts) {
             counts.put(v.name(), 0L);
         }
 
-        // 2. Lặp kết quả từ DB và cộng dồn
         for (SubmissionRepository.VerdictCountProjection p : projections) {
-            SubmissionVerdict verdict = SubmissionVerdict.valueOf(p.getVerdict()); // Trả về kiểu Enum
+            SubmissionVerdict verdict = SubmissionVerdict.valueOf(p.getVerdict());
 
-            // Nếu DB trả ra cái verdict KHÔNG NẰM TRONG danh sách cho phép -> Bỏ qua!
             if (!allowedVerdicts.contains(verdict)) {
                 continue;
             }
 
             long count = p.getCount();
             counts.put(verdict.name(), count);
-            total += count; // Chỉ lấy tổng của những lần nộp được phép
+            total += count;
         }
 
         return ProblemStatisticSdo.builder()

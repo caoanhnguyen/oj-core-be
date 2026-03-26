@@ -12,8 +12,8 @@ import com.kma.ojcore.entity.Role;
 import com.kma.ojcore.entity.User;
 import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.Provider;
-import com.kma.ojcore.exception.ResourceAlreadyExistsException;
-import com.kma.ojcore.exception.ResourceNotFoundException;
+import com.kma.ojcore.exception.BusinessException;
+import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.mapper.UserMapper;
 import com.kma.ojcore.repository.RoleRepository;
 import com.kma.ojcore.repository.UserRepository;
@@ -25,12 +25,10 @@ import com.kma.ojcore.service.RefreshTokenService;
 import com.kma.ojcore.service.TokenBlacklistService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.coyote.BadRequestException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -85,7 +83,8 @@ public class AuthServiceImpl implements AuthService {
             RefreshToken refreshToken = refreshTokenService.createRefreshToken(userPrincipal.getId());
 
             User user = userRepository.findById(userPrincipal.getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user!"));
+                    .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
             UserDetailsSdo userDetailsSdo = userMapper.toUserDetailsSdo(user, true);
 
             return JwtAuthenticationResponse.builder()
@@ -96,7 +95,7 @@ public class AuthServiceImpl implements AuthService {
 
         } catch (Exception e) {
             log.error("Login failed: {}", e.getMessage());
-            throw new BadCredentialsException("Tài khoản hoặc mật khẩu không chính xác!");
+            throw new BusinessException(ErrorCode.WRONG_CREDENTIALS);
         }
     }
 
@@ -104,10 +103,10 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public UserDetailsSdo register(RegisterRequest registerRequest) {
         if (userRepository.existsByUsername(registerRequest.getUsername())) {
-            throw new ResourceAlreadyExistsException("Tên đăng nhập đã tồn tại");
+            throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS);
         }
         if (userRepository.existsByEmail(registerRequest.getEmail())) {
-            throw new ResourceAlreadyExistsException("Email đã được sử dụng");
+            throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
 
         User user = User.builder()
@@ -140,7 +139,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public JwtAuthenticationResponse refreshToken(String reqRefreshTokenStr) {
         RefreshToken oldRefreshToken = refreshTokenService.findByToken(reqRefreshTokenStr)
-                .orElseThrow(() -> new BadCredentialsException("Refresh token không tồn tại"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_INVALID));
 
         oldRefreshToken = refreshTokenService.verifyExpiration(oldRefreshToken);
         User user = oldRefreshToken.getUser();
@@ -150,7 +149,7 @@ public class AuthServiceImpl implements AuthService {
         UserPrincipal principal = (UserPrincipal) userDetails;
 
         if (!principal.isAccountNonLocked()) {
-            throw new BadCredentialsException("Tài khoản của bạn đã bị Admin khóa!");
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
         }
 
         String newAccessToken = tokenProvider.generateAccessToken(principal);
@@ -189,7 +188,7 @@ public class AuthServiceImpl implements AuthService {
         String normalizedEmail = email.trim().toLowerCase();
 
         if (!userRepository.existsByEmail(normalizedEmail)) {
-            throw new ResourceNotFoundException("User not found");
+            return;
         }
 
         String otp = String.valueOf(secureRandom.nextInt(900000) + 100000);
@@ -212,16 +211,16 @@ public class AuthServiceImpl implements AuthService {
 
     @Transactional
     @Override
-    public void resetPassword(ResetPasswordRequest request) throws BadRequestException {
+    public void resetPassword(ResetPasswordRequest request) {
         String normalizedEmail = request.getEmail().trim().toLowerCase();
         String cachedOtp = redisTemplate.opsForValue().get(RESET_PASS_PREFIX + normalizedEmail);
 
         if (cachedOtp == null || !cachedOtp.equals(request.getOtp())) {
-            throw new BadRequestException("OTP đã hết hạn hoặc không chính xác.");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Invalid or expired OTP.");
         }
 
         User user = userRepository.findByEmail(normalizedEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
 
@@ -237,10 +236,10 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void sendVerificationEmail(UUID userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         if (user.getEmailVerified()) {
-            throw new ResourceAlreadyExistsException("Email đã được xác thực");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Email is already verified.");
         }
 
         byte[] randomBytes = new byte[48];
@@ -271,18 +270,18 @@ public class AuthServiceImpl implements AuthService {
 
     @Transactional
     @Override
-    public void verifyEmail(String token) throws BadRequestException {
+    public void verifyEmail(String token) {
         String userIdStr = redisTemplate.opsForValue().get(VERIFY_EMAIL_PREFIX + token);
 
         if (userIdStr == null) {
-            throw new BadRequestException("Link xác thực đã hết hạn hoặc không hợp lệ.");
+            throw new BusinessException(ErrorCode.TOKEN_INVALID, "Verification link is invalid or expired.");
         }
 
         User user = userRepository.findById(UUID.fromString(userIdStr))
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         if (user.getEmailVerified()) {
-            throw new BadRequestException("Email đã được xác thực trước đó.");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Email has already been verified.");
         }
 
         user.setEmailVerified(true);

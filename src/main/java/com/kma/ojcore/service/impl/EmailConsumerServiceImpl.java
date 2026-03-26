@@ -20,12 +20,11 @@ public class EmailConsumerServiceImpl implements EmailConsumerService {
 
     @RabbitListener(queues = RabbitMQConfig.EMAIL_QUEUE)
     public void receiveEmailMessage(EmailMessage message) {
-        log.info("Nhận yêu cầu gửi mail đến: {}", message.getTo());
+        log.info("Received request to send email to: {}", message.getTo());
         try {
             sendHtmlEmail(message.getTo(), message.getSubject(), message.getContent());
         } catch (Exception e) {
-            log.error("Gửi mail thất bại: {}", e.getMessage());
-            // Có thể implement logic retry hoặc đẩy vào Dead Letter Queue (DLQ)
+            log.error("Failed to send email to {}: {}", message.getTo(), e.getMessage());
         }
     }
 
@@ -35,11 +34,9 @@ public class EmailConsumerServiceImpl implements EmailConsumerService {
 
         helper.setTo(to);
         helper.setSubject(subject);
-        helper.setText(htmlBody, true); // True = Render HTML
-        helper.setFrom("noreply@ojcore.com"); // Email gửi đi
+        helper.setText(htmlBody, true);
+        helper.setFrom("noreply@ojcore.com");
 
         mailSender.send(message);
-        log.info("Đã gửi mail thành công!");
     }
-
 }

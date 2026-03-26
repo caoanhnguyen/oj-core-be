@@ -36,20 +36,20 @@ public class JudgeResultListener {
     private final ObjectMapper objectMapper;
 
     // ========================================================
-    // LUỒNG 1: XỬ LÝ KẾT QUẢ CHẤM SUBMIT
+    // FLOW 1: PROCESS SUBMISSION JUDGE RESULT
     // ========================================================
     @RabbitListener(queues = RabbitMQConfig.RESULT_QUEUE)
     @Transactional
     public void handleJudgeResult(JudgeResultSdi result) {
-        log.info("Đã nhận kết quả chấm từ RabbitMQ cho Submission ID: [{}] - Verdict: {}", result.getSubmissionId(), result.getSubmissionVerdict());
+        log.info("Received judge result from RabbitMQ for Submission ID: [{}] - Verdict: {}", result.getSubmissionId(), result.getSubmissionVerdict());
 
         Submission submission = submissionRepository.findById(result.getSubmissionId()).orElse(null);
         if (submission == null) {
-            log.error("Không tìm thấy Submission [{}] trong DB!", result.getSubmissionId());
+            log.error("Submission [{}] not found in database!", result.getSubmissionId());
             return;
         }
 
-        // Cập nhật Submission
+        // Update Submission
         submission.setVerdict(result.getSubmissionVerdict());
         submission.setScore(result.getScore());
         submission.setPassedTestCount(result.getPassedTestCount());
@@ -58,27 +58,27 @@ public class JudgeResultListener {
         submission.setExecutionMemoryMb(result.getExecutionMemoryMb());
         submission.setErrorMessage(result.getErrorMessage());
 
-        // Đưa việc lưu trạng thái Submission lên đây
-        // Đảm bảo Admin vẫn lưu được lịch sử nộp bài dù có bị ngắt luồng phía dưới
+        // Save submission status early
+        // Ensure Admin submission history is saved even if the flow is interrupted below
         submission.setSubmissionStatus(result.getSubmissionStatus());
         submissionRepository.save(submission);
 
-        // Lấy User và Problem
+        // Get User and Problem
         User user = submission.getUser();
         Problem problem = submission.getProblem();
 
         if (user != null && problem != null) {
 
-            // 1. Kiểm tra Role (Cơ chế Ghost Mode chuẩn QDUOJ)
+            // 1. Check Role (Ghost Mode mechanism)
             boolean isStaff = user.getRoles().stream()
                     .anyMatch(r -> r.getName().name().equals("ROLE_ADMIN") || r.getName().name().equals("ROLE_MODERATOR"));
 
             if (isStaff) {
-                log.info("Staff debug mode: Đã lưu kết quả test đề, BỎ QUA cộng điểm và Ranking cho Submission [{}]", submission.getId());
-                return; // Ngắt luồng tại đây! Không chạy xuống logic OI/ACM bên dưới.
+                log.info("Staff debug mode: Saved test result, SKIPPING points and ranking update for Submission [{}]", submission.getId());
+                return; // Interrupt flow here! Do not execute OI/ACM logic below.
             }
 
-            // 2. LUÔN CỘNG SUBMISSION_COUNT CHO USER VÀ PROBLEM
+            // 2. ALWAYS INCREMENT SUBMISSION_COUNT FOR USER AND PROBLEM
             int currentUserSub = user.getSubmissionCount() != null ? user.getSubmissionCount() : 0;
             user.setSubmissionCount(currentUserSub + 1);
 
@@ -87,7 +87,7 @@ public class JudgeResultListener {
 
             boolean isAc = "AC".equals(result.getSubmissionVerdict().toString());
 
-            // 3. NẾU AC -> CỘNG AC_COUNT CHO USER VÀ PROBLEM (ĐẾM MÙ)
+            // 3. IF AC -> INCREMENT AC_COUNT FOR USER AND PROBLEM
             if (isAc) {
                 int currentUserAc = user.getAcCount() != null ? user.getAcCount() : 0;
                 user.setAcCount(currentUserAc + 1);
@@ -97,7 +97,7 @@ public class JudgeResultListener {
             }
 
             // =========================================================
-            // 4. LOGIC BẢO VỆ SOLVED_COUNT VÀ TÍNH ĐIỂM (BẢNG STATUS)
+            // 4. PROTECT SOLVED_COUNT AND CALCULATE SCORE (STATUS TABLE)
             // =========================================================
             UserProblemStatus status = userProblemStatusRepo
                     .findByUserIdAndProblemId(user.getId(), problem.getId())
@@ -108,14 +108,14 @@ public class JudgeResultListener {
                             .maxScore(0.0)
                             .build());
 
-            // CHẺ NHÁNH LOGIC: ACM và OI
+            // SPLIT LOGIC: ACM and OI
             if (problem.getRuleType() == RuleType.ACM) {
-                // LOGIC ACM
+                // ACM LOGIC
                 if (isAc) {
                     if (status.getState() != UserProblemState.SOLVED) {
                         status.setState(UserProblemState.SOLVED);
 
-                        // Cộng số BÀI TẬP ĐÃ GIẢI (Solved Count)
+                        // Increment Solved Count
                         int currentSolved = user.getSolvedCount() != null ? user.getSolvedCount() : 0;
                         user.setSolvedCount(currentSolved + 1);
                     }
@@ -123,11 +123,11 @@ public class JudgeResultListener {
                     status.setState(UserProblemState.ATTEMPTED);
                 }
             } else {
-                // =============== LOGIC OI ===============
+                // =============== OI LOGIC ===============
                 double currentScore = result.getScore() != null ? result.getScore().doubleValue() : 0.0;
                 double previousMax = status.getMaxScore() != null ? status.getMaxScore() : 0.0;
 
-                // 4.1 Cập nhật Kỷ lục điểm (totalScore)
+                // 4.1 Update Max Score (totalScore)
                 if (currentScore > previousMax) {
                     double scoreDiff = currentScore - previousMax;
                     status.setMaxScore(currentScore);
@@ -136,7 +136,7 @@ public class JudgeResultListener {
                     user.setTotalScore(userTotalScore + scoreDiff);
                 }
 
-                // 4.2 Cập nhật Trạng thái bài làm & Solved Count
+                // 4.2 Update Problem Status & Solved Count
                 double problemTotalScore = problem.getTotalScore() != null ? problem.getTotalScore().doubleValue() : 0.0;
 
                 if (isAc || currentScore >= problemTotalScore) {
@@ -151,7 +151,7 @@ public class JudgeResultListener {
                 }
             }
 
-            // 5. LƯU TẤT CẢ VÀO DB CÙNG 1 LÚC (Tối ưu hiệu năng)
+            // 5. SAVE ALL TO DB AT ONCE (Performance optimization)
             userRepository.save(user);
             problemRepository.save(problem);
             userProblemStatusRepo.save(status);
@@ -159,21 +159,21 @@ public class JudgeResultListener {
     }
 
     // ========================================================
-    // LUỒNG 2: XỬ LÝ KẾT QUẢ CHẠY THỬ (RUN CODE)
+    // FLOW 2: PROCESS RUN CODE RESULT
     // ========================================================
     @RabbitListener(queues = RabbitMQConfig.RUN_CODE_RESULT_QUEUE)
     public void handleRunCodeResult(RunCodeResponse response) {
         try {
-            log.info("Đã nhận kết quả Run Code từ RabbitMQ. Token: [{}]", response.getRunToken());
+            log.info("Received Run Code result from RabbitMQ. Token: [{}]", response.getRunToken());
 
             String redisKey = "RUN_CODE_RESULT:" + response.getRunToken();
             String jsonValue = objectMapper.writeValueAsString(response);
 
             redisTemplate.opsForValue().set(redisKey, jsonValue, 5, TimeUnit.MINUTES);
-            log.info("Đã lưu kết quả Run Code vào Redis thành công. Sẵn sàng cho Frontend lấy!");
+            log.info("Successfully saved Run Code result to Redis. Ready for Frontend fetching.");
 
         } catch (Exception e) {
-            log.error("Lỗi nghiêm trọng khi lưu kết quả Run Code...", e);
+            log.error("Critical error while saving Run Code result...", e);
         }
     }
 }
