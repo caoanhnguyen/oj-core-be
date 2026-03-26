@@ -1,5 +1,8 @@
 package com.kma.ojcore.security.jwt;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kma.ojcore.dto.response.common.ErrorResponse;
+import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.security.CustomUserDetailsService;
 import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.service.impl.TokenBlacklistServiceImpl;
@@ -21,11 +24,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.UUID;
 
-/**
- * JWT Authentication Filter: Lấy JWT từ cookie, xác thực và thiết lập thông tin người dùng trong SecurityContext
- */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -35,6 +36,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final TokenCookieUtil tokenCookieUtil;
     private final TokenBlacklistServiceImpl tokenBlacklistServiceImpl;
     private final CustomUserDetailsService customUserDetailsService;
+    private final ObjectMapper objectMapper;
+
     @Value("${app.api.prefix}")
     private String apiPrefix;
 
@@ -44,7 +47,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         String path = request.getRequestURI();
 
-        // Bỏ qua các path public
         if (path.startsWith("/oauth2/") ||
                 path.startsWith("/login/oauth2/") ||
                 path.startsWith("/login/") ||
@@ -57,38 +59,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String jwt = tokenCookieUtil.getCookieValue(request, tokenCookieUtil.ACCESS_TOKEN_COOKIE_NAME);
 
             if (StringUtils.hasText(jwt)) {
-                // 1. Check Blacklist (Đăng xuất)
                 if (tokenBlacklistServiceImpl.isBlacklisted(jwt)) {
                     log.warn("Token is blacklisted");
-                    sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Token is blacklisted", request.getServletPath());
+                    sendErrorResponse(response, ErrorCode.TOKEN_INVALID, "Token is blacklisted or revoked.", request.getServletPath());
                     return;
                 }
 
-                // 2. Lấy ID từ Token
                 Claims claims = tokenProvider.getAccessTokenClaims(jwt);
                 UUID userId = UUID.fromString(claims.getSubject());
-
                 Integer tokenVersion = claims.get("token_version", Integer.class);
 
-                // 3. Hỏi Redis (thông qua Service) lấy thông tin mới nhất
                 UserDetails userDetails = customUserDetailsService.loadUserById(userId);
                 UserPrincipal userPrincipal = (UserPrincipal) userDetails;
 
-                // 4.1 Kiểm tra tài khoản có bị khóa hay không, nếu có thì chặn luôn
                 if (!userPrincipal.isAccountNonLocked()) {
-                    log.warn("User {} bị khóa nhưng cố tình truy cập", userId);
-                    sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Tài khoản của bạn đã bị khóa!", request.getServletPath());
+                    log.warn("User {} is locked but attempting access", userId);
+                    sendErrorResponse(response, ErrorCode.ACCOUNT_LOCKED, null, request.getServletPath());
                     return;
                 }
 
-                // 4.2 Kiểm tra token version để phát hiện token cũ (bị thu hồi)
                 if (tokenVersion == null || !tokenVersion.equals(userPrincipal.getTokenVersion())) {
-                    log.warn("Token version mismatch cho user {}. Bắt buộc đăng nhập lại.", userId);
-                    sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Phiên bản đăng nhập đã hết hạn, vui lòng đăng nhập lại!", request.getServletPath());
+                    log.warn("Token version mismatch for user {}. Forcing re-login.", userId);
+                    sendErrorResponse(response, ErrorCode.TOKEN_EXPIRED, "Token version expired. Please log in again.", request.getServletPath());
                     return;
                 }
 
-                // 5. Cấp quyền đi tiếp
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -97,24 +92,34 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         } catch (io.jsonwebtoken.ExpiredJwtException ex) {
             log.warn("Expired JWT token");
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Token expired", request.getServletPath());
+            sendErrorResponse(response, ErrorCode.TOKEN_EXPIRED, null, request.getServletPath());
             return;
         } catch (io.jsonwebtoken.SignatureException | io.jsonwebtoken.MalformedJwtException | io.jsonwebtoken.UnsupportedJwtException | IllegalArgumentException ex) {
             log.warn("Invalid JWT token: {}", ex.getMessage());
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Invalid token", request.getServletPath());
+            sendErrorResponse(response, ErrorCode.TOKEN_INVALID, null, request.getServletPath());
             return;
         } catch (Exception ex) {
             log.error("Could not set user authentication in security context", ex);
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Authentication error", request.getServletPath());
+            sendErrorResponse(response, ErrorCode.UNAUTHENTICATED, "Authentication error", request.getServletPath());
             return;
         }
 
         filterChain.doFilter(request, response);
     }
 
-    private void sendErrorResponse(HttpServletResponse response, int status, String message, String path) throws IOException {
-        response.setStatus(status);
-        response.setContentType("application/json; charset=UTF-8"); // Thêm UTF-8 để hiển thị tiếng Việt chuẩn
-        response.getWriter().write("{\"status\":" + status + ",\"error\":\"Unauthorized\",\"message\":\"" + message + "\",\"path\":\"" + path + "\"}");
+    private void sendErrorResponse(HttpServletResponse response, ErrorCode errorCode, String customMessage, String path) throws IOException {
+        response.setStatus(errorCode.getStatusCode().value());
+        response.setContentType("application/json; charset=UTF-8");
+
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .timestamp(new Date())
+                .status(errorCode.getStatusCode().value())
+                .errorCode(errorCode.getCode())
+                .error(errorCode.getStatusCode().getReasonPhrase())
+                .message(customMessage != null ? customMessage : errorCode.getMessage())
+                .path(path)
+                .build();
+
+        objectMapper.writeValue(response.getOutputStream(), errorResponse);
     }
 }

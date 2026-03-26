@@ -2,6 +2,8 @@ package com.kma.ojcore.service.impl;
 
 import com.kma.ojcore.entity.RefreshToken;
 import com.kma.ojcore.entity.User;
+import com.kma.ojcore.exception.BusinessException;
+import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.repository.RefreshTokenRepository;
 import com.kma.ojcore.repository.UserRepository;
 import com.kma.ojcore.security.jwt.JwtTokenProvider;
@@ -15,9 +17,6 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * Service quản lý RefreshToken trong database
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -29,19 +28,15 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     @Override
     @Transactional
-    public RefreshToken createRefreshToken(UUID userId) { // Chỉ nhận UUID
+    public RefreshToken createRefreshToken(UUID userId) {
 
-        // 1. Thu hồi toàn bộ token cũ bằng 1 câu lệnh UPDATE
         refreshTokenRepository.revokeAllUserTokens(userId);
 
-        // 2. Tạo token string và tính hạn sử dụng
-        String tokenString = jwtTokenProvider.generateRefreshToken(userId); // Nếu hàm cũ của bro cần UUID
+        String tokenString = jwtTokenProvider.generateRefreshToken(userId);
         Instant expiryDate = Instant.now().plusMillis(jwtTokenProvider.getRefreshTokenExpirationMs());
 
-        // Lấy User ảo (Không chọc xuống DB)
         User userProxy = userRepository.getReferenceById(userId);
 
-        // 4. Build và lưu Token mới
         RefreshToken refreshToken = RefreshToken.builder()
                 .token(tokenString)
                 .user(userProxy)
@@ -63,7 +58,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     public RefreshToken verifyExpiration(RefreshToken token) {
         if (token.getExpiryDate().isBefore(Instant.now()) || token.getRevoked()) {
             refreshTokenRepository.delete(token);
-            throw new RuntimeException("Refresh token đã hết hạn hoặc đã bị thu hồi. Vui lòng đăng nhập lại!");
+            throw new BusinessException(ErrorCode.TOKEN_INVALID);
         }
         return token;
     }
@@ -86,4 +81,3 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         });
     }
 }
-

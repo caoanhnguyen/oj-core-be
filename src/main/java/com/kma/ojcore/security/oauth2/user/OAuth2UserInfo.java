@@ -2,9 +2,6 @@ package com.kma.ojcore.security.oauth2.user;
 
 import java.util.Map;
 
-/**
- * Abstract OAuth2 User Info
- */
 public abstract class OAuth2UserInfo {
     protected Map<String, Object> attributes;
 
@@ -24,4 +21,3 @@ public abstract class OAuth2UserInfo {
 
     public abstract String getImageUrl();
 }
-

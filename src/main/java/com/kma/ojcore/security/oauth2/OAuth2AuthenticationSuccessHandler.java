@@ -2,6 +2,8 @@ package com.kma.ojcore.security.oauth2;
 
 import com.kma.ojcore.entity.RefreshToken;
 import com.kma.ojcore.entity.User;
+import com.kma.ojcore.exception.BusinessException;
+import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.repository.UserRepository;
 import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.security.jwt.JwtTokenProvider;
@@ -20,10 +22,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- * OAuth2 Authentication Success Handler
- * Lưu refreshToken vào DB và set accessToken vào cookie
- */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -59,23 +57,18 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     protected String determineTargetUrl(HttpServletRequest request,
                                         HttpServletResponse response,
                                         Authentication authentication) {
-        // Tạo access token
         String accessToken = tokenProvider.generateAccessToken(authentication);
 
-        // Lưu refresh token vào database
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         User user = userRepository.findUserWithRolesById(Objects.requireNonNull(userPrincipal).getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
 
-        // Set access token vào cookie
         tokenCookieUtil.setTokenCookies(response, accessToken, refreshToken.getToken());
 
-        // Redirect về frontend
         return UriComponentsBuilder.fromUriString(redirectUri)
                 .queryParam("success", "true")
                 .build().toUriString();
     }
 }
-

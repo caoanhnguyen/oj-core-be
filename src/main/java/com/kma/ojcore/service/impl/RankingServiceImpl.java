@@ -2,6 +2,8 @@ package com.kma.ojcore.service.impl;
 
 import com.kma.ojcore.dto.response.users.UserRankSdo;
 import com.kma.ojcore.enums.RuleType;
+import com.kma.ojcore.exception.BusinessException;
+import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.repository.UserRepository;
 import com.kma.ojcore.service.RankingService;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +25,7 @@ public class RankingServiceImpl implements RankingService {
         } else if(ruleType == RuleType.OI) {
             return userRepository.getOIRanking(pageable);
         } else {
-            throw new IllegalArgumentException("Invalid rule type: " + ruleType);
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Invalid rule type: " + ruleType);
         }
     }
 }

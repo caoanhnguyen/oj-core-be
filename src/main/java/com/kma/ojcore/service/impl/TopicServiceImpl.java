@@ -5,7 +5,8 @@ import com.kma.ojcore.dto.request.topics.UpdateTopicSdi;
 import com.kma.ojcore.dto.response.topics.*;
 import com.kma.ojcore.entity.Topic;
 import com.kma.ojcore.enums.EStatus;
-import com.kma.ojcore.exception.ResourceNotFoundException;
+import com.kma.ojcore.exception.BusinessException;
+import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.mapper.TopicMapper;
 import com.kma.ojcore.repository.TopicRepository;
 import com.kma.ojcore.repository.UserProblemStatusRepository;
@@ -42,13 +43,11 @@ public class TopicServiceImpl implements TopicService {
     @Transactional(readOnly = true)
     @Override
     public TopicDetailsStatisticsSdo getDetailsWithStatisticsBySlug(String slug, UUID userId) {
-        // 1. Lấy thông tin cơ bản
         Topic topic = topicRepository.findBySlug(slug)
-                .orElseThrow(() -> new ResourceNotFoundException("Topic not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.TOPIC_NOT_FOUND));
 
         TopicDetailsStatisticsSdo detailsSdo = topicMapper.toDetailsStatisticsSdo(topic);
 
-        // 2. Lấy thống kê số lượng problem theo độ khó
         List<DifficultyCountProjection> totalStats = topicRepository.countProblemsByDifficultyForTopic(slug);
         for(DifficultyCountProjection difficultyCount : totalStats) {
             switch (difficultyCount.getDifficulty()) {
@@ -58,12 +57,10 @@ public class TopicServiceImpl implements TopicService {
             }
         }
 
-        // 3. Nếu chưa đăng nhập thì trả về luôn
         if(userId == null) {
             return detailsSdo;
         }
 
-        // 4. Nếu đã đăng nhập, thấy thống kê số bài đã giải theo độ khó
         List<DifficultyCountProjection> solvedStats = userProblemStatusRepository.countSolvedProblemsByDifficultyForTopic(userId, slug);
         long solvedTotal = 0;
         for (DifficultyCountProjection stat : solvedStats) {
@@ -95,20 +92,19 @@ public class TopicServiceImpl implements TopicService {
     @Override
     public TopicDetailsSdo getTopicById(UUID topicId) {
         Topic topic = topicRepository.findById(topicId)
-                .orElseThrow(() -> new IllegalArgumentException("Topic not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.TOPIC_NOT_FOUND));
         return topicMapper.toDetailsSdo(topic);
     }
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public TopicDetailsSdo createTopic(CreateTopicSdi createTopicSdi) {
-        // Validate name and slug uniqueness
         if(topicRepository.existsByName(createTopicSdi.getName())) {
-            throw new IllegalArgumentException("Topic name must be unique");
+            throw new BusinessException(ErrorCode.TOPIC_ALREADY_EXISTS);
         }
 
         if(topicRepository.existsBySlug(createTopicSdi.getSlug())) {
-            throw new IllegalArgumentException("Topic slug must be unique");
+            throw new BusinessException(ErrorCode.TOPIC_ALREADY_EXISTS);
         }
 
         Topic topic = topicMapper.toEntity(createTopicSdi);
@@ -119,17 +115,15 @@ public class TopicServiceImpl implements TopicService {
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public TopicDetailsSdo updateTopic(UUID topicId, UpdateTopicSdi updateTopicSdi) {
-        // Check if topic exists
         Topic existingTopic = topicRepository.findById(topicId)
-                .orElseThrow(() -> new IllegalArgumentException("Topic not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.TOPIC_NOT_FOUND));
 
-        // Validate name and slug uniqueness
         if(topicRepository.existsByName(updateTopicSdi.getName()) && !existingTopic.getName().equals(updateTopicSdi.getName())) {
-            throw new IllegalArgumentException("Topic name must be unique");
+            throw new BusinessException(ErrorCode.TOPIC_ALREADY_EXISTS);
         }
 
         if(topicRepository.existsBySlug(updateTopicSdi.getSlug()) && !existingTopic.getSlug().equals(updateTopicSdi.getSlug())) {
-            throw new IllegalArgumentException("Topic slug must be unique");
+            throw new BusinessException(ErrorCode.TOPIC_ALREADY_EXISTS);
         }
 
         topicMapper.updateEntityFromSdi(existingTopic, updateTopicSdi);
@@ -140,22 +134,18 @@ public class TopicServiceImpl implements TopicService {
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public void softDeleteTopic(UUID topicId) {
-        // Check if topic exists
         if(!topicRepository.existsById(topicId)) {
-            throw new IllegalArgumentException("Topic not found");
+            throw new BusinessException(ErrorCode.TOPIC_NOT_FOUND);
         }
-        // Soft delete topic
         topicRepository.updateStatusById(EStatus.DELETED, topicId);
     }
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public UUID restoreTopic(UUID topicId) {
-        // Check if topic exists
         if(!topicRepository.existsById(topicId)) {
-            throw new IllegalArgumentException("Topic not found");
+            throw new BusinessException(ErrorCode.TOPIC_NOT_FOUND);
         }
-        // Restore topic
         topicRepository.updateStatusById(EStatus.ACTIVE, topicId);
         return topicId;
     }

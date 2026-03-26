@@ -7,6 +7,7 @@ import com.kma.ojcore.dto.request.submissions.RunCodeSubmitDto;
 import com.kma.ojcore.entity.LanguageConfig;
 import com.kma.ojcore.entity.Problem;
 import com.kma.ojcore.exception.BusinessException;
+import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.repository.ProblemRepository;
 import com.kma.ojcore.service.RunCodeService;
 import lombok.RequiredArgsConstructor;
@@ -28,26 +29,22 @@ public class RunCodeServiceImpl implements RunCodeService {
     @Override
     public UUID sendToJudge(RunCodeSubmitDto request) {
 
-        // 1 & 2: Tìm Problem và Validate
         Problem problem = problemRepository.findById(request.getProblemId())
-                .orElseThrow(() -> new BusinessException("Không tìm thấy bài toán!"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
 
         if (!problem.getAllowedLanguages().contains(request.getLanguageKey())) {
-            throw new BusinessException("Ngôn ngữ " + request.getLanguageKey() + " không được hỗ trợ!");
+            throw new BusinessException(ErrorCode.LANGUAGE_NOT_SUPPORTED);
         }
 
-        // Lấy cấu hình ngôn ngữ từ LanguageLoader
         LanguageConfig langConfig = languageLoader.getConfigByKey(request.getLanguageKey());
         if (langConfig == null) {
-            throw new BusinessException("Hệ thống chưa cấu hình ngôn ngữ này!");
+            throw new BusinessException(ErrorCode.LANGUAGE_NOT_SUPPORTED);
         }
 
-        // --- 3. TÍNH TOÁN FINAL LIMIT VÀ ĐÓNG GÓI RunCodeRequest ---
-        // Công thức: Final = (Base * Multiplier) + Allowance
         int finalTimeLimit = (int) (problem.getTimeLimitMs() * langConfig.getTimeMultiplier()) + langConfig.getTimeLimitAllowance();
         int finalMemoryLimit = (int) (problem.getMemoryLimitMb() * langConfig.getMemoryMultiplier()) + langConfig.getMemoryLimitAllowance();
 
-        final UUID runToken = UUID.randomUUID(); // Tạo một Token ngẫu nhiên để định danh cho lần chạy code này
+        final UUID runToken = UUID.randomUUID();
 
         RunCodeRequest judgeRequest = RunCodeRequest.builder()
                 .runToken(runToken)
@@ -64,16 +61,13 @@ public class RunCodeServiceImpl implements RunCodeService {
                 .finalMemoryLimitMb(finalMemoryLimit)
                 .build();
 
-        // 4. Bắn vào RabbitMQ
         rabbitTemplate.convertAndSend(
                 RabbitMQConfig.JUDGE_EXCHANGE,
                 RabbitMQConfig.RUN_CODE_ROUTING_KEY,
                 judgeRequest
         );
 
-        log.info("Đã gửi yêu cầu Run Code [{}] vào RabbitMQ", runToken);
-
-        // 5. Trả Token về cho Controller
+        log.info("Sent Run Code request [{}] to RabbitMQ", runToken);
         return runToken;
     }
 }

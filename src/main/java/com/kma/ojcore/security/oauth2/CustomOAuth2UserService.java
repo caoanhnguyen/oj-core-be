@@ -22,9 +22,6 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * Custom OAuth2 User Service: xử lý đăng ký và cập nhật user từ OAuth2 providers
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -41,7 +38,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             return processOAuth2User(userRequest, oAuth2User);
         } catch (OAuth2AuthenticationException ex) {
             log.error("OAuth2 authentication error: {}", ex.getError(), ex);
-            throw ex; // preserve error code and message
+            throw ex;
         } catch (IllegalArgumentException ex) {
             log.error("Invalid provider: {}", ex.getMessage(), ex);
             throw new OAuth2AuthenticationException("Invalid OAuth2 provider: " + ex.getMessage());
@@ -51,12 +48,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         }
     }
 
-    /**
-     * Xử lý OAuth2 user: đăng ký mới hoặc cập nhật user hiện có
-     * @param userRequest
-     * @param oAuth2User
-     * @return
-     */
     private OAuth2User processOAuth2User(OAuth2UserRequest userRequest, OAuth2User oAuth2User) {
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
 
@@ -98,16 +89,14 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             user.setRoles(roles);
             log.info("Updated existing user: {}", user.getUsername());
         } else {
-            // Nếu có email, check xem email đã được dùng chưa
             if (StringUtils.hasText(oAuth2UserInfo.getEmail())) {
                 Optional<User> existingUserByEmail = userRepository.findByEmail(oAuth2UserInfo.getEmail());
                 if (existingUserByEmail.isPresent()) {
                     User existingUser = existingUserByEmail.get();
                     log.error("Email already registered with provider: {}", existingUser.getProvider());
-                    // Tạo Error Object chuẩn của Spring OAuth2
                     OAuth2Error oauth2Error = new OAuth2Error(
                             "invalid_provider",
-                            "Email đã được dùng để đăng ký tài khoản khác. Vui lòng đăng nhập bằng mật khẩu!",
+                            "Email is already registered with another provider. Please log in using your password.",
                             null
                     );
                     throw new OAuth2AuthenticationException(oauth2Error, oauth2Error.getDescription());
@@ -125,27 +114,19 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         return UserPrincipal.create(user, oAuth2User.getAttributes());
     }
 
-    /**
-     * Đăng ký user mới từ thông tin OAuth2
-     * @param userRequest
-     * @param oAuth2UserInfo
-     * @return
-     */
     private User registerNewUser(OAuth2UserRequest userRequest, OAuth2UserInfo oAuth2UserInfo) {
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
 
-        // Dùng name (login) từ GitHub làm username, hoặc từ email nếu có
         String baseUsername;
         if (StringUtils.hasText(oAuth2UserInfo.getEmail())) {
             baseUsername = oAuth2UserInfo.getEmail().split("@")[0];
         } else {
-            // Dùng name (đã được set từ login trong GithubOAuth2UserInfo)
             baseUsername = oAuth2UserInfo.getName().toLowerCase().replaceAll("[^a-z0-9]", "");
         }
 
         User user = User.builder()
                 .username(registrationId.toLowerCase() + "_" + baseUsername)
-                .email(oAuth2UserInfo.getEmail()) // Có thể null
+                .email(oAuth2UserInfo.getEmail())
                 .fullName(oAuth2UserInfo.getName())
                 .avatarUrl(oAuth2UserInfo.getImageUrl())
                 .provider(Provider.valueOf(registrationId.toUpperCase()))
@@ -160,16 +141,9 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         return userRepository.save(user);
     }
 
-    /**
-     * Cập nhật thông tin user hiện có từ OAuth2
-     * @param existingUser
-     * @param oAuth2UserInfo
-     * @return
-     */
     private User updateExistingUser(User existingUser, OAuth2UserInfo oAuth2UserInfo) {
         existingUser.setFullName(oAuth2UserInfo.getName());
         existingUser.setAvatarUrl(oAuth2UserInfo.getImageUrl());
-        // Update email nếu có (trường hợp user vừa public email)
         if (StringUtils.hasText(oAuth2UserInfo.getEmail())) {
             existingUser.setEmail(oAuth2UserInfo.getEmail());
             existingUser.setEmailVerified(true);

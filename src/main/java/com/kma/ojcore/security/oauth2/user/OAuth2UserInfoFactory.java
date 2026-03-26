@@ -4,9 +4,6 @@ import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 
 import java.util.Map;
 
-/**
- * Factory for creating OAuth2UserInfo based on registration ID
- */
 public class OAuth2UserInfoFactory {
 
     public static OAuth2UserInfo getOAuth2UserInfo(String registrationId, Map<String, Object> attributes) {
@@ -19,4 +16,3 @@ public class OAuth2UserInfoFactory {
         }
     }
 }
-

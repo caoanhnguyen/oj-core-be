@@ -1,5 +1,7 @@
 package com.kma.ojcore.service.impl;
 
+import com.kma.ojcore.exception.BusinessException;
+import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.service.FileStorageService;
 import io.minio.*;
 import io.minio.http.Method;
@@ -33,12 +35,10 @@ public class MinioFileStorageService implements FileStorageService {
                             .contentType(contentType)
                             .build());
             log.info("File uploaded to MinIO: bucket={}, object={}", bucketName, objectName);
-            // Ở đây trả về objectName; client có thể build URL từ endpoint + bucketName +
-            // objectName nếu cần
             return objectName;
         } catch (Exception e) {
             log.error("Failed to upload file to MinIO", e);
-            throw new RuntimeException("Failed to upload file to storage", e);
+            throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED, "Failed to upload file to storage.");
         }
     }
 
@@ -66,7 +66,7 @@ public class MinioFileStorageService implements FileStorageService {
                             .build());
         } catch (Exception e) {
             log.error("Failed to download file from MinIO", e);
-            throw new RuntimeException("Failed to download file from storage", e);
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND, "Failed to download file from storage.");
         }
     }
 
@@ -82,7 +82,7 @@ public class MinioFileStorageService implements FileStorageService {
                             .build());
         } catch (Exception e) {
             log.error("Failed to get presigned URL from MinIO", e);
-            throw new RuntimeException("Lỗi lấy URL file: " + e.getMessage(), e);
+            throw new BusinessException(ErrorCode.UNCATEGORIZED_EXCEPTION, "Failed to generate file URL.");
         }
     }
 }

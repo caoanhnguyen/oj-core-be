@@ -9,7 +9,7 @@ import com.kma.ojcore.entity.Role;
 import com.kma.ojcore.entity.User;
 import com.kma.ojcore.enums.RoleName;
 import com.kma.ojcore.exception.BusinessException;
-import com.kma.ojcore.exception.ResourceNotFoundException;
+import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.mapper.UserMapper;
 import com.kma.ojcore.repository.RoleRepository;
 import com.kma.ojcore.repository.SubmissionRepository;
@@ -33,9 +33,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/**
- * User Service for user management operations
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -50,21 +47,16 @@ public class UserServiceImpl implements UserService {
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public String updateAvatar(UUID userId, MultipartFile avatarFile) {
-        // 1. Tìm user trong DB
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user!"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         String oldAvatarUrl = user.getAvatarUrl();
-
-        // 2. Upload file mới vào folder "avatar"
         String newAvatarUrl = imageStorageService.uploadImage(avatarFile, "avatar");
 
-        // 3. Dọn rác: Xóa ảnh cũ an toàn (Chặn xóa nhầm ảnh mặc định default.png)
         if (oldAvatarUrl != null && !oldAvatarUrl.contains("default.png")) {
             imageStorageService.deleteImageByUrl(oldAvatarUrl);
         }
 
-        // 4. Lưu URL mới vào Database
         user.setAvatarUrl(newAvatarUrl);
         userRepository.save(user);
 
@@ -73,17 +65,13 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserHeatMapSdo getContributionHeatMap(UUID userId) {
-        // 1. Lấy mốc thời gian cách đây 1 năm
         LocalDateTime oneYearAgo = LocalDateTime.now().minusYears(1);
 
-        // 2. Query DB lấy tất cả submission của user trong vòng 1 năm qua
         List<LocalDateTime> submissionDates = submissionRepo.findSubmissionDatesByUserIdAndStartDate(userId, oneYearAgo);
 
-        // 3. Đếm số lượng submission theo từng ngày, map thành List<UserHeatMapSdo>
         Map<LocalDateTime, Long> dateCountMap = submissionDates.stream()
                 .collect(Collectors.groupingBy(date -> date.toLocalDate().atStartOfDay(), Collectors.counting()));
 
-        // 4. Chuyển Map thành List<UserHeatMapSdo>
         List<HeatMapItemSdo> heatmapItems = dateCountMap.entrySet().stream()
                 .map(entry -> new HeatMapItemSdo(entry.getKey(), entry.getValue().intValue()))
                 .toList();
@@ -98,7 +86,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserDetailsSdo getUserProfileById(UUID userId, boolean isMine) {
         User user = userRepository.findByUserIdAndStatusIsActive(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user!"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         return userMapper.toUserDetailsSdo(user, isMine);
     }
@@ -107,7 +95,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserDetailsSdo getUserProfileByUsername(String username, boolean isMine) {
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user!"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         return userMapper.toUserDetailsSdo(user, isMine);
     }
@@ -116,7 +104,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserDetailsSdo updateUserProfile(UUID userId, UpdateUserSdi request) {
         User user = userRepository.findByUserIdAndStatusIsActive(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user!"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         userMapper.UpdateUserFromUpdateSdi(request, user);
         User updatedUser = userRepository.save(user);
@@ -129,26 +117,21 @@ public class UserServiceImpl implements UserService {
 
         String searchKeyword = EscapeHelper.escapeLike(keyword);
 
-        // 1. Query phân trang
         Page<User> usersPage = userRepository.searchUsersForAdmin(searchKeyword, isLocked, role, pageable);
 
         if (usersPage.isEmpty()) {
             return Page.empty(pageable);
         }
 
-        // 2. Lấy list userIds để query batch lấy roles
         List<UUID> userIds = usersPage.getContent().stream()
                 .map(User::getId)
                 .toList();
 
-        // 3. Query batch lấy user + roles
         List<User> usersWithRoles = userRepository.findUsersWithRolesByIds(userIds);
 
-        // 4. Chuyển thành Map<UUID, User> để dễ lấy role khi map sang SDO
         Map<UUID, User> userMap = usersWithRoles.stream()
                 .collect(Collectors.toMap(User::getId, user -> user));
 
-        // 5. Map sang UserBasicSdo, lấy role từ userMap, trả về Page<UserBasicSdo>
         return usersPage.map(user -> {
             User userWithRoles = userMap.get(user.getId());
             return UserBasicSdo.builder()
@@ -170,12 +153,12 @@ public class UserServiceImpl implements UserService {
     @CacheEvict(value = "userDetails", allEntries = true)
     public void bulkToggleUserLock(UUID adminId, List<UUID> userTargetIds, boolean accountNonLocked) {
         if (userTargetIds.contains(adminId)) {
-            throw new IllegalArgumentException("Không thể tự khóa/mở khóa tài khoản của mình!");
+            throw new BusinessException(ErrorCode.CANNOT_MODIFY_SELF);
         }
 
         List<User> users = userRepository.findAllById(userTargetIds);
         if (users.size() != userTargetIds.size()) {
-            throw new ResourceNotFoundException("Một hoặc nhiều user không tồn tại!");
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
         userRepository.bulkUpdateAccountNonLocked(accountNonLocked, userTargetIds);
@@ -185,31 +168,24 @@ public class UserServiceImpl implements UserService {
     @Override
     @CacheEvict(value = "userDetails", key = "#targetUserId")
     public void updateUserRoles(UUID adminId, UUID targetUserId, Set<RoleName> roleNames) {
-        // 1. Kiểm tra không cho admin tự thay đổi role của mình
         if (adminId.equals(targetUserId)) {
-            throw new IllegalArgumentException("Không thể tự thay đổi role của mình!");
+            throw new BusinessException(ErrorCode.CANNOT_MODIFY_SELF);
         }
 
-        // 2. Lấy user mục tiêu, nếu không tồn tại thì ném ResourceNotFound
         User targetUser = userRepository.findById(targetUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user!"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-
-        // 3. Valid roleNames không được null
         if (roleNames == null || roleNames.isEmpty()) {
-            throw new IllegalArgumentException("Role names không được null!");
+            throw new BusinessException(ErrorCode.MISSING_REQUEST_PARAMETER);
         }
 
-        // 4. Tìm các Entity Role từ DB dựa vào tên Frontend gửi lên
         Set<Role> newRoles = roleRepository.findByNameIn(roleNames);
         if (newRoles.isEmpty()) {
-            throw new BusinessException("Danh sách quyền không hợp lệ!");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Invalid roles.");
         }
 
-        // 5. Cập nhật role cho user và lưu vào DB
         targetUser.getRoles().clear();
         targetUser.getRoles().addAll(newRoles);
         userRepository.save(targetUser);
     }
 }
-

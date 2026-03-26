@@ -9,6 +9,7 @@ import com.kma.ojcore.entity.Submission;
 import com.kma.ojcore.enums.SubmissionStatus;
 import com.kma.ojcore.enums.SubmissionVerdict;
 import com.kma.ojcore.exception.BusinessException;
+import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.repository.SubmissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -68,7 +69,7 @@ public class SubmissionTimeoutScheduler {
                     LanguageConfig langConfig = languageLoader.getConfigByKey(submission.getLanguageKey());
 
                     if (langConfig == null) {
-                        throw new BusinessException("Hệ thống chưa cấu hình ngôn ngữ này!");
+                        throw new BusinessException(ErrorCode.LANGUAGE_NOT_SUPPORTED);
                     }
 
                     // Tính toán lại limit chuẩn xác
