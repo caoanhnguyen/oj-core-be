@@ -28,8 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -93,8 +92,20 @@ public class AuthServiceImpl implements AuthService {
                     .user(userDetailsSdo)
                     .build();
 
+        } catch (LockedException e) {
+            log.warn("Login failed: Account locked for user {}", loginRequest.getUsername());
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
+
+        } catch (DisabledException e) {
+            log.warn("Login failed: Email not verified for user {}", loginRequest.getUsername());
+            throw new BusinessException(ErrorCode.EMAIL_NOT_VERIFIED);
+
+        } catch (BadCredentialsException e) {
+            log.warn("Login failed: Wrong credentials for user {}", loginRequest.getUsername());
+            throw new BusinessException(ErrorCode.WRONG_CREDENTIALS);
+
         } catch (Exception e) {
-            log.error("Login failed: {}", e.getMessage());
+            log.error("Login failed due to unexpected error: {}", e.getMessage());
             throw new BusinessException(ErrorCode.WRONG_CREDENTIALS);
         }
     }
