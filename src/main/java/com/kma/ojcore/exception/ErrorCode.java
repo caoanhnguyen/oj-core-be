@@ -50,6 +50,15 @@ public enum ErrorCode {
     RUN_CODE_IN_PROGRESS("SUB_004", "Run code result is still processing or has expired.", HttpStatus.NOT_FOUND),
 
     // ==========================================
+    // 7. CON - CONTEST
+    // ==========================================
+    CONTEST_NOT_FOUND("CON_001", "Contest not found.", HttpStatus.NOT_FOUND),
+    CONTEST_NOT_STARTED("CON_002", "The contest has not started yet.", HttpStatus.FORBIDDEN),
+    ALREADY_REGISTERED("CON_003", "You have already registered for this contest.", HttpStatus.BAD_REQUEST),
+    INCORRECT_PASSWORD("CON_004", "Incorrect contest password.", HttpStatus.FORBIDDEN),
+    NOT_REGISTERED("CON_005", "You must register to view these problems.", HttpStatus.FORBIDDEN),
+
+    // ==========================================
     // 6. FIL - FILE/STORAGE
     // ==========================================
     FILE_UPLOAD_FAILED("FIL_001", "File upload failed.", HttpStatus.INTERNAL_SERVER_ERROR),
