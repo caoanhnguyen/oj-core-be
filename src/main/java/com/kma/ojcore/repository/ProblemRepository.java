@@ -31,7 +31,7 @@ public interface ProblemRepository extends JpaRepository<Problem, UUID> {
             "p.id, p.title, p.slug, p.difficulty, p.status, p.problemStatus, " +
             "p.submissionCount, p.acceptedCount, p.totalScore, p.ruleType, null, p.createdDate, p.updatedDate) " +
             "FROM Problem p " +
-            "WHERE (:keyword IS NULL OR LOWER(p.title) LIKE LOWER(:keyword)) " +
+            "WHERE (:keyword IS NULL OR LOWER(p.title) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!') " +
             "AND (:difficulty IS NULL OR p.difficulty = :difficulty) " +
             "AND (:ruleType IS NULL OR p.ruleType = :ruleType) " +
             "AND (:topicSlugs IS NULL OR EXISTS (SELECT t FROM p.topics t WHERE t.slug IN :topicSlugs)) " +
