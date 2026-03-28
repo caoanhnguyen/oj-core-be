@@ -76,9 +76,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     // Query lấy user với phân trang và filter theo keyword (username, email, fullName) và trạng thái khóa tài khoản
     @Query("SELECT DISTINCT u FROM User u " +
             "LEFT JOIN u.roles r " +
-            "WHERE (:keyword IS NULL OR LOWER(u.username) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
-            "OR LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
-            "OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+            "WHERE (:keyword IS NULL OR LOWER(u.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!' " +
+            "OR LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!' " +
+            "OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!') " +
             "AND (:isLocked IS NULL OR u.accountNonLocked = :isLocked) " +
             "AND (:roleName IS NULL OR r.name = :roleName)")
     Page<User> searchUsersForAdmin(@Param("keyword") String keyword,

@@ -25,7 +25,7 @@ public interface SubmissionService {
     Page<?> getSubmissions(UUID problemId,
                            UUID userId,
                            SubmissionVerdict submissionVerdict,
-                           String username,
+                           String keyword,
                            EStatus status,
                            ProblemStatus problemStatus,
                            List<SubmissionVerdict> allowedVerdicts,

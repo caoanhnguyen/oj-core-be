@@ -60,8 +60,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             "WHERE (:problemId IS NULL OR s.problem.id = :problemId) " +
             "AND (:userId IS NULL OR s.user.id = :userId) " +
             "AND (:submissionVerdict IS NULL OR s.verdict = :submissionVerdict) " +
-            "AND (:keyword IS NULL OR LOWER(s.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
-            "                      OR LOWER(s.problem.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+            "AND (:keyword IS NULL OR LOWER(s.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!' " +
+            "                      OR LOWER(s.problem.title) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!') " +
             "AND (:status IS NULL OR s.problem.status = :status) " +
             "AND (:problemStatus IS NULL OR s.problem.problemStatus = :problemStatus) " +
             "AND (s.verdict IN :verdicts) " +
@@ -77,11 +77,11 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
                                             Pageable pageable);
 
     @Query(value = "SELECT source_code FROM submissions " +
-            "WHERE problem_id = :problemId " +
-            "AND user_id = :userId " +
-            "AND language_key = :languageKey " +
-            "ORDER BY created_date DESC LIMIT 1",
-            nativeQuery = true)
+                    "WHERE problem_id = :problemId " +
+                    "AND user_id = :userId " +
+                    "AND language_key = :languageKey " +
+                    "ORDER BY created_date DESC LIMIT 1",
+                    nativeQuery = true)
     Optional<String> findFirstSourceCodeByProblemIdAndUserIdAndLanguageKey(
             @Param("problemId") UUID problemId,
             @Param("userId") UUID userId,

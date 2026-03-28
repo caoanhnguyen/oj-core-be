@@ -5,12 +5,8 @@ public class EscapeHelper {
         if (param == null) {
             return null;
         }
-        return "%" + param.trim().replace("\\","\\\\")
-                .replace("%", "\\%")
-                .replace("_", "\\_")
-                .replace("\\n","\\\\n")
-                .replace("\\s","\\\\s")
-                .replace("\\t","\\\\t")
-                + "%";
+        return param.trim().replace("!","!!")
+                            .replace("%", "!%")
+                            .replace("_", "!_");
     }
 }

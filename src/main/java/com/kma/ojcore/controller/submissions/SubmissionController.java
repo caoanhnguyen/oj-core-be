@@ -88,7 +88,7 @@ public class SubmissionController {
      * @param problemId
      * @param userId
      * @param submissionVerdict
-     * @param username
+     * @param keyword
      * @param page
      * @param size
      * @param sort
@@ -99,7 +99,7 @@ public class SubmissionController {
             @RequestParam(required = false) UUID problemId,
             @RequestParam(required = false) UUID userId,
             @RequestParam(required = false) SubmissionVerdict submissionVerdict,
-            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @SortDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort
@@ -109,7 +109,7 @@ public class SubmissionController {
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Submissions retrieved successfully")
-                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, username, EStatus.ACTIVE, ProblemStatus.PUBLISHED, allowedVerdicts, true, pageable))
+                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, keyword, EStatus.ACTIVE, ProblemStatus.PUBLISHED, allowedVerdicts, true, pageable))
                 .build();
     }
 
