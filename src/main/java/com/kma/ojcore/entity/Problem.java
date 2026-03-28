@@ -55,7 +55,7 @@ public class Problem extends BaseEntity {
     @Column(name = "testcase_dir", length = 255)
     String testcaseDir;
 
-    @ElementCollection(fetch = FetchType.EAGER) // Tạm thời dùng EAGER vì số lượng ngôn ngữ ít (3-4 cái), không ảnh hưởng nhiều
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "problem_languages", joinColumns = @JoinColumn(name = "problem_id"))
     @Column(name = "language_key", length = 50)
     Set<String> allowedLanguages = new HashSet<>();

@@ -26,4 +26,8 @@ public class ContestDetailSdo {
     ContestVisibility visibility;
     Long participantCount;
     boolean isRegistered;
+    UUID authorId;
+    String authorUsername;
+    LocalDateTime createdDate;
+    LocalDateTime updatedDate;
 }

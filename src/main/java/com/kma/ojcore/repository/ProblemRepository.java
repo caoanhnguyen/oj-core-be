@@ -14,6 +14,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -52,6 +53,8 @@ public interface ProblemRepository extends JpaRepository<Problem, UUID> {
     @Modifying
     @Query("Update Problem p set p.problemStatus = :problemStatus where p.id = :id")
     void updateProblemStatusById(@Param("problemStatus") ProblemStatus problemStatus, @Param("id") UUID id);
+
+    long countByIdIn(Collection<UUID> ids);
 
     @Modifying
     @Query("UPDATE Problem p SET p.acceptedCount = p.acceptedCount + 1 WHERE p.id = :problemId")

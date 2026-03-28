@@ -17,6 +17,10 @@ public class ContestParticipation extends BaseEntity {
     @Column(nullable = false)
     Boolean isRegistered;
 
+    @Column(name = "is_disqualified", nullable = false)
+    @Builder.Default
+    boolean isDisqualified = false; // Mặc định là trong sạch
+
     // -- Relationships -- //
 
     // ContestParticipation - Contest //
