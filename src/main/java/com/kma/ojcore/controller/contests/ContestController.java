@@ -4,6 +4,7 @@ import com.kma.ojcore.dto.request.contests.RegisterContestSdi;
 import com.kma.ojcore.dto.response.common.ApiResponse;
 import com.kma.ojcore.dto.response.contests.ContestBasicSdo;
 import com.kma.ojcore.dto.response.contests.ContestDetailSdo;
+import com.kma.ojcore.dto.response.contests.ContestParticipantPublicSdo;
 import com.kma.ojcore.dto.response.contests.ContestProblemSdo;
 import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.RuleType;
@@ -83,6 +84,19 @@ public class ContestController {
                 .status(HttpStatus.OK.value())
                 .message("Fetched contest problems successfully.")
                 .data(contestService.getContestProblemsForUser(id, userPrincipal.getId()))
+                .build();
+    }
+
+    @GetMapping("/{id}/participants")
+    public ApiResponse<Page<ContestParticipantPublicSdo>> getPublicParticipants(
+                                @PathVariable UUID id,
+                                @RequestParam(value = "keyword", required = false) String keyword,
+                                @SortDefault(sort = "createdDate", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        return ApiResponse.<Page<ContestParticipantPublicSdo>>builder()
+                .status(HttpStatus.OK.value())
+                .message("Fetched public participants successfully")
+                .data(contestService.getPublicContestParticipants(id, keyword, pageable))
                 .build();
     }
 }

@@ -1,6 +1,5 @@
 package com.kma.ojcore.entity;
 
-import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.ContestVisibility;
 import com.kma.ojcore.enums.RuleType;
 import jakarta.persistence.*;
@@ -38,11 +37,11 @@ public class Contest extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    ContestStatus contestStatus;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     ContestVisibility visibility;
+
+    @Column(name = "is_visible", nullable = false)
+    @Builder.Default
+    boolean isVisible = false; // Mặc định tạo ra là Draft (ẩn)
 
     String password;
 

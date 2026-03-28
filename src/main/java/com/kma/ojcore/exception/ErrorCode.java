@@ -57,6 +57,7 @@ public enum ErrorCode {
     ALREADY_REGISTERED("CON_003", "You have already registered for this contest.", HttpStatus.BAD_REQUEST),
     INCORRECT_PASSWORD("CON_004", "Incorrect contest password.", HttpStatus.FORBIDDEN),
     NOT_REGISTERED("CON_005", "You must register to view these problems.", HttpStatus.FORBIDDEN),
+    BANNED_FROM_CONTEST("CON_006", "You are banned from participating in this contest.", HttpStatus.FORBIDDEN),
 
     // ==========================================
     // 6. FIL - FILE/STORAGE

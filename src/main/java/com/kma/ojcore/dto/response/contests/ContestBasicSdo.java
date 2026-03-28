@@ -2,6 +2,7 @@ package com.kma.ojcore.dto.response.contests;
 
 import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.ContestVisibility;
+import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.RuleType;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -24,4 +25,18 @@ public class ContestBasicSdo {
     ContestStatus contestStatus;
     ContestVisibility visibility;
     Long participantCount;
+    boolean isVisible;
+    EStatus status;
+
+    public ContestBasicSdo(UUID id, String title, LocalDateTime startTime, LocalDateTime endTime, RuleType ruleType, ContestVisibility visibility, Long participantCount, boolean isVisible, EStatus status) {
+        this.id = id;
+        this.title = title;
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.ruleType = ruleType;
+        this.visibility = visibility;
+        this.participantCount = participantCount;
+        this.isVisible = isVisible;
+        this.status = status;
+    }
 }

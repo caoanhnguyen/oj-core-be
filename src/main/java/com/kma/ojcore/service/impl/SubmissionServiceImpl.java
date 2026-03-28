@@ -22,6 +22,7 @@ import com.kma.ojcore.repository.ProblemRepository;
 import com.kma.ojcore.repository.SubmissionRepository;
 import com.kma.ojcore.repository.UserRepository;
 import com.kma.ojcore.service.SubmissionService;
+import com.kma.ojcore.utils.EscapeHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -142,7 +143,7 @@ public class SubmissionServiceImpl implements SubmissionService {
     public Page<?> getSubmissions(UUID problemId,
                                   UUID userId,
                                   SubmissionVerdict submissionVerdict,
-                                  String username,
+                                  String keyword,
                                   EStatus status,
                                   ProblemStatus problemStatus,
                                   List<SubmissionVerdict> allowedVerdicts,
@@ -157,7 +158,9 @@ public class SubmissionServiceImpl implements SubmissionService {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
-        return submissionRepository.getSubmissions(problemId, userId, submissionVerdict, username, status, problemStatus, allowedVerdicts, hideStaff, pageable);
+        String searchKeyword = EscapeHelper.escapeLike(keyword);
+
+        return submissionRepository.getSubmissions(problemId, userId, submissionVerdict, searchKeyword, status, problemStatus, allowedVerdicts, hideStaff, pageable);
     }
 
     @Override
