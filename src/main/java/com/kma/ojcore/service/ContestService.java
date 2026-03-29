@@ -6,6 +6,7 @@ import com.kma.ojcore.dto.request.contests.RegisterContestSdi;
 import com.kma.ojcore.dto.request.contests.UpdateContestSdi;
 import com.kma.ojcore.dto.response.contests.*;
 import com.kma.ojcore.enums.ContestStatus;
+import com.kma.ojcore.enums.ContestVisibility;
 import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.RuleType;
 import org.springframework.data.domain.Page;
@@ -15,15 +16,24 @@ import java.util.List;
 import java.util.UUID;
 
 public interface ContestService {
+
     // ADMIN
 
-    Page<ContestBasicSdo> searchAdminContests(String keyword, RuleType ruleType, ContestStatus contestStatus, Pageable pageable);
+    Page<ContestBasicSdo> searchAdminContests(String keyword, RuleType ruleType, ContestStatus contestStatus, ContestVisibility visibility, EStatus status, Pageable pageable);
+
+    ContestAdminSdo getAdminContestById(UUID contestId);
 
     ContestAdminSdo createContest(CreateContestSdi req, UUID authorId);
 
     ContestAdminSdo updateContest(UUID contestId, UpdateContestSdi req);
 
-    ContestAdminSdo getAdminContestById(UUID contestId);
+    void restoreContest(UUID contestId);
+
+    void softDeleteContest(UUID contestId);
+
+    void togglePublishStatus(UUID contestId);
+
+    // Problems Contest
 
     void addProblemsToContest(UUID contestId, List<AddContestProblemSdi> requests);
 
@@ -31,15 +41,13 @@ public interface ContestService {
 
     List<ContestProblemSdo> getContestProblemsForAdmin(UUID contestId);
 
-    void disqualifyUsers(UUID contestId, List<UUID> userId);
-
-    void updateContestVisibility(UUID contestId, boolean isVisible);
-
-    void restoreContest(UUID contestId);
-
-    void softDeleteContest(UUID contestId);
+    // Participants
 
     Page<ContestParticipationSdo> searchContestParticipants(UUID contestId, String keyword, Boolean isDisqualified, Pageable pageable);
+
+    void disqualifyUsers(UUID contestId, List<UUID> userId);
+
+    void requalifyUsers(UUID contestId, List<UUID> userIds);
 
     // USER
     Page<ContestBasicSdo> getContestsForUser(String keyword, RuleType ruleType, ContestStatus contestStatus, Pageable pageable);
