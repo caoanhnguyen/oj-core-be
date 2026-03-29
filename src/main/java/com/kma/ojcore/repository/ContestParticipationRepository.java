@@ -29,6 +29,10 @@ public interface ContestParticipationRepository extends JpaRepository<ContestPar
     int banUsersInBulk(@Param("contestId") UUID contestId,
                        @Param("userIds") List<UUID> userIds);
 
+    @Modifying
+    @Query("UPDATE ContestParticipation cp SET cp.isDisqualified = false WHERE cp.contest.id = :contestId AND cp.user.id IN :userIds")
+    int unbanUsersInBulk(@Param("contestId") UUID contestId, @Param("userIds") List<UUID> userIds);
+
     @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestParticipationSdo(" +
             "cp.user.id, cp.user.username, cp.user.email, cp.isDisqualified) " +
             "FROM ContestParticipation cp " +

@@ -39,10 +39,6 @@ public class Contest extends BaseEntity {
     @Column(nullable = false)
     ContestVisibility visibility;
 
-    @Column(name = "is_visible", nullable = false)
-    @Builder.Default
-    boolean isVisible = false; // Mặc định tạo ra là Draft (ẩn)
-
     String password;
 
     // -- Relationships -- //
