@@ -54,7 +54,7 @@ public interface ProblemRepository extends JpaRepository<Problem, UUID> {
     @Query("Update Problem p set p.problemStatus = :problemStatus where p.id = :id")
     void updateProblemStatusById(@Param("problemStatus") ProblemStatus problemStatus, @Param("id") UUID id);
 
-    long countByIdIn(Collection<UUID> ids);
+    long countByIdInAndStatusNot(Collection<UUID> ids, EStatus status);
 
     @Modifying
     @Query("UPDATE Problem p SET p.acceptedCount = p.acceptedCount + 1 WHERE p.id = :problemId")
