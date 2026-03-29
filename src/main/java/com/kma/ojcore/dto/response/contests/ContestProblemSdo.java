@@ -1,5 +1,6 @@
 package com.kma.ojcore.dto.response.contests;
 
+import com.kma.ojcore.enums.EStatus;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -19,4 +20,5 @@ public class ContestProblemSdo {
     String displayId;
     Integer points;
     Integer sortOrder;
+    EStatus status;
 }
