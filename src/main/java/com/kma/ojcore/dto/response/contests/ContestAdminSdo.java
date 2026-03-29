@@ -2,6 +2,7 @@ package com.kma.ojcore.dto.response.contests;
 
 import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.ContestVisibility;
+import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.RuleType;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -24,6 +25,7 @@ public class ContestAdminSdo {
     RuleType ruleType;
     ContestStatus contestStatus;
     ContestVisibility visibility;
+    EStatus status;
     String password;
     Long participantCount;
     UUID authorId;
