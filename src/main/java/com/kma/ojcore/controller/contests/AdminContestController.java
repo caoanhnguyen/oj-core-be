@@ -9,6 +9,8 @@ import com.kma.ojcore.dto.response.contests.ContestBasicSdo;
 import com.kma.ojcore.dto.response.contests.ContestParticipationSdo;
 import com.kma.ojcore.dto.response.contests.ContestProblemSdo;
 import com.kma.ojcore.enums.ContestStatus;
+import com.kma.ojcore.enums.ContestVisibility;
+import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.RuleType;
 import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.service.ContestService;
@@ -22,6 +24,7 @@ import org.springframework.data.web.SortDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,30 +34,20 @@ import java.util.UUID;
 @RequestMapping("${app.api.prefix}/admin/contests")
 @RequiredArgsConstructor
 @PreAuthorize("hasAnyRole('ADMIN', 'MODERATOR')")
+@Validated
 public class AdminContestController {
 
     private final ContestService contestService;
 
-    @GetMapping("/{id}/participants")
-    public ApiResponse<Page<ContestParticipationSdo>> getParticipants(@PathVariable UUID id,
-                                                                      @RequestParam(value = "keyword", required = false) String keyword,
-                                                                      @RequestParam(value = "isDisqualified", required = false) Boolean isDisqualified,
-                                                                      @RequestParam(defaultValue = "0") int page,
-                                                                      @RequestParam(defaultValue = "20") int size,
-                                                                      @SortDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort) {
-
-        Pageable pageable = PageRequest.of(page, size, sort);
-        return ApiResponse.<Page<ContestParticipationSdo>>builder()
-                .status(200)
-                .message("Fetched participants successfully")
-                .data(contestService.searchContestParticipants(id, keyword, isDisqualified, pageable))
-                .build();
-    }
+    // ====================================================
+    // CONTEST
 
     @GetMapping
     public ApiResponse<?> getContests(@RequestParam(required = false) String keyword,
                                       @RequestParam(required = false) RuleType ruleType,
                                       @RequestParam(required = false) ContestStatus contestStatus,
+                                      @RequestParam(required = false) ContestVisibility visibility,
+                                      @RequestParam(required = false) EStatus status,
                                       @RequestParam(defaultValue = "0") int page,
                                       @RequestParam(defaultValue = "20") int size,
                                       @SortDefault Sort sort) {
@@ -62,7 +55,7 @@ public class AdminContestController {
         return ApiResponse.<Page<ContestBasicSdo>>builder()
                 .status(HttpStatus.OK.value())
                 .message("Fetched contests successfully.")
-                .data(contestService.searchAdminContests(keyword, ruleType, contestStatus, pageable))
+                .data(contestService.searchAdminContests(keyword, ruleType, contestStatus, visibility, status, pageable))
                 .build();
     }
 
@@ -76,9 +69,8 @@ public class AdminContestController {
     }
 
     @PostMapping
-    public ApiResponse<ContestAdminSdo> createContest(
-            @Valid @RequestBody CreateContestSdi request,
-            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+    public ApiResponse<ContestAdminSdo> createContest(@Valid @RequestBody CreateContestSdi request,
+                                                      @AuthenticationPrincipal UserPrincipal userPrincipal) {
         return ApiResponse.<ContestAdminSdo>builder()
                 .status(HttpStatus.CREATED.value())
                 .message("Contest created successfully.")
@@ -97,15 +89,6 @@ public class AdminContestController {
                 .build();
     }
 
-    @DeleteMapping("/{id}")
-    public ApiResponse<?> deleteContest(@PathVariable UUID id) {
-        contestService.softDeleteContest(id);
-        return ApiResponse.builder()
-                .status(HttpStatus.OK.value())
-                .message("Contest deleted successfully.")
-                .build();
-    }
-
     @PostMapping("/{id}/restore")
     public ApiResponse<?> restoreContest(@PathVariable UUID id) {
         contestService.restoreContest(id);
@@ -114,6 +97,27 @@ public class AdminContestController {
                 .message("Contest restored successfully.")
                 .build();
     }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<?> softDeleteContest(@PathVariable UUID id) {
+        contestService.softDeleteContest(id);
+        return ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Contest deleted successfully.")
+                .build();
+    }
+
+    @PatchMapping("/{id}/visibility")
+    public ApiResponse<?> toggleVisibility(@PathVariable UUID id) {
+        contestService.togglePublishStatus(id);
+        return ApiResponse.<String>builder()
+                .status(200)
+                .message("Contest visibility updated successfully.")
+                .build();
+    }
+
+    // ====================================================
+    // PROBLEMS CONTEST
 
     @GetMapping("/{id}/problems")
     public ApiResponse<List<ContestProblemSdo>> getContestProblems(@PathVariable UUID id) {
@@ -130,7 +134,7 @@ public class AdminContestController {
         contestService.addProblemsToContest(id, requests);
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
-                .message("Added problems successfully")
+                .message("Added problems successfully.")
                 .build();
     }
 
@@ -140,7 +144,28 @@ public class AdminContestController {
         contestService.removeProblemsFromContest(id, problemIds);
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
-                .message("Removed problems successfully")
+                .message("Removed problems successfully.")
+                .build();
+    }
+
+    // ====================================================
+    // PARTICIPANTS
+
+    @GetMapping("/{id}/participants")
+    public ApiResponse<Page<ContestParticipationSdo>> getParticipants(
+            @PathVariable UUID id,
+              @RequestParam(value = "keyword", required = false) String keyword,
+              @RequestParam(value = "isDisqualified", required = false) Boolean isDisqualified,
+              @RequestParam(defaultValue = "0") int page,
+              @RequestParam(defaultValue = "20") int size,
+              @SortDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort
+    ) {
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+        return ApiResponse.<Page<ContestParticipationSdo>>builder()
+                .status(200)
+                .message("Fetched participants successfully")
+                .data(contestService.searchContestParticipants(id, keyword, isDisqualified, pageable))
                 .build();
     }
 
@@ -151,21 +176,17 @@ public class AdminContestController {
         contestService.disqualifyUsers(id, userIds);
         return ApiResponse.<String>builder()
                 .status(200)
-                .message("Users disqualified successfully")
+                .message("Users disqualified successfully.")
                 .build();
     }
 
-    @PatchMapping("/{id}/visibility")
-    public ApiResponse<?> updateVisibility(@PathVariable UUID id,
-                                           @RequestParam("isVisible") boolean isVisible) {
-
-        contestService.updateContestVisibility(id, isVisible);
-
-        String message = isVisible ? "Contest published successfully" : "Contest hidden successfully (Draft mode)";
-
+    @PostMapping("/{id}/participants/bulk-unban")
+    public ApiResponse<?> unbanUsers(@PathVariable UUID id,
+                                     @RequestBody List<UUID> userIds) {
+        contestService.requalifyUsers(id, userIds);
         return ApiResponse.<String>builder()
                 .status(200)
-                .message(message)
+                .message("Users requalified successfully")
                 .build();
     }
 }
