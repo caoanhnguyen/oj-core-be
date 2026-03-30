@@ -90,4 +90,25 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
 
     @Query("SELECT s FROM Submission s WHERE s.verdict = 'PENDING' AND s.updatedDate < :threshold")
     List<Submission> findStuckSubmissions(@Param("threshold") LocalDateTime threshold);
+
+    // 1. Dùng cho ACM: Kiểm tra xem trước đó đã AC bài này chưa?
+    boolean existsByContestIdAndUserIdAndProblemIdAndVerdictAndCreatedDateBefore(
+            UUID contestId, UUID userId, UUID problemId, SubmissionVerdict verdict, java.time.LocalDateTime createdDate);
+
+    // 2. Dùng cho ACM: Đếm số lần nộp sai (Khác AC) trước khi AC
+    @Query("SELECT COUNT(s) FROM Submission s WHERE s.contest.id = :contestId " +
+            "AND s.user.id = :userId AND s.problem.id = :problemId " +
+            "AND s.verdict <> com.kma.ojcore.enums.SubmissionVerdict.AC " +
+            "AND s.createdDate < :createdDate")
+    long countFailedAttemptsBeforeAc(@Param("contestId") UUID contestId,
+                                     @Param("userId") UUID userId,
+                                     @Param("problemId") UUID problemId,
+                                     @Param("createdDate") java.time.LocalDateTime createdDate);
+
+    // 3. Dùng cho OI: Tính tổng điểm bằng cách lấy MAX điểm của từng bài rồi cộng lại
+    @Query("SELECT MAX(s.score) FROM Submission s " +
+            "WHERE s.contest.id = :contestId AND s.user.id = :userId " +
+            "AND s.createdDate <= s.contest.endTime " +
+            "GROUP BY s.problem.id")
+    List<Double> findMaxScoresPerProblem(@Param("contestId") UUID contestId, @Param("userId") UUID userId);
 }
