@@ -8,19 +8,12 @@ import com.kma.ojcore.dto.request.submissions.SubmissionSdi;
 import com.kma.ojcore.dto.response.problems.ProblemStatisticSdo;
 import com.kma.ojcore.dto.response.submissions.RunCodeResponse;
 import com.kma.ojcore.dto.response.submissions.SubmissionDetailsSdo;
-import com.kma.ojcore.entity.LanguageConfig;
-import com.kma.ojcore.entity.Problem;
-import com.kma.ojcore.entity.Submission;
-import com.kma.ojcore.entity.User;
-import com.kma.ojcore.enums.EStatus;
-import com.kma.ojcore.enums.ProblemStatus;
-import com.kma.ojcore.enums.SubmissionStatus;
-import com.kma.ojcore.enums.SubmissionVerdict;
+import com.kma.ojcore.entity.*;
+import com.kma.ojcore.enums.*;
 import com.kma.ojcore.exception.BusinessException;
 import com.kma.ojcore.exception.ErrorCode;
-import com.kma.ojcore.repository.ProblemRepository;
-import com.kma.ojcore.repository.SubmissionRepository;
-import com.kma.ojcore.repository.UserRepository;
+import com.kma.ojcore.mapper.ContestMapper;
+import com.kma.ojcore.repository.*;
 import com.kma.ojcore.service.SubmissionService;
 import com.kma.ojcore.utils.EscapeHelper;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +44,10 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final RabbitTemplate rabbitTemplate;
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
+    private final ContestRepository contestRepository;
+    private final ContestParticipationRepository contestParticipationRepository;
+    private final ContestProblemRepository contestProblemRepository;
+    private final ContestMapper contestMapper;
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
@@ -66,6 +63,30 @@ public class SubmissionServiceImpl implements SubmissionService {
         LanguageConfig langConfig = languageLoader.getConfigByKey(request.getLanguageKey());
         if (langConfig == null) {
             throw new BusinessException(ErrorCode.LANGUAGE_NOT_SUPPORTED);
+        }
+
+        Contest contest;
+        if (request.getContestId() != null) {
+            contest = contestRepository.findByIdAndStatusActive(request.getContestId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found or not active."));
+
+            // Luật 1: Chặn đứng kỳ thi chưa bắt đầu. Cho phép nộp khi đang diễn ra (Thi) hoặc đã kết thúc (Upsolving).
+            ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
+            if (timeStatus == ContestStatus.UPCOMING) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Contest has not started yet. You cannot submit solutions at this time.");
+            }
+
+            // Luật 2: Kiểm tra User đã đăng ký chưa và có bị Ban không?
+            ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contest.getId(), currentUserId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED, "You are not registered for this contest."));
+            if (participation.isDisqualified()) {
+                throw new BusinessException(ErrorCode.BANNED_FROM_CONTEST, "You are disqualified from this contest.");
+            }
+
+            // Luật 3: Bài toán này có nằm trong Contest không?
+            if (!contestProblemRepository.existsByContestIdAndProblemId(contest.getId(), problem.getId())) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "This problem does not belong to the requested contest.");
+            }
         }
 
         User user = userRepository.getReferenceById(currentUserId);

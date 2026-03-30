@@ -20,4 +20,6 @@ public class SubmissionSdi {
 
     @NotBlank(message = "Source code không được để trống")
     String sourceCode;
+
+    UUID contestId;
 }
