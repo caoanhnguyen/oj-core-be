@@ -2,10 +2,8 @@ package com.kma.ojcore.controller.contests;
 
 import com.kma.ojcore.dto.request.contests.RegisterContestSdi;
 import com.kma.ojcore.dto.response.common.ApiResponse;
-import com.kma.ojcore.dto.response.contests.ContestBasicSdo;
-import com.kma.ojcore.dto.response.contests.ContestDetailSdo;
-import com.kma.ojcore.dto.response.contests.ContestParticipantPublicSdo;
-import com.kma.ojcore.dto.response.contests.ContestProblemSdo;
+import com.kma.ojcore.dto.response.contests.*;
+import com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo;
 import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.RuleType;
 import com.kma.ojcore.security.UserPrincipal;
@@ -30,6 +28,17 @@ import java.util.UUID;
 public class ContestController {
 
     private final ContestService contestService;
+
+    @GetMapping("/{id}/leaderboard")
+    public ApiResponse<Page<ContestLeaderboardSdo>> getLeaderboard(@PathVariable UUID id,
+                                                                   Pageable pageable) {
+
+        return ApiResponse.<Page<ContestLeaderboardSdo>>builder()
+                .status(200)
+                .message("Fetched leaderboard successfully")
+                .data(contestService.getContestLeaderboard(id, pageable))
+                .build();
+    }
 
     @GetMapping
     public ApiResponse<Page<ContestBasicSdo>> getContests(@RequestParam(required = false) String keyword,
@@ -97,6 +106,20 @@ public class ContestController {
                 .status(HttpStatus.OK.value())
                 .message("Fetched public participants successfully")
                 .data(contestService.getPublicContestParticipants(id, keyword, pageable))
+                .build();
+    }
+
+    @GetMapping("/{id}/submissions/me")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<Page<SubmissionBasicSdo>> getMySubmissions(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            Pageable pageable) {
+
+        return ApiResponse.<Page<SubmissionBasicSdo>>builder()
+                .status(200)
+                .message("Fetched your contest submissions successfully")
+                .data(contestService.getMyContestSubmissions(id, userPrincipal.getId(), pageable))
                 .build();
     }
 }
