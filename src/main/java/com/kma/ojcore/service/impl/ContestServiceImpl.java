@@ -5,6 +5,7 @@ import com.kma.ojcore.dto.request.contests.CreateContestSdi;
 import com.kma.ojcore.dto.request.contests.RegisterContestSdi;
 import com.kma.ojcore.dto.request.contests.UpdateContestSdi;
 import com.kma.ojcore.dto.response.contests.*;
+import com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo;
 import com.kma.ojcore.entity.*;
 import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.ContestVisibility;
@@ -40,6 +41,7 @@ public class ContestServiceImpl implements ContestService {
     private final UserRepository userRepository;
     private final ContestMapper contestMapper;
     private final ContestParticipationRepository contestParticipationRepository;
+    private final SubmissionRepository submissionRepository;
 
     @Transactional(readOnly = true)
     @Override
@@ -296,6 +298,37 @@ public class ContestServiceImpl implements ContestService {
         log.info("BULK UNBANNED: {} users in Contest {}", unbannedCount, contestId);
     }
 
+    // Leaderboard & Submissions
+
+    @Transactional(readOnly = true)
+    @Override
+    public Page<ContestLeaderboardSdo> getContestLeaderboard(UUID contestId, Pageable pageable) {
+        Contest contest = contestRepository.findByIdAndStatusActive(contestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
+
+        // Chặn xem Leaderboard nếu kỳ thi chưa bắt đầu
+        ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
+        if (timeStatus == ContestStatus.UPCOMING) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "The contest has not started yet. Leaderboard is hidden.");
+        }
+
+        return contestParticipationRepository.getLeaderboard(contestId, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Page<SubmissionBasicSdo> getMyContestSubmissions(UUID contestId, UUID userId, Pageable pageable) {
+        Contest contest = contestRepository.findByIdAndStatusActive(contestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
+
+        // Chặn xem nếu chưa đăng ký
+        if (!contestParticipationRepository.existsByContestIdAndUserId(contestId, userId)) {
+            throw new BusinessException(ErrorCode.NOT_REGISTERED, "You are not registered for this contest.");
+        }
+
+        return submissionRepository.findMyContestSubmissions(contestId, userId, pageable);
+    }
+
     // ==================================================================== //
     // USER
 
@@ -393,5 +426,16 @@ public class ContestServiceImpl implements ContestService {
         String escapedKeyword = EscapeHelper.escapeLike(keyword);
 
         return contestParticipationRepository.searchPublicParticipants(contestId, escapedKeyword, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Page<SubmissionBasicSdo> getAdminContestSubmissions(UUID contestId, Pageable pageable) {
+        // Admin thì cứ tồn tại Contest là soi được hết
+        if (!contestRepository.existsById(contestId)) {
+            throw new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found.");
+        }
+
+        return submissionRepository.findAllContestSubmissions(contestId, pageable);
     }
 }

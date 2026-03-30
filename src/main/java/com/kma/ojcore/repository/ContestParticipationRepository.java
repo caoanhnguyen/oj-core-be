@@ -1,5 +1,6 @@
 package com.kma.ojcore.repository;
 
+import com.kma.ojcore.dto.response.contests.ContestLeaderboardSdo;
 import com.kma.ojcore.dto.response.contests.ContestParticipantPublicSdo;
 import com.kma.ojcore.dto.response.contests.ContestParticipationSdo;
 import com.kma.ojcore.entity.ContestParticipation;
@@ -63,4 +64,13 @@ public interface ContestParticipationRepository extends JpaRepository<ContestPar
     Page<ContestParticipantPublicSdo> searchPublicParticipants(@Param("contestId") UUID contestId,
                                                                @Param("keyword") String keyword,
                                                                Pageable pageable);
+
+    @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestLeaderboardSdo(" +
+            "cp.user.id, cp.user.username, cp.score, cp.penalty) " +
+            "FROM ContestParticipation cp " +
+            "WHERE cp.contest.id = :contestId AND cp.isDisqualified = false " +
+            "ORDER BY cp.score DESC, cp.penalty ASC",
+            countQuery = "SELECT COUNT(cp) FROM ContestParticipation cp " +
+                    "WHERE cp.contest.id = :contestId AND cp.isDisqualified = false")
+    Page<ContestLeaderboardSdo> getLeaderboard(@Param("contestId") UUID contestId, Pageable pageable);
 }

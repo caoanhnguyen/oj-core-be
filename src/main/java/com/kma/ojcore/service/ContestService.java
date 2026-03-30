@@ -5,6 +5,7 @@ import com.kma.ojcore.dto.request.contests.CreateContestSdi;
 import com.kma.ojcore.dto.request.contests.RegisterContestSdi;
 import com.kma.ojcore.dto.request.contests.UpdateContestSdi;
 import com.kma.ojcore.dto.response.contests.*;
+import com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo;
 import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.ContestVisibility;
 import com.kma.ojcore.enums.EStatus;
@@ -49,6 +50,12 @@ public interface ContestService {
 
     void requalifyUsers(UUID contestId, List<UUID> userIds);
 
+    // Leaderboard & Submissions
+
+    Page<ContestLeaderboardSdo> getContestLeaderboard(UUID contestId, Pageable pageable);
+
+    Page<SubmissionBasicSdo> getAdminContestSubmissions(UUID contestId, Pageable pageable);
+
     // USER
     Page<ContestBasicSdo> getContestsForUser(String keyword, RuleType ruleType, ContestStatus contestStatus, Pageable pageable);
 
@@ -59,4 +66,6 @@ public interface ContestService {
     List<ContestProblemSdo> getContestProblemsForUser(UUID contestId, UUID userId);
 
     Page<ContestParticipantPublicSdo> getPublicContestParticipants(UUID contestId, String keyword, Pageable pageable);
+
+    Page<SubmissionBasicSdo> getMyContestSubmissions(UUID contestId, UUID userId, Pageable pageable);
 }

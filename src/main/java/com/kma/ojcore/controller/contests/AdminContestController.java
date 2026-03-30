@@ -8,6 +8,7 @@ import com.kma.ojcore.dto.response.contests.ContestAdminSdo;
 import com.kma.ojcore.dto.response.contests.ContestBasicSdo;
 import com.kma.ojcore.dto.response.contests.ContestParticipationSdo;
 import com.kma.ojcore.dto.response.contests.ContestProblemSdo;
+import com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo;
 import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.ContestVisibility;
 import com.kma.ojcore.enums.EStatus;
@@ -187,6 +188,18 @@ public class AdminContestController {
         return ApiResponse.<String>builder()
                 .status(200)
                 .message("Users requalified successfully")
+                .build();
+    }
+
+    @GetMapping("/{id}/submissions")
+    public ApiResponse<Page<SubmissionBasicSdo>> getContestSubmissions(
+            @PathVariable UUID id,
+            Pageable pageable) {
+
+        return ApiResponse.<Page<SubmissionBasicSdo>>builder()
+                .status(200)
+                .message("Fetched all contest submissions successfully")
+                .data(contestService.getAdminContestSubmissions(id, pageable))
                 .build();
     }
 }

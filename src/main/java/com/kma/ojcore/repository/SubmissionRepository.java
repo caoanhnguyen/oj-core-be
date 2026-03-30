@@ -111,4 +111,27 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             "AND s.createdDate <= s.contest.endTime " +
             "GROUP BY s.problem.id")
     List<Double> findMaxScoresPerProblem(@Param("contestId") UUID contestId, @Param("userId") UUID userId);
+
+    // 1. Dùng cho User: Lấy danh sách bài nộp CỦA CHÍNH HỌ trong một Contest cụ thể
+    @Query("SELECT new com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo(" +
+            "s.id, s.verdict, s.score, s.passedTestCount, s.totalTestCount, " +
+            "s.executionTimeMs, s.executionMemoryMb, s.createdDate, s.languageKey, " +
+            "s.user.id, s.user.username, s.problem.id, s.problem.title, s.problem.slug) " +
+            "FROM Submission s JOIN s.problem p " +
+            "WHERE s.contest.id = :contestId AND s.user.id = :userId " +
+            "ORDER BY s.createdDate DESC")
+    Page<SubmissionBasicSdo> findMyContestSubmissions(@Param("contestId") UUID contestId,
+                                                      @Param("userId") UUID userId,
+                                                      Pageable pageable);
+
+    // 2. Dùng cho Admin: Lấy danh sách TẤT CẢ bài nộp của TẤT CẢ mọi người trong Contest
+    @Query("SELECT new com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo(" +
+            "s.id, s.verdict, s.score, s.passedTestCount, s.totalTestCount, " +
+            "s.executionTimeMs, s.executionMemoryMb, s.createdDate, s.languageKey, " +
+            "s.user.id, s.user.username, s.problem.id, s.problem.title, s.problem.slug) " +
+            "FROM Submission s JOIN s.problem p " +
+            "WHERE s.contest.id = :contestId " +
+            "ORDER BY s.createdDate DESC")
+    Page<SubmissionBasicSdo> findAllContestSubmissions(@Param("contestId") UUID contestId,
+                                                       Pageable pageable);
 }
