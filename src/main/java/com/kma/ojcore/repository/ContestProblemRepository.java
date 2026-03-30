@@ -25,4 +25,5 @@ public interface ContestProblemRepository extends JpaRepository<ContestProblem, 
     @Query("DELETE FROM ContestProblem cp WHERE cp.contest.id = :contestId AND cp.problem.id IN :problemIds")
     void deleteByContestIdAndProblemIdIn(@Param("contestId") UUID contestId, @Param("problemIds") List<UUID> problemIds);
 
+    boolean existsByContestIdAndProblemId(UUID contestId, UUID problemId);
 }
