@@ -1,5 +1,6 @@
 package com.kma.ojcore.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kma.ojcore.dto.request.contests.AddContestProblemSdi;
 import com.kma.ojcore.dto.request.contests.CreateContestSdi;
 import com.kma.ojcore.dto.request.contests.RegisterContestSdi;
@@ -21,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +44,16 @@ public class ContestServiceImpl implements ContestService {
     private final ContestMapper contestMapper;
     private final ContestParticipationRepository contestParticipationRepository;
     private final SubmissionRepository submissionRepository;
+    private final RedisTemplate<String, String> redisTemplate;
+    private final ObjectMapper objectMapper;
+
+    @lombok.Data
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class LeaderboardCacheWrapper {
+        private java.util.List<com.kma.ojcore.dto.response.contests.ContestLeaderboardSdo> content;
+        private long totalElements;
+    }
 
     @Transactional(readOnly = true)
     @Override
@@ -303,16 +315,52 @@ public class ContestServiceImpl implements ContestService {
     @Transactional(readOnly = true)
     @Override
     public Page<ContestLeaderboardSdo> getContestLeaderboard(UUID contestId, Pageable pageable) {
+        // 1. Check chốt chặn Contest (Lấy từ DB lên cực nhanh vì dùng PK Indexed)
         Contest contest = contestRepository.findByIdAndStatusActive(contestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
 
-        // Chặn xem Leaderboard nếu kỳ thi chưa bắt đầu
         ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
         if (timeStatus == ContestStatus.UPCOMING) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "The contest has not started yet. Leaderboard is hidden.");
         }
 
-        return contestParticipationRepository.getLeaderboard(contestId, pageable);
+        // ==========================================
+        // 2. KÍCH HOẠT LÁ CHẮN REDIS (TTL = 5 GIÂY)
+        // ==========================================
+        // TODO: Config Redis Key prefix trong application.properties để dễ quản lý hơn, tránh hardcode
+        String redisKey = String.format("CONTEST_LEADERBOARD:%s:PAGE:%d:SIZE:%d",
+                contestId, pageable.getPageNumber(), pageable.getPageSize());
+
+        try {
+            String cachedData = redisTemplate.opsForValue().get(redisKey);
+            if (org.springframework.util.StringUtils.hasText(cachedData)) {
+                // Nếu có trong Redis -> Bắn thẳng về cho User (DB không hề biết gì)
+                LeaderboardCacheWrapper wrapper = objectMapper.readValue(cachedData, LeaderboardCacheWrapper.class);
+                return new org.springframework.data.domain.PageImpl<>(
+                        wrapper.getContent(), pageable, wrapper.getTotalElements());
+            }
+        } catch (Exception e) {
+            log.error("Redis Cache Error for Leaderboard: {}", e.getMessage());
+            // Lỗi Redis thì bỏ qua, chạy tiếp xuống DB chứ không làm chết API
+        }
+
+        // ==========================================
+        // 3. NẾU REDIS TRỐNG -> CHỌC XUỐNG DB
+        // ==========================================
+        Page<ContestLeaderboardSdo> page = contestParticipationRepository.getLeaderboard(contestId, pageable);
+
+        // 4. Lấy data từ DB xong -> Lưu lên Redis để phục vụ cho 5 giây tiếp theo
+        try {
+            LeaderboardCacheWrapper wrapper = new LeaderboardCacheWrapper(page.getContent(), page.getTotalElements());
+            String jsonToCache = objectMapper.writeValueAsString(wrapper);
+
+            // TTL = 5 giây là quá đủ để chặn hàng vạn request F5 cùng lúc
+            redisTemplate.opsForValue().set(redisKey, jsonToCache, 5, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.error("Failed to save Leaderboard to Redis: {}", e.getMessage());
+        }
+
+        return page;
     }
 
     @Transactional(readOnly = true)
