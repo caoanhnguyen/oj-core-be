@@ -21,6 +21,14 @@ public class ContestParticipation extends BaseEntity {
     @Builder.Default
     boolean isDisqualified = false; // Mặc định là trong sạch
 
+    @Column(name = "score")
+    @Builder.Default
+    Double score = 0.0;
+
+    @Column(name = "penalty")
+    @Builder.Default
+    Long penalty = 0L; // Thời gian phạt (tính bằng phút)
+
     // -- Relationships -- //
 
     // ContestParticipation - Contest //

@@ -10,10 +10,9 @@ import com.kma.ojcore.entity.User;
 import com.kma.ojcore.entity.UserProblemStatus;
 import com.kma.ojcore.enums.RuleType;
 import com.kma.ojcore.enums.UserProblemState;
-import com.kma.ojcore.repository.ProblemRepository;
-import com.kma.ojcore.repository.SubmissionRepository;
-import com.kma.ojcore.repository.UserProblemStatusRepository;
-import com.kma.ojcore.repository.UserRepository;
+import com.kma.ojcore.repository.*;
+import com.kma.ojcore.service.scoring.ContestScoringStrategy;
+import com.kma.ojcore.service.scoring.ScoringStrategyFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -34,6 +33,8 @@ public class JudgeResultListener {
     private final UserRepository userRepository;
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
+    private final ScoringStrategyFactory scoringStrategyFactory;
+    private final ContestParticipationRepository contestParticipationRepository;
 
     // ========================================================
     // FLOW 1: PROCESS SUBMISSION JUDGE RESULT
@@ -155,6 +156,30 @@ public class JudgeResultListener {
             userRepository.save(user);
             problemRepository.save(problem);
             userProblemStatusRepo.save(status);
+
+            // =======================================================
+            // CONTEST SCORING ENGINE
+            // =======================================================
+            if (submission.getContest() != null) {
+                // Kiểm tra Upsolving: Nộp sau khi kết thúc kỳ thi -> Không tính điểm!
+                if (!submission.getCreatedDate().isAfter(submission.getContest().getEndTime())) {
+
+                    contestParticipationRepository.findByContestIdAndUserId(
+                                    submission.getContest().getId(), submission.getUser().getId())
+                            .ifPresent(participation -> {
+
+                                // Gọi Strategy dựa theo RuleType của Contest
+                                ContestScoringStrategy strategy = scoringStrategyFactory.getStrategy(submission.getContest().getRuleType());
+                                strategy.processScore(submission, participation);
+
+                                // Lưu lại điểm số mới vào DB
+                                contestParticipationRepository.save(participation);
+                                log.info("Successfully updated leaderboard participation for user: {}", user.getUsername());
+                            });
+                } else {
+                    log.info("Submission {} is Upsolving (submitted after contest ended). Score not counted.", submission.getId());
+                }
+            }
         }
     }
 
