@@ -24,10 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -480,7 +477,7 @@ public class ContestServiceImpl implements ContestService {
         log.info("User {} registered for contest {}", userId, contestId);
     }
 
-    @Transactional(rollbackFor = Throwable.class) // SỬA LẠI THÀNH CÁI NÀY ĐỂ ĐƯỢC PHÉP LƯU (SAVE) XUỐNG DB
+    @Transactional(rollbackFor = Throwable.class)
     @Override
     public List<ContestProblemSdo> getContestProblemsForUser(UUID contestId, UUID userId) {
         Contest contest = contestRepository.findByIdAndStatusActive(contestId)
@@ -504,15 +501,9 @@ public class ContestServiceImpl implements ContestService {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You must start the contest to view problems.");
         }
 
-        if (participation.getIsFinished()) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You have already finished this contest.");
-        }
-
-        // Tự động tước quyền nếu Hết giờ cá nhân
-        if (java.time.LocalDateTime.now().isAfter(participation.getEndTime())) {
+        if (!participation.getIsFinished() && LocalDateTime.now().isAfter(participation.getEndTime())) {
             participation.setIsFinished(true);
             contestParticipationRepository.save(participation);
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Your contest session time has expired.");
         }
 
         // ========================================================
@@ -527,7 +518,7 @@ public class ContestServiceImpl implements ContestService {
                 submissionRepository.findVerdictsByContestAndUser(contestId, userId);
 
         // 6. Tìm kết quả "Ngon nhất" (AC) cho từng bài
-        java.util.Map<UUID, SubmissionVerdict> bestVerdicts = new java.util.HashMap<>();
+        Map<UUID, SubmissionVerdict> bestVerdicts = new HashMap<>();
         for (var sub : userSubmissions) {
             UUID pId = sub.getProblemId();
             SubmissionVerdict v = sub.getVerdict();
