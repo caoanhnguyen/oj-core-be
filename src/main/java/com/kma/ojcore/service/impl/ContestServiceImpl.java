@@ -483,54 +483,59 @@ public class ContestServiceImpl implements ContestService {
         Contest contest = contestRepository.findByIdAndStatusActive(contestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
 
+        ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
+
         // 1. Chặn thi trước giờ
-        if (contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime()) == ContestStatus.UPCOMING) {
-            throw new BusinessException(ErrorCode.CONTEST_NOT_STARTED);
-        }
-
-        // 2. Lôi Participation lên để check đăng ký và quyền
-        ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contestId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED));
-
-        if (participation.getIsDisqualified()) {
-            throw new BusinessException(ErrorCode.BANNED_FROM_CONTEST,
-                    "You are banned from participating in this contest.");
-        }
-
-        if (participation.getStartTime() == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You must start the contest to view problems.");
-        }
-
-        if (!participation.getIsFinished() && LocalDateTime.now().isAfter(participation.getEndTime())) {
-            participation.setIsFinished(true);
-            contestParticipationRepository.save(participation);
+        if (timeStatus == ContestStatus.UPCOMING) {
+            throw new BusinessException(ErrorCode.CONTEST_NOT_STARTED, "The contest has not started yet.");
         }
 
         // ========================================================
-        // LOGIC LẤY ĐỀ VÀ MAP KẾT QUẢ (VERDICT) CHO FRONTEND
+        // 2. CHỈ KIỂM TRA QUYỀN KHẮT KHE KHI KỲ THI ĐANG DIỄN RA (ONGOING)
+        // ========================================================
+        if (timeStatus == ContestStatus.ONGOING) {
+            ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contestId, userId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED, "You must register to view problems during an active contest."));
+
+            if (participation.getIsDisqualified()) {
+                throw new BusinessException(ErrorCode.BANNED_FROM_CONTEST, "You are banned from participating in this contest.");
+            }
+
+            if (participation.getStartTime() == null) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You must start the contest to view problems.");
+            }
+
+            // Tự động tước quyền nếu Hết giờ cá nhân
+            if (!participation.getIsFinished() && java.time.LocalDateTime.now().isAfter(participation.getEndTime())) {
+                participation.setIsFinished(true);
+                contestParticipationRepository.save(participation);
+            }
+        }
+
+        // ========================================================
+        // 3. NẾU timeStatus == ENDED -> BỎ QUA KIỂM TRA ĐĂNG KÝ (UPSOLVING)
+        // Đi thẳng xuống logic lấy đề bài bên dưới
         // ========================================================
 
-        // 3. Lấy danh sách Problem (Entities)
         List<ContestProblemSdo> contestProblems = contestProblemRepository.findByContestIdOrderBySortOrderAsc(contestId);
 
-        // 5. Móc DB lấy lịch sử nộp bài của User trong Contest này
+        // Đoạn lấy Verdict này vẫn chạy an toàn ngay cả khi User chưa đăng ký
+        // (Vì findVerdictsByContestAndUser sẽ trả về list rỗng, không gây lỗi)
         List<SubmissionRepository.ProblemVerdictProjection> userSubmissions =
                 submissionRepository.findVerdictsByContestAndUser(contestId, userId);
 
-        // 6. Tìm kết quả "Ngon nhất" (AC) cho từng bài
-        Map<UUID, SubmissionVerdict> bestVerdicts = new HashMap<>();
+        java.util.Map<UUID, SubmissionVerdict> bestVerdicts = new java.util.HashMap<>();
         for (var sub : userSubmissions) {
             UUID pId = sub.getProblemId();
             SubmissionVerdict v = sub.getVerdict();
 
             if (v == SubmissionVerdict.AC) {
-                bestVerdicts.put(pId, v); // Ăn được AC thì ghi đè ngay lập tức
+                bestVerdicts.put(pId, v);
             } else {
-                bestVerdicts.putIfAbsent(pId, v); // Chưa AC thì tạm lưu WA, TLE, RE...
+                bestVerdicts.putIfAbsent(pId, v);
             }
         }
 
-        // 7. Gắn Verdict vào từng bài
         for (ContestProblemSdo sdo : contestProblems) {
             sdo.setSubmissionVerdict(bestVerdicts.get(sdo.getProblemId()));
         }
