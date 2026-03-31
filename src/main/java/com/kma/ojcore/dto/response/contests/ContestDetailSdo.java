@@ -25,6 +25,7 @@ public class ContestDetailSdo {
     RuleType ruleType;
     ContestStatus contestStatus;
     ContestVisibility visibility;
+    Integer durationMinutes;
     Long participantCount;
     @JsonProperty("isRegistered")
     boolean isRegistered;

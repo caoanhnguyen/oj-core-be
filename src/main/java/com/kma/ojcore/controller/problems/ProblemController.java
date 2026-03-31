@@ -79,7 +79,7 @@ public class ProblemController {
 
         Pageable pageable = PageRequest.of(page, size, sort);
         UUID userId = currentUser != null ? currentUser.getId() : null;
-        Page<ProblemResponse> result = problemService.getProblems(keyword, difficulty, ruleType, topicSlugs, EStatus.ACTIVE, ProblemStatus.PUBLISHED, userId, pageable);
+        Page<ProblemResponse> result = problemService.getProblems(keyword, difficulty, ruleType, topicSlugs, EStatus.ACTIVE, ProblemStatus.PUBLISHED, userId, null, pageable);
 
         return ApiResponse.<Page<ProblemResponse>>builder()
                 .status(HttpStatus.OK.value())

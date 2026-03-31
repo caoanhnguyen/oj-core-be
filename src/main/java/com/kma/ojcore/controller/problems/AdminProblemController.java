@@ -60,6 +60,7 @@ public class AdminProblemController {
             @RequestParam(required = false) EStatus status,
             @RequestParam(required = false) ProblemStatus problemStatus,
             @RequestParam(required = false) List<String> topicSlugs,
+            @RequestParam(required = false) UUID contestId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @SortDefault(sort = "createdDate", direction = Sort.Direction.ASC) Sort sort,
@@ -68,7 +69,7 @@ public class AdminProblemController {
         UUID userId = currentUser != null ? currentUser.getId() : null;
 
         Pageable pageable = PageRequest.of(page, size, sort);
-        Page<ProblemResponse> result = problemService.getProblems(keyword, difficulty, ruleType, topicSlugs, status, problemStatus, userId, pageable);
+        Page<ProblemResponse> result = problemService.getProblems(keyword, difficulty, ruleType, topicSlugs, status, problemStatus, userId, contestId, pageable);
 
         return ApiResponse.<Page<ProblemResponse>>builder()
                 .status(HttpStatus.OK.value())

@@ -67,7 +67,7 @@ public interface ContestService {
 
     Page<ContestParticipantPublicSdo> getPublicContestParticipants(UUID contestId, String keyword, Pageable pageable);
 
-    Page<SubmissionBasicSdo> getMyContestSubmissions(UUID contestId, UUID userId, Pageable pageable);
+    Page<SubmissionBasicSdo> getMyContestSubmissions(UUID contestId, UUID userId, UUID problemId, Pageable pageable);
 
     ContestParticipationSdo startContest(UUID contestId, UUID userId);
 

@@ -15,7 +15,7 @@ import java.util.UUID;
 public interface ContestProblemRepository extends JpaRepository<ContestProblem, UUID> {
 
     @Query("SELECT new com.kma.ojcore.dto.response.contests.ContestProblemSdo(" +
-            "cp.id, p.id, p.slug, p.title, cp.displayId, cp.points, cp.sortOrder, p.status) " +
+            "cp.id, p.id, p.slug, p.title, cp.displayId, cp.points, cp.sortOrder, p.status, null) " +
             "FROM ContestProblem cp JOIN cp.problem p " +
             "WHERE cp.contest.id = :contestId " +
             "ORDER BY cp.sortOrder ASC")
@@ -26,4 +26,7 @@ public interface ContestProblemRepository extends JpaRepository<ContestProblem, 
     void deleteByContestIdAndProblemIdIn(@Param("contestId") UUID contestId, @Param("problemIds") List<UUID> problemIds);
 
     boolean existsByContestIdAndProblemId(UUID contestId, UUID problemId);
+
+    @Query("SELECT cp.problem.id FROM ContestProblem cp WHERE cp.contest.id = :contestId")
+    List<UUID> findProblemIdsByContestId(@Param("contestId") UUID contestId);
 }

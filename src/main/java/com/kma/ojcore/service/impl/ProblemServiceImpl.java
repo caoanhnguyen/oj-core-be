@@ -11,10 +11,7 @@ import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.mapper.ExampleMapper;
 import com.kma.ojcore.mapper.ProblemMapper;
 import com.kma.ojcore.mapper.TemplateMapper;
-import com.kma.ojcore.repository.ProblemRepository;
-import com.kma.ojcore.repository.TopicRepository;
-import com.kma.ojcore.repository.UserProblemStatusRepository;
-import com.kma.ojcore.repository.UserRepository;
+import com.kma.ojcore.repository.*;
 import com.kma.ojcore.service.ImageStorageService;
 import com.kma.ojcore.service.ProblemService;
 import com.kma.ojcore.utils.EscapeHelper;
@@ -41,6 +38,7 @@ public class ProblemServiceImpl implements ProblemService {
     private final TopicRepository topicRepository;
     private final UserProblemStatusRepository userProblemStatusRepo;
     private final UserRepository userRepository;
+    private final ContestProblemRepository contestProblemRepository;
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
@@ -126,32 +124,55 @@ public class ProblemServiceImpl implements ProblemService {
                                              EStatus status,
                                              ProblemStatus problemStatus,
                                              UUID userId,
+                                             UUID contestId, // <--- Nhận contestId từ Controller
                                              Pageable pageable) {
         String searchKeyword = EscapeHelper.escapeLike(keyword);
         Page<ProblemResponse> pageResult = problemRepository.searchProblems(searchKeyword,
                 difficulty, ruleType, topicSlugs, status, problemStatus, pageable);
 
-        if (userId == null || pageResult.isEmpty()) {
+        if (pageResult.isEmpty()) {
             return pageResult;
         }
 
+        // Lấy danh sách problemIds của Page hiện tại (Dùng chung cho cả 2 luồng)
         List<UUID> problemIds = pageResult.getContent().stream()
                 .map(ProblemResponse::getId)
                 .collect(Collectors.toList());
 
-        List<UserProblemStatus> statuses = userProblemStatusRepo.findByUserIdAndProblemIdIn(userId, problemIds);
+        // =========================================================
+        // LUỒNG 1: LOGIC TRẠNG THÁI LÀM BÀI CỦA USER (Cũ của bro)
+        // =========================================================
+        if (userId != null) {
+            List<UserProblemStatus> statuses = userProblemStatusRepo.findByUserIdAndProblemIdIn(userId, problemIds);
 
-        Map<UUID, UserProblemState> statusMap = statuses.stream()
-                .collect(Collectors.toMap(
-                        s -> s.getProblem().getId(),
-                        UserProblemStatus::getState
-                ));
+            Map<UUID, UserProblemState> statusMap = statuses.stream()
+                    .collect(Collectors.toMap(
+                            s -> s.getProblem().getId(),
+                            UserProblemStatus::getState
+                    ));
 
-        pageResult.getContent().forEach(problem -> {
-            if (statusMap.containsKey(problem.getId())) {
-                problem.setUserProblemState(statusMap.get(problem.getId()).name());
-            }
-        });
+            pageResult.getContent().forEach(problem -> {
+                if (statusMap.containsKey(problem.getId())) {
+                    problem.setUserProblemState(statusMap.get(problem.getId()).name());
+                }
+            });
+        }
+
+        // =========================================================
+        // LUỒNG 2: LOGIC ĐÁNH DẤU BÀI ĐÃ THÊM VÀO CONTEST (Mới)
+        // =========================================================
+        if (contestId != null) {
+            // Lấy danh sách ID các bài toán ĐÃ CÓ trong Contest
+            List<UUID> addedProblemIds = contestProblemRepository.findProblemIdsByContestId(contestId);
+
+            // Bỏ vào HashSet để tra cứu với tốc độ bàn thờ O(1)
+            java.util.Set<UUID> addedSet = new java.util.HashSet<>(addedProblemIds);
+
+            // Gắn cờ isAdded cho FE vẽ giao diện
+            pageResult.getContent().forEach(problem -> {
+                problem.setIsAdded(addedSet.contains(problem.getId()));
+            });
+        }
 
         return pageResult;
     }

@@ -19,7 +19,7 @@ import java.util.UUID;
 public interface ContestRepository extends JpaRepository<Contest, UUID> {
 
     @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestBasicSdo(" +
-            "c.id, c.title, c.startTime, c.endTime, c.ruleType, c.visibility, COUNT(p.id), c.status) " +
+            "c.id, c.title, c.startTime, c.endTime, c.ruleType, c.visibility, COUNT(p.id), c.status, c.durationMinutes) " +
             "FROM Contest c LEFT JOIN c.participations p " +
             "WHERE (:keyword IS NULL OR LOWER(c.title) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!') AND " +
             "(:ruleType IS NULL OR c.ruleType = :ruleType) AND " +

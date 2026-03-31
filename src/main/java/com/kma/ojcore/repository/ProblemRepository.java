@@ -30,7 +30,7 @@ public interface ProblemRepository extends JpaRepository<Problem, UUID> {
 
     @Query("SELECT new com.kma.ojcore.dto.response.problems.ProblemResponse(" +
             "p.id, p.title, p.slug, p.difficulty, p.status, p.problemStatus, " +
-            "p.submissionCount, p.acceptedCount, p.totalScore, p.ruleType, null, p.createdDate, p.updatedDate) " +
+            "p.submissionCount, p.acceptedCount, p.totalScore, p.ruleType, null, null, p.createdDate, p.updatedDate) " +
             "FROM Problem p " +
             "WHERE (:keyword IS NULL OR LOWER(p.title) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!') " +
             "AND (:difficulty IS NULL OR p.difficulty = :difficulty) " +
@@ -45,6 +45,9 @@ public interface ProblemRepository extends JpaRepository<Problem, UUID> {
                                          @Param("status") EStatus status,
                                          @Param("problemStatus") ProblemStatus problemStatus,
                                          Pageable pageable);
+
+
+
 
     @Modifying
     @Query("Update Problem p set p.status = :status where p.id = :id")
