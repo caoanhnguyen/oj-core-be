@@ -39,6 +39,9 @@ public class Contest extends BaseEntity {
     @Column(nullable = false)
     ContestVisibility visibility;
 
+    @Column(name = "duration_minutes")
+    private Integer durationMinutes;
+
     String password;
 
     // -- Relationships -- //

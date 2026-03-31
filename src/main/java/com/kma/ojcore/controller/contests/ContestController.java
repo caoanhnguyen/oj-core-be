@@ -122,4 +122,30 @@ public class ContestController {
                 .data(contestService.getMyContestSubmissions(id, userPrincipal.getId(), pageable))
                 .build();
     }
+
+    @PostMapping("/{id}/start")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<ContestParticipationSdo> startContest(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+
+        return ApiResponse.<ContestParticipationSdo>builder()
+                .status(200)
+                .message("Contest session started successfully.")
+                .data(contestService.startContest(id, userPrincipal.getId()))
+                .build();
+    }
+
+    @PostMapping("/{id}/finish")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<String> finishContest(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+
+        contestService.finishContest(id, userPrincipal.getId());
+        return ApiResponse.<String>builder()
+                .status(200)
+                .message("Contest session finished successfully.")
+                .build();
+    }
 }
