@@ -32,4 +32,8 @@ public class ContestDetailSdo {
     String authorUsername;
     LocalDateTime createdDate;
     LocalDateTime updatedDate;
+
+    // Trả về contest participation của user hiện tại nếu đã đăng ký, null nếu chưa đăng ký
+    ContestParticipationSdo contestParticipation;
+    LocalDateTime serverTime;
 }

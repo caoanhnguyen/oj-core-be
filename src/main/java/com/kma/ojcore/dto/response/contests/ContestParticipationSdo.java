@@ -17,4 +17,9 @@ public class ContestParticipationSdo {
     String username;
     String email;
     boolean isDisqualified;
+    java.time.LocalDateTime startTime;
+    java.time.LocalDateTime endTime;
+    boolean isFinished;
+    Double score;
+    Long penalty;
 }

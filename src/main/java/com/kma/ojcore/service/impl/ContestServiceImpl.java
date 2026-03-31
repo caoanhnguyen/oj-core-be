@@ -26,6 +26,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -51,7 +52,7 @@ public class ContestServiceImpl implements ContestService {
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor
     public static class LeaderboardCacheWrapper {
-        private java.util.List<com.kma.ojcore.dto.response.contests.ContestLeaderboardSdo> content;
+        private List<ContestLeaderboardSdo> content;
         private long totalElements;
     }
 
@@ -395,15 +396,28 @@ public class ContestServiceImpl implements ContestService {
     @Override
     public ContestDetailSdo getContestDetailsForUser(UUID contestId, UUID userId) {
         Contest contest = contestRepository.findContestWithAuthorByIdAndStatus(contestId, EStatus.ACTIVE)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
 
         ContestDetailSdo sdo = contestMapper.toDetailSdo(contest);
         sdo.setParticipantCount(contestParticipationRepository.countByContestId(contest.getId()));
 
+        // 1. Bơm serverTime vào cho Frontend đồng bộ đồng hồ chống cheat
+        sdo.setServerTime(java.time.LocalDateTime.now());
+
+        // 2. Xử lý lấy thông tin User (Gộp làm 1 câu query duy nhất)
         if (userId != null) {
-            sdo.setRegistered(contestParticipationRepository.existsByContestIdAndUserId(contestId, userId));
+            ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contestId, userId).orElse(null);
+
+            if (participation != null) {
+                sdo.setRegistered(true);
+                sdo.setContestParticipation(contestMapper.toParticipationSdo(participation));
+            } else {
+                sdo.setRegistered(false);
+                sdo.setContestParticipation(null);
+            }
         } else {
             sdo.setRegistered(false);
+            sdo.setContestParticipation(null);
         }
 
         return sdo;
@@ -461,6 +475,23 @@ public class ContestServiceImpl implements ContestService {
             throw new BusinessException(ErrorCode.BANNED_FROM_CONTEST, "You are banned from participating in this contest.");
         }
 
+        // 1. Cấm xem đề nếu chưa bấm Bắt đầu
+        if (participation.getStartTime() == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You must start the contest to view problems.");
+        }
+
+        // 2. Cấm xem đề nếu đã bấm Nộp bài (Finished)
+        if (participation.isFinished()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You have already finished this contest.");
+        }
+
+        // 3. Tự động tước quyền nếu Hết giờ cá nhân (Đồng hồ chạy về 0 mà FE không chịu gọi hàm finish)
+        if (LocalDateTime.now().isAfter(participation.getEndTime())) {
+            participation.setFinished(true);
+            contestParticipationRepository.save(participation);
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Your contest session time has expired.");
+        }
+
         return contestProblemRepository.findByContestIdOrderBySortOrderAsc(contestId);
     }
 
@@ -485,5 +516,72 @@ public class ContestServiceImpl implements ContestService {
         }
 
         return submissionRepository.findAllContestSubmissions(contestId, pageable);
+    }
+
+    @Transactional(rollbackFor = Throwable.class)
+    @Override
+    public ContestParticipationSdo startContest(UUID contestId, UUID userId) {
+        Contest contest = contestRepository.findByIdAndStatusActive(contestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found or not active."));
+
+        ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contestId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED, "You are not registered for this contest."));
+
+        if (participation.isDisqualified()) {
+            throw new BusinessException(ErrorCode.BANNED_FROM_CONTEST, "You are disqualified from this contest.");
+        }
+
+        if (participation.getStartTime() != null) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You have already started this contest.");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        // Kiểm tra Cửa sổ thời gian chung (Global Time Window)
+        if (now.isBefore(contest.getStartTime())) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "The contest has not opened yet.");
+        }
+        if (now.isAfter(contest.getEndTime())) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "The contest has already ended.");
+        }
+
+        // Bắt đầu tính giờ cho cá nhân
+        participation.setStartTime(now);
+
+        // Thuật toán ghim giờ (Như DMOJ)
+        if (contest.getDurationMinutes() != null && contest.getDurationMinutes() > 0) {
+            LocalDateTime predictedEndTime = now.plusMinutes(contest.getDurationMinutes());
+            // Lấy mốc thời gian nào đến TRƯỚC: Hết giờ làm bài cá nhân hay Đóng cửa kỳ thi
+            participation.setEndTime(predictedEndTime.isBefore(contest.getEndTime()) ? predictedEndTime : contest.getEndTime());
+        } else {
+            // Nếu duration = null hoặc 0 -> Kỳ thi Fixed (Tất cả nộp bài cùng lúc)
+            participation.setEndTime(contest.getEndTime());
+        }
+
+        participation = contestParticipationRepository.save(participation);
+        log.info("User {} started contest {}. Session ends at {}", userId, contestId, participation.getEndTime());
+
+        return contestMapper.toParticipationSdo(participation);
+    }
+
+    @Transactional(rollbackFor = Throwable.class)
+    @Override
+    public void finishContest(UUID contestId, UUID userId) {
+        ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contestId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED, "You are not registered for this contest."));
+
+        if (participation.getStartTime() == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You haven't started the contest yet.");
+        }
+
+        if (participation.isFinished()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Your contest session has already finished.");
+        }
+
+        // Đánh dấu nộp bài sớm/Thoát phòng thi
+        participation.setFinished(true);
+        contestParticipationRepository.save(participation);
+
+        log.info("User {} finished contest {} early.", userId, contestId);
     }
 }

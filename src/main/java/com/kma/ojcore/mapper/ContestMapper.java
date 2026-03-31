@@ -5,7 +5,9 @@ import com.kma.ojcore.dto.request.contests.UpdateContestSdi;
 import com.kma.ojcore.dto.response.contests.ContestAdminSdo;
 import com.kma.ojcore.dto.response.contests.ContestBasicSdo;
 import com.kma.ojcore.dto.response.contests.ContestDetailSdo;
+import com.kma.ojcore.dto.response.contests.ContestParticipationSdo;
 import com.kma.ojcore.entity.Contest;
+import com.kma.ojcore.entity.ContestParticipation;
 import com.kma.ojcore.enums.ContestStatus;
 import org.mapstruct.*;
 
@@ -18,6 +20,8 @@ public interface ContestMapper {
     @Mapping(source = "author.id", target = "authorId")
     @Mapping(source = "author.username", target = "authorUsername")
     ContestAdminSdo toAdminSdo(Contest contest);
+
+    ContestParticipationSdo toParticipationSdo(ContestParticipation contestParticipation);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     void updateEntityFromSdi(UpdateContestSdi sdi, @MappingTarget Contest contest);

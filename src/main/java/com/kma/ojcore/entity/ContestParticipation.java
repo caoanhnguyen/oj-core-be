@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "contest_participations")
 @Getter
@@ -28,6 +30,16 @@ public class ContestParticipation extends BaseEntity {
     @Column(name = "penalty")
     @Builder.Default
     Long penalty = 0L; // Thời gian phạt (tính bằng phút)
+
+    @Column(name = "start_time")
+    LocalDateTime startTime; // Lúc user bấm nút "Start"
+
+    @Column(name = "end_time")
+    LocalDateTime endTime; // Lúc hết giờ của riêng user này
+
+    @Column(name = "is_finished")
+    @Builder.Default
+    boolean isFinished = false; // Bằng true khi nộp bài sớm hoặc bị hệ thống kick ra
 
     // -- Relationships -- //
 

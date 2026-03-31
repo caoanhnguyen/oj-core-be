@@ -70,18 +70,35 @@ public class SubmissionServiceImpl implements SubmissionService {
             contest = contestRepository.findByIdAndStatusActive(request.getContestId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found or not active."));
 
-            // Luật 1: Chặn đứng kỳ thi chưa bắt đầu. Cho phép nộp khi đang diễn ra (Thi) hoặc đã kết thúc (Upsolving).
+            // Luật 1: Cấm thi khi chưa mở cổng
             ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
             if (timeStatus == ContestStatus.UPCOMING) {
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Contest has not started yet. You cannot submit solutions at this time.");
             }
 
-            // Luật 2: Kiểm tra User đã đăng ký chưa và có bị Ban không?
+            // Luật 2: Lấy Participation lên để check đăng ký và quyền thi đấu cá nhân
             ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contest.getId(), currentUserId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED, "You are not registered for this contest."));
+
             if (participation.isDisqualified()) {
                 throw new BusinessException(ErrorCode.BANNED_FROM_CONTEST, "You are disqualified from this contest.");
             }
+
+            // ==========================================
+            // THÊM CHỐT CHẶN PHIÊN THI CÁ NHÂN (DMOJ)
+            // ==========================================
+            if (participation.getStartTime() == null) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You must start the contest before submitting.");
+            }
+            if (participation.isFinished()) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You have already finished this contest.");
+            }
+            if (java.time.LocalDateTime.now().isAfter(participation.getEndTime())) {
+                participation.setFinished(true); // Tự động khóa mõm luôn
+                contestParticipationRepository.save(participation);
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Your contest session time has expired.");
+            }
+            // ==========================================
 
             // Luật 3: Bài toán này có nằm trong Contest không?
             if (!contestProblemRepository.existsByContestIdAndProblemId(contest.getId(), problem.getId())) {
