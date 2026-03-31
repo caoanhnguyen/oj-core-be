@@ -8,10 +8,7 @@ import com.kma.ojcore.dto.request.contests.UpdateContestSdi;
 import com.kma.ojcore.dto.response.contests.*;
 import com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo;
 import com.kma.ojcore.entity.*;
-import com.kma.ojcore.enums.ContestStatus;
-import com.kma.ojcore.enums.ContestVisibility;
-import com.kma.ojcore.enums.EStatus;
-import com.kma.ojcore.enums.RuleType;
+import com.kma.ojcore.enums.*;
 import com.kma.ojcore.exception.BusinessException;
 import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.mapper.ContestMapper;
@@ -59,14 +56,15 @@ public class ContestServiceImpl implements ContestService {
     @Transactional(readOnly = true)
     @Override
     public Page<ContestBasicSdo> searchAdminContests(String keyword,
-                                                     RuleType ruleType,
-                                                     ContestStatus contestStatus,
-                                                     ContestVisibility visibility,
-                                                     EStatus status,
-                                                     Pageable pageable) {
+            RuleType ruleType,
+            ContestStatus contestStatus,
+            ContestVisibility visibility,
+            EStatus status,
+            Pageable pageable) {
         String searchKeyword = EscapeHelper.escapeLike(keyword);
         String contestStatusStr = (contestStatus != null) ? contestStatus.name() : null;
-        return contestRepository.searchAdminContests(searchKeyword, ruleType, contestStatusStr, visibility, status, pageable)
+        return contestRepository
+                .searchAdminContests(searchKeyword, ruleType, contestStatusStr, visibility, status, pageable)
                 .map(sdo -> {
                     sdo.setContestStatus(contestMapper.getRealTimeStatus(sdo.getStartTime(), sdo.getEndTime()));
                     return sdo;
@@ -132,7 +130,8 @@ public class ContestServiceImpl implements ContestService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
 
         if (contest.getStatus() != EStatus.DELETED) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Only contests in DELETED status can be restored.");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                    "Only contests in DELETED status can be restored.");
         }
 
         contest.setStatus(EStatus.INACTIVE);
@@ -145,7 +144,8 @@ public class ContestServiceImpl implements ContestService {
         Contest contest = contestRepository.findById(contestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
 
-        if (contest.getStatus() == EStatus.DELETED) return;
+        if (contest.getStatus() == EStatus.DELETED)
+            return;
 
         contest.setStatus(EStatus.DELETED);
         log.info("Contest {} soft deleted", contestId);
@@ -158,7 +158,8 @@ public class ContestServiceImpl implements ContestService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
 
         if (contest.getStatus() == EStatus.DELETED) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Contests in DELETED can not be published/unpublished.");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                    "Contests in DELETED can not be published/unpublished.");
         }
 
         boolean isCurrentlyActive = contest.getStatus() == EStatus.ACTIVE;
@@ -175,52 +176,63 @@ public class ContestServiceImpl implements ContestService {
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public void addProblemsToContest(UUID contestId, List<AddContestProblemSdi> requests) {
-        if (requests == null || requests.isEmpty()) return;
+        if (requests == null || requests.isEmpty())
+            return;
 
         Contest contest = contestRepository.findById(contestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
 
         if (contest.getStatus() == EStatus.DELETED) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot modify a deleted contest. Please restore it first.");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                    "Cannot modify a deleted contest. Please restore it first.");
         }
 
         if (contest.getStatus() == EStatus.ACTIVE) {
             ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
             if (timeStatus != ContestStatus.UPCOMING) {
                 // Không cho thêm đề khi đang thi hoặc đã kết thúc
-                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot add problems to a contest that is already ongoing or has ended.");
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                        "Cannot add problems to a contest that is already ongoing or has ended.");
             }
         }
 
         Set<UUID> reqProblemIds = requests.stream().map(AddContestProblemSdi::getProblemId).collect(Collectors.toSet());
-        Set<String> reqDisplayIds = requests.stream().map(AddContestProblemSdi::getDisplayId).collect(Collectors.toSet());
+        Set<String> reqDisplayIds = requests.stream().map(AddContestProblemSdi::getDisplayId)
+                .collect(Collectors.toSet());
 
         // Check trùng lặp ngay trong payload
         if (reqProblemIds.size() < requests.size() || reqDisplayIds.size() < requests.size()) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Duplicate Problem ID or Display ID found in the request payload.");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                    "Duplicate Problem ID or Display ID found in the request payload.");
         }
 
         long validProblemCount = problemRepository.countByIdInAndStatusNot(reqProblemIds, EStatus.DELETED);
         if (validProblemCount != reqProblemIds.size()) {
             // Có bài tập không tồn tại hoặc bị xóa
-            throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND, "One or more problems do not exist or have been deleted.");
+            throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND,
+                    "One or more problems do not exist or have been deleted.");
         }
 
         List<ContestProblemSdo> existing = contestProblemRepository.findByContestIdOrderBySortOrderAsc(contestId);
-        Set<UUID> existingProblemIds = existing.stream().map(ContestProblemSdo::getProblemId).collect(Collectors.toSet());
-        Set<String> existingDisplayIds = existing.stream().map(ContestProblemSdo::getDisplayId).collect(Collectors.toSet());
+        Set<UUID> existingProblemIds = existing.stream().map(ContestProblemSdo::getProblemId)
+                .collect(Collectors.toSet());
+        Set<String> existingDisplayIds = existing.stream().map(ContestProblemSdo::getDisplayId)
+                .collect(Collectors.toSet());
 
         List<ContestProblem> toSave = new ArrayList<>();
 
         for (AddContestProblemSdi req : requests) {
             if (existingProblemIds.contains(req.getProblemId()) || existingDisplayIds.contains(req.getDisplayId())) {
-                // Nếu đã có Problem ID hoặc Display ID trùng với đề đã tồn tại trong contest thì báo lỗi, không cho thêm
-                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Conflict detected for Problem ID or Display ID: " + req.getDisplayId());
+                // Nếu đã có Problem ID hoặc Display ID trùng với đề đã tồn tại trong contest
+                // thì báo lỗi, không cho thêm
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                        "Conflict detected for Problem ID or Display ID: " + req.getDisplayId());
             }
 
             toSave.add(ContestProblem.builder()
                     .contest(contest)
-                    .problem(problemRepository.getReferenceById(req.getProblemId())) // Lấy reference để tránh query thừa
+                    .problem(problemRepository.getReferenceById(req.getProblemId())) // Lấy reference để tránh query
+                                                                                     // thừa
                     .displayId(req.getDisplayId())
                     .points(req.getPoints())
                     .sortOrder(req.getSortOrder())
@@ -234,20 +246,23 @@ public class ContestServiceImpl implements ContestService {
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public void removeProblemsFromContest(UUID contestId, List<UUID> problemIds) {
-        if (problemIds == null || problemIds.isEmpty()) return;
+        if (problemIds == null || problemIds.isEmpty())
+            return;
 
         Contest contest = contestRepository.findById(contestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
 
         if (contest.getStatus() == EStatus.DELETED) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot modify a deleted contest. Please restore it first.");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                    "Cannot modify a deleted contest. Please restore it first.");
         }
 
         if (contest.getStatus() == EStatus.ACTIVE) {
             ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
             if (timeStatus != ContestStatus.UPCOMING) {
                 // Thông báo cấm rút đề khi đang thi
-                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot remove problems from a contest that is already ongoing or has ended.");
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                        "Cannot remove problems from a contest that is already ongoing or has ended.");
             }
         }
 
@@ -270,7 +285,8 @@ public class ContestServiceImpl implements ContestService {
 
     @Transactional(readOnly = true)
     @Override
-    public Page<ContestParticipationSdo> searchContestParticipants(UUID contestId, String keyword, Boolean isDisqualified, Pageable pageable) {
+    public Page<ContestParticipationSdo> searchContestParticipants(UUID contestId, String keyword,
+            Boolean isDisqualified, Pageable pageable) {
         if (!contestRepository.existsById(contestId)) {
             throw new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found.");
         }
@@ -282,7 +298,8 @@ public class ContestServiceImpl implements ContestService {
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public void disqualifyUsers(UUID contestId, List<UUID> userIds) {
-        if (userIds == null || userIds.isEmpty()) return;
+        if (userIds == null || userIds.isEmpty())
+            return;
 
         Contest contest = contestRepository.findById(contestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
@@ -298,7 +315,8 @@ public class ContestServiceImpl implements ContestService {
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public void requalifyUsers(UUID contestId, List<UUID> userIds) {
-        if (userIds == null || userIds.isEmpty()) return;
+        if (userIds == null || userIds.isEmpty())
+            return;
 
         Contest contest = contestRepository.findById(contestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
@@ -322,13 +340,15 @@ public class ContestServiceImpl implements ContestService {
 
         ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
         if (timeStatus == ContestStatus.UPCOMING) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "The contest has not started yet. Leaderboard is hidden.");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                    "The contest has not started yet. Leaderboard is hidden.");
         }
 
         // ==========================================
         // 2. KÍCH HOẠT LÁ CHẮN REDIS (TTL = 5 GIÂY)
         // ==========================================
-        // TODO: Config Redis Key prefix trong application.properties để dễ quản lý hơn, tránh hardcode
+        // TODO: Config Redis Key prefix trong application.properties để dễ quản lý hơn,
+        // tránh hardcode
         String redisKey = String.format("CONTEST_LEADERBOARD:%s:PAGE:%d:SIZE:%d",
                 contestId, pageable.getPageNumber(), pageable.getPageSize());
 
@@ -366,7 +386,7 @@ public class ContestServiceImpl implements ContestService {
 
     @Transactional(readOnly = true)
     @Override
-    public Page<SubmissionBasicSdo> getMyContestSubmissions(UUID contestId, UUID userId, Pageable pageable) {
+    public Page<SubmissionBasicSdo> getMyContestSubmissions(UUID contestId, UUID userId, UUID problemId, Pageable pageable) {
         Contest contest = contestRepository.findByIdAndStatusActive(contestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
 
@@ -375,7 +395,7 @@ public class ContestServiceImpl implements ContestService {
             throw new BusinessException(ErrorCode.NOT_REGISTERED, "You are not registered for this contest.");
         }
 
-        return submissionRepository.findMyContestSubmissions(contestId, userId, pageable);
+        return submissionRepository.findMyContestSubmissions(contestId, userId, problemId, pageable);
     }
 
     // ==================================================================== //
@@ -383,13 +403,17 @@ public class ContestServiceImpl implements ContestService {
 
     @Transactional(readOnly = true)
     @Override
-    public Page<ContestBasicSdo> getContestsForUser(String keyword, RuleType ruleType, ContestStatus contestStatus, Pageable pageable) {
+    public Page<ContestBasicSdo> getContestsForUser(String keyword, RuleType ruleType, ContestStatus contestStatus,
+            Pageable pageable) {
         String searchKeyword = EscapeHelper.escapeLike(keyword);
         String contestStatusStr = (contestStatus != null) ? contestStatus.name() : null;
-        return contestRepository.searchAdminContests(searchKeyword, ruleType, contestStatusStr, null, EStatus.ACTIVE, pageable).map(contest -> {
-            contest.setContestStatus(contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime()));
-            return contest;
-        });
+        return contestRepository
+                .searchAdminContests(searchKeyword, ruleType, contestStatusStr, null, EStatus.ACTIVE, pageable)
+                .map(contest -> {
+                    contest.setContestStatus(
+                            contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime()));
+                    return contest;
+                });
     }
 
     @Transactional(readOnly = true)
@@ -406,7 +430,8 @@ public class ContestServiceImpl implements ContestService {
 
         // 2. Xử lý lấy thông tin User (Gộp làm 1 câu query duy nhất)
         if (userId != null) {
-            ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contestId, userId).orElse(null);
+            ContestParticipation participation = contestParticipationRepository
+                    .findByContestIdAndUserId(contestId, userId).orElse(null);
 
             if (participation != null) {
                 sdo.setRegistered(true);
@@ -455,50 +480,78 @@ public class ContestServiceImpl implements ContestService {
         log.info("User {} registered for contest {}", userId, contestId);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(rollbackFor = Throwable.class) // SỬA LẠI THÀNH CÁI NÀY ĐỂ ĐƯỢC PHÉP LƯU (SAVE) XUỐNG DB
     @Override
     public List<ContestProblemSdo> getContestProblemsForUser(UUID contestId, UUID userId) {
         Contest contest = contestRepository.findByIdAndStatusActive(contestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
 
-        // 2. Chặn thi trước giờ
+        // 1. Chặn thi trước giờ
         if (contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime()) == ContestStatus.UPCOMING) {
             throw new BusinessException(ErrorCode.CONTEST_NOT_STARTED);
         }
 
-        // 3. Lôi Participation lên để check cả 2 case: Đã đăng ký chưa? Có bị Ban không?
+        // 2. Lôi Participation lên để check đăng ký và quyền
         ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contestId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED));
 
-        // Nếu bị Admin trảm thì sút luôn, cấm xem đề!
-        if (participation.isDisqualified()) {
-            throw new BusinessException(ErrorCode.BANNED_FROM_CONTEST, "You are banned from participating in this contest.");
+        if (participation.getIsDisqualified()) {
+            throw new BusinessException(ErrorCode.BANNED_FROM_CONTEST,
+                    "You are banned from participating in this contest.");
         }
 
-        // 1. Cấm xem đề nếu chưa bấm Bắt đầu
         if (participation.getStartTime() == null) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You must start the contest to view problems.");
         }
 
-        // 2. Cấm xem đề nếu đã bấm Nộp bài (Finished)
-        if (participation.isFinished()) {
+        if (participation.getIsFinished()) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You have already finished this contest.");
         }
 
-        // 3. Tự động tước quyền nếu Hết giờ cá nhân (Đồng hồ chạy về 0 mà FE không chịu gọi hàm finish)
-        if (LocalDateTime.now().isAfter(participation.getEndTime())) {
-            participation.setFinished(true);
+        // Tự động tước quyền nếu Hết giờ cá nhân
+        if (java.time.LocalDateTime.now().isAfter(participation.getEndTime())) {
+            participation.setIsFinished(true);
             contestParticipationRepository.save(participation);
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Your contest session time has expired.");
         }
 
-        return contestProblemRepository.findByContestIdOrderBySortOrderAsc(contestId);
+        // ========================================================
+        // LOGIC LẤY ĐỀ VÀ MAP KẾT QUẢ (VERDICT) CHO FRONTEND
+        // ========================================================
+
+        // 3. Lấy danh sách Problem (Entities)
+        List<ContestProblemSdo> contestProblems = contestProblemRepository.findByContestIdOrderBySortOrderAsc(contestId);
+
+        // 5. Móc DB lấy lịch sử nộp bài của User trong Contest này
+        List<SubmissionRepository.ProblemVerdictProjection> userSubmissions =
+                submissionRepository.findVerdictsByContestAndUser(contestId, userId);
+
+        // 6. Tìm kết quả "Ngon nhất" (AC) cho từng bài
+        java.util.Map<UUID, SubmissionVerdict> bestVerdicts = new java.util.HashMap<>();
+        for (var sub : userSubmissions) {
+            UUID pId = sub.getProblemId();
+            SubmissionVerdict v = sub.getVerdict();
+
+            if (v == SubmissionVerdict.AC) {
+                bestVerdicts.put(pId, v); // Ăn được AC thì ghi đè ngay lập tức
+            } else {
+                bestVerdicts.putIfAbsent(pId, v); // Chưa AC thì tạm lưu WA, TLE, RE...
+            }
+        }
+
+        // 7. Gắn Verdict vào từng bài
+        for (ContestProblemSdo sdo : contestProblems) {
+            sdo.setSubmissionVerdict(bestVerdicts.get(sdo.getProblemId()));
+        }
+
+        return contestProblems;
     }
 
     @Transactional(readOnly = true)
     @Override
-    public Page<ContestParticipantPublicSdo> getPublicContestParticipants(UUID contestId, String keyword, Pageable pageable) {
-        if(!contestRepository.existsByIdAndStatus(contestId, EStatus.ACTIVE)) {
+    public Page<ContestParticipantPublicSdo> getPublicContestParticipants(UUID contestId, String keyword,
+            Pageable pageable) {
+        if (!contestRepository.existsByIdAndStatus(contestId, EStatus.ACTIVE)) {
             throw new BusinessException(ErrorCode.CONTEST_NOT_FOUND);
         }
 
@@ -522,12 +575,14 @@ public class ContestServiceImpl implements ContestService {
     @Override
     public ContestParticipationSdo startContest(UUID contestId, UUID userId) {
         Contest contest = contestRepository.findByIdAndStatusActive(contestId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found or not active."));
+                .orElseThrow(
+                        () -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found or not active."));
 
         ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contestId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED, "You are not registered for this contest."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED,
+                        "You are not registered for this contest."));
 
-        if (participation.isDisqualified()) {
+        if (participation.getIsDisqualified()) {
             throw new BusinessException(ErrorCode.BANNED_FROM_CONTEST, "You are disqualified from this contest.");
         }
 
@@ -552,7 +607,8 @@ public class ContestServiceImpl implements ContestService {
         if (contest.getDurationMinutes() != null && contest.getDurationMinutes() > 0) {
             LocalDateTime predictedEndTime = now.plusMinutes(contest.getDurationMinutes());
             // Lấy mốc thời gian nào đến TRƯỚC: Hết giờ làm bài cá nhân hay Đóng cửa kỳ thi
-            participation.setEndTime(predictedEndTime.isBefore(contest.getEndTime()) ? predictedEndTime : contest.getEndTime());
+            participation.setEndTime(
+                    predictedEndTime.isBefore(contest.getEndTime()) ? predictedEndTime : contest.getEndTime());
         } else {
             // Nếu duration = null hoặc 0 -> Kỳ thi Fixed (Tất cả nộp bài cùng lúc)
             participation.setEndTime(contest.getEndTime());
@@ -568,18 +624,19 @@ public class ContestServiceImpl implements ContestService {
     @Override
     public void finishContest(UUID contestId, UUID userId) {
         ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contestId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED, "You are not registered for this contest."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED,
+                        "You are not registered for this contest."));
 
         if (participation.getStartTime() == null) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You haven't started the contest yet.");
         }
 
-        if (participation.isFinished()) {
+        if (participation.getIsFinished()) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Your contest session has already finished.");
         }
 
         // Đánh dấu nộp bài sớm/Thoát phòng thi
-        participation.setFinished(true);
+        participation.setIsFinished(true);
         contestParticipationRepository.save(participation);
 
         log.info("User {} finished contest {} early.", userId, contestId);

@@ -35,7 +35,7 @@ public interface ContestParticipationRepository extends JpaRepository<ContestPar
     int unbanUsersInBulk(@Param("contestId") UUID contestId, @Param("userIds") List<UUID> userIds);
 
     @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestParticipationSdo(" +
-            "cp.user.id, cp.user.username, cp.user.email, cp.isDisqualified) " +
+            "cp.user.id, cp.user.username, cp.user.email, cp.isDisqualified, cp.startTime, cp.endTime, cp.isFinished, cp.score, cp.penalty) " +
             "FROM ContestParticipation cp " +
             "WHERE cp.contest.id = :contestId " +
             "AND (:keyword IS NULL OR LOWER(cp.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!' " +

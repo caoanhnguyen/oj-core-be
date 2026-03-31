@@ -27,6 +27,7 @@ public interface ProblemService {
                                       EStatus status,
                                       ProblemStatus problemStatus,
                                       UUID userId,
+                                      UUID contestId,
                                       Pageable pageable);
 
     ProblemDetailsSdo updateProblem(UUID id, UpdateProblemSdi request) throws BadRequestException;

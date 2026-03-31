@@ -17,11 +17,12 @@ import java.time.LocalDateTime;
 public class ContestParticipation extends BaseEntity {
 
     @Column(nullable = false)
-    Boolean isRegistered;
+    @Builder.Default
+    Boolean isRegistered = false;
 
     @Column(name = "is_disqualified", nullable = false)
     @Builder.Default
-    boolean isDisqualified = false; // Mặc định là trong sạch
+    Boolean isDisqualified = false; // Mặc định là trong sạch
 
     @Column(name = "score")
     @Builder.Default
@@ -37,9 +38,9 @@ public class ContestParticipation extends BaseEntity {
     @Column(name = "end_time")
     LocalDateTime endTime; // Lúc hết giờ của riêng user này
 
-    @Column(name = "is_finished")
+    @Column(name = "is_finished", nullable = false)
     @Builder.Default
-    boolean isFinished = false; // Bằng true khi nộp bài sớm hoặc bị hệ thống kick ra
+    Boolean isFinished = false; // Bằng true khi nộp bài sớm hoặc bị hệ thống kick ra
 
     // -- Relationships -- //
 

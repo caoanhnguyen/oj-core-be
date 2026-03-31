@@ -113,13 +113,14 @@ public class ContestController {
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<Page<SubmissionBasicSdo>> getMySubmissions(
             @PathVariable UUID id,
+            @RequestParam(required = false) UUID problemId,
             @AuthenticationPrincipal UserPrincipal userPrincipal,
             Pageable pageable) {
 
         return ApiResponse.<Page<SubmissionBasicSdo>>builder()
                 .status(200)
                 .message("Fetched your contest submissions successfully")
-                .data(contestService.getMyContestSubmissions(id, userPrincipal.getId(), pageable))
+                .data(contestService.getMyContestSubmissions(id, userPrincipal.getId(), problemId, pageable))
                 .build();
     }
 

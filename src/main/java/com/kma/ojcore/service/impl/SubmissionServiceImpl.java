@@ -65,22 +65,26 @@ public class SubmissionServiceImpl implements SubmissionService {
             throw new BusinessException(ErrorCode.LANGUAGE_NOT_SUPPORTED);
         }
 
-        Contest contest;
+        Contest contest = null;
         if (request.getContestId() != null) {
             contest = contestRepository.findByIdAndStatusActive(request.getContestId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found or not active."));
+                    .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND,
+                            "Contest not found or not active."));
 
             // Luật 1: Cấm thi khi chưa mở cổng
             ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
             if (timeStatus == ContestStatus.UPCOMING) {
-                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Contest has not started yet. You cannot submit solutions at this time.");
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                        "Contest has not started yet. You cannot submit solutions at this time.");
             }
 
             // Luật 2: Lấy Participation lên để check đăng ký và quyền thi đấu cá nhân
-            ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contest.getId(), currentUserId)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED, "You are not registered for this contest."));
+            ContestParticipation participation = contestParticipationRepository
+                    .findByContestIdAndUserId(contest.getId(), currentUserId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED,
+                            "You are not registered for this contest."));
 
-            if (participation.isDisqualified()) {
+            if (participation.getIsDisqualified()) {
                 throw new BusinessException(ErrorCode.BANNED_FROM_CONTEST, "You are disqualified from this contest.");
             }
 
@@ -88,13 +92,14 @@ public class SubmissionServiceImpl implements SubmissionService {
             // THÊM CHỐT CHẶN PHIÊN THI CÁ NHÂN (DMOJ)
             // ==========================================
             if (participation.getStartTime() == null) {
-                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You must start the contest before submitting.");
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                        "You must start the contest before submitting.");
             }
-            if (participation.isFinished()) {
+            if (participation.getIsFinished()) {
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You have already finished this contest.");
             }
             if (java.time.LocalDateTime.now().isAfter(participation.getEndTime())) {
-                participation.setFinished(true); // Tự động khóa mõm luôn
+                participation.setIsFinished(true); // Tự động khóa mõm luôn
                 contestParticipationRepository.save(participation);
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Your contest session time has expired.");
             }
@@ -102,7 +107,8 @@ public class SubmissionServiceImpl implements SubmissionService {
 
             // Luật 3: Bài toán này có nằm trong Contest không?
             if (!contestProblemRepository.existsByContestIdAndProblemId(contest.getId(), problem.getId())) {
-                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "This problem does not belong to the requested contest.");
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                        "This problem does not belong to the requested contest.");
             }
         }
 
@@ -111,6 +117,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         Submission submission = Submission.builder()
                 .problem(problem)
                 .user(user)
+                .contest(contest)
                 .languageKey(request.getLanguageKey())
                 .sourceCode(request.getSourceCode())
                 .submissionStatus(SubmissionStatus.PENDING)
@@ -118,8 +125,10 @@ public class SubmissionServiceImpl implements SubmissionService {
                 .build();
         submission = submissionRepository.save(submission);
 
-        int finalTimeLimit = (int) (problem.getTimeLimitMs() * langConfig.getTimeMultiplier()) + langConfig.getTimeLimitAllowance();
-        int finalMemoryLimit = (int) (problem.getMemoryLimitMb() * langConfig.getMemoryMultiplier()) + langConfig.getMemoryLimitAllowance();
+        int finalTimeLimit = (int) (problem.getTimeLimitMs() * langConfig.getTimeMultiplier())
+                + langConfig.getTimeLimitAllowance();
+        int finalMemoryLimit = (int) (problem.getMemoryLimitMb() * langConfig.getMemoryMultiplier())
+                + langConfig.getMemoryLimitAllowance();
 
         JudgeSdi sdi = JudgeSdi.builder()
                 .submissionId(submission.getId())
@@ -151,7 +160,7 @@ public class SubmissionServiceImpl implements SubmissionService {
     @Transactional(readOnly = true)
     @Override
     public SubmissionDetailsSdo getSubmissionBasicInfo(UUID submissionId) {
-        if(!submissionRepository.existsById(submissionId)) {
+        if (!submissionRepository.existsById(submissionId)) {
             throw new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND);
         }
 
@@ -179,14 +188,14 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     @Override
     public Page<?> getSubmissions(UUID problemId,
-                                  UUID userId,
-                                  SubmissionVerdict submissionVerdict,
-                                  String keyword,
-                                  EStatus status,
-                                  ProblemStatus problemStatus,
-                                  List<SubmissionVerdict> allowedVerdicts,
-                                  boolean hideStaff,
-                                  Pageable pageable) {
+            UUID userId,
+            SubmissionVerdict submissionVerdict,
+            String keyword,
+            EStatus status,
+            ProblemStatus problemStatus,
+            List<SubmissionVerdict> allowedVerdicts,
+            boolean hideStaff,
+            Pageable pageable) {
 
         if (problemId != null && !problemRepository.existsById(problemId)) {
             throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND);
@@ -198,13 +207,14 @@ public class SubmissionServiceImpl implements SubmissionService {
 
         String searchKeyword = EscapeHelper.escapeLike(keyword);
 
-        return submissionRepository.getSubmissions(problemId, userId, submissionVerdict, searchKeyword, status, problemStatus, allowedVerdicts, hideStaff, pageable);
+        return submissionRepository.getSubmissions(problemId, userId, submissionVerdict, searchKeyword, status,
+                problemStatus, allowedVerdicts, hideStaff, pageable);
     }
 
     @Override
     public ProblemStatisticSdo getProblemStatistics(UUID problemId, List<SubmissionVerdict> allowedVerdicts) {
-        List<SubmissionRepository.VerdictCountProjection> projections =
-                submissionRepository.countSubmissionsByVerdict(problemId);
+        List<SubmissionRepository.VerdictCountProjection> projections = submissionRepository
+                .countSubmissionsByVerdict(problemId);
 
         long total = 0;
         Map<String, Long> counts = new HashMap<>();
@@ -233,6 +243,7 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     @Override
     public String getLatestSubmissionCode(UUID problemId, UUID userId, String languageKey) {
-        return submissionRepository.findFirstSourceCodeByProblemIdAndUserIdAndLanguageKey(problemId, userId, languageKey).orElse(null);
+        return submissionRepository
+                .findFirstSourceCodeByProblemIdAndUserIdAndLanguageKey(problemId, userId, languageKey).orElse(null);
     }
 }

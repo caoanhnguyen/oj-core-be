@@ -40,7 +40,7 @@ public class Contest extends BaseEntity {
     ContestVisibility visibility;
 
     @Column(name = "duration_minutes")
-    private Integer durationMinutes;
+    Integer durationMinutes;
 
     String password;
 

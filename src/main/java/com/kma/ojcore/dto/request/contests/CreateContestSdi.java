@@ -41,6 +41,8 @@ public class CreateContestSdi {
 
     String password;
 
+    Integer durationMinutes;
+
     // 1. CHECK THỜI GIAN (End phải lớn hơn Start)
     @JsonIgnore
     @AssertTrue(message = "Start time must before end time.")

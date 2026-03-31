@@ -26,6 +26,7 @@ public class ContestBasicSdo {
     ContestVisibility visibility;
     Long participantCount;
     EStatus status;
+    Integer durationMinutes;
 
     public ContestBasicSdo(UUID id,
                            String title,
@@ -34,7 +35,8 @@ public class ContestBasicSdo {
                            RuleType ruleType,
                            ContestVisibility visibility,
                            Long participantCount,
-                           EStatus status) {
+                           EStatus status,
+                           Integer durationMinutes) {
         this.id = id;
         this.title = title;
         this.startTime = startTime;
@@ -43,5 +45,6 @@ public class ContestBasicSdo {
         this.visibility = visibility;
         this.participantCount = participantCount;
         this.status = status;
+        this.durationMinutes = durationMinutes;
     }
 }

@@ -29,6 +29,17 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
         Long getCount();
     }
 
+    interface ProblemVerdictProjection {
+        UUID getProblemId();
+        SubmissionVerdict getVerdict();
+    }
+
+    @Query("SELECT s.problem.id as problemId, s.verdict as verdict " +
+            "FROM Submission s " +
+            "WHERE s.contest.id = :contestId AND s.user.id = :userId")
+    List<ProblemVerdictProjection> findVerdictsByContestAndUser(@Param("contestId") UUID contestId,
+                                                                @Param("userId") UUID userId);
+
     @Query("SELECT s.createdDate FROM Submission s " +
             "WHERE s.user.id = :userId " +
             "AND s.createdDate >= :startDate " +
@@ -119,9 +130,11 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             "s.user.id, s.user.username, s.problem.id, s.problem.title, s.problem.slug) " +
             "FROM Submission s JOIN s.problem p " +
             "WHERE s.contest.id = :contestId AND s.user.id = :userId " +
+            "AND (:problemId IS NULL OR s.problem.id = :problemId) " +
             "ORDER BY s.createdDate DESC")
     Page<SubmissionBasicSdo> findMyContestSubmissions(@Param("contestId") UUID contestId,
                                                       @Param("userId") UUID userId,
+                                                      @Param("problemId") UUID problemId,
                                                       Pageable pageable);
 
     // 2. Dùng cho Admin: Lấy danh sách TẤT CẢ bài nộp của TẤT CẢ mọi người trong Contest

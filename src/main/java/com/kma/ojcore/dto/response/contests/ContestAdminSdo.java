@@ -27,6 +27,7 @@ public class ContestAdminSdo {
     ContestVisibility visibility;
     EStatus status;
     String password;
+    Integer durationMinutes;
     Long participantCount;
     UUID authorId;
     String authorUsername;
