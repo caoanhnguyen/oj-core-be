@@ -29,6 +29,19 @@ public class ContestController {
 
     private final ContestService contestService;
 
+    @GetMapping("/my-active")
+    public ApiResponse<List<MyActiveContestSdo>> getMyActiveContests(@AuthenticationPrincipal UserPrincipal currentUser) {
+
+        List<MyActiveContestSdo> activeContests = contestService.getMyActiveContests(currentUser.getId());
+
+        return ApiResponse.<List<MyActiveContestSdo>>builder()
+                .status(org.springframework.http.HttpStatus.OK.value())
+                .message("Fetched active contests successfully")
+                .data(activeContests)
+                .build();
+    }
+
+
     @GetMapping("/{id}/leaderboard")
     public ApiResponse<Page<ContestLeaderboardSdo>> getLeaderboard(@PathVariable UUID id,
                                                                    Pageable pageable) {

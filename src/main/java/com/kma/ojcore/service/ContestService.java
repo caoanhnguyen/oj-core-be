@@ -56,7 +56,10 @@ public interface ContestService {
 
     Page<SubmissionBasicSdo> getAdminContestSubmissions(UUID contestId, Pageable pageable);
 
+
     // USER
+    List<MyActiveContestSdo> getMyActiveContests(UUID userId);
+
     Page<ContestBasicSdo> getContestsForUser(String keyword, RuleType ruleType, ContestStatus contestStatus, Pageable pageable);
 
     ContestDetailSdo getContestDetailsForUser(UUID contestId, UUID userId);

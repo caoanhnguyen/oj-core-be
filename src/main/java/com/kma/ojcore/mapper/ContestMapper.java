@@ -11,6 +11,8 @@ import com.kma.ojcore.entity.ContestParticipation;
 import com.kma.ojcore.enums.ContestStatus;
 import org.mapstruct.*;
 
+import java.time.LocalDateTime;
+
 @Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface ContestMapper {
 
@@ -33,7 +35,7 @@ public interface ContestMapper {
     @Mapping(source = "author.username", target = "authorUsername")
     ContestDetailSdo toDetailSdo(Contest contest);
 
-    default ContestStatus getRealTimeStatus(java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
+    default ContestStatus getRealTimeStatus(LocalDateTime startTime, LocalDateTime endTime) {
         if (startTime == null || endTime == null) return null;
         java.time.LocalDateTime now = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC);
         if (now.isBefore(startTime)) {
