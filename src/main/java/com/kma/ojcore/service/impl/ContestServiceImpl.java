@@ -398,6 +398,20 @@ public class ContestServiceImpl implements ContestService {
     // ==================================================================== //
     // USER
 
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<MyActiveContestSdo> getMyActiveContests(UUID userId) {
+        List<MyActiveContestSdo> sdos = contestParticipationRepository.findMyActiveContestSdos(userId);
+        for (MyActiveContestSdo sdo : sdos) {
+            ContestBasicSdo basicContest = sdo.getContest();
+            basicContest.setContestStatus(contestMapper.getRealTimeStatus(basicContest.getStartTime(), basicContest.getEndTime()));
+        }
+
+        return sdos;
+    }
+
+
     @Transactional(readOnly = true)
     @Override
     public Page<ContestBasicSdo> getContestsForUser(String keyword, RuleType ruleType, ContestStatus contestStatus,
@@ -501,9 +515,15 @@ public class ContestServiceImpl implements ContestService {
                 throw new BusinessException(ErrorCode.BANNED_FROM_CONTEST, "You are banned from participating in this contest.");
             }
 
+            // Sửa cái `if` ở dòng 504:
             if (participation.getStartTime() == null) {
-                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You must start the contest to view problems.");
+                // Nếu là Windowed Contest (có duration) -> Bắt buộc phải nhấn Start mới cho xem đề (để tính giờ cá nhân)
+                if (contest.getDurationMinutes() != null && contest.getDurationMinutes() > 0) {
+                    throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You must start the contest to view problems.");
+                }
+                // Nếu là Fixed Contest -> Không cần nhấn Start, cứ đến giờ là cho xem
             }
+
 
             // Tự động tước quyền nếu Hết giờ cá nhân
             if (!participation.getIsFinished() && java.time.LocalDateTime.now().isAfter(participation.getEndTime())) {
@@ -574,9 +594,23 @@ public class ContestServiceImpl implements ContestService {
                 .orElseThrow(
                         () -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found or not active."));
 
+        // Sửa đoạn này:
         ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contestId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED,
-                        "You are not registered for this contest."));
+                .orElseGet(() -> {
+                    // Nếu chưa tìm thấy Participation (chưa đăng ký)
+                    if (contest.getVisibility() == ContestVisibility.PUBLIC) {
+                        // Tự động tạo bản ghi đăng ký ngầm luôn
+                        return ContestParticipation.builder()
+                                .contest(contest)
+                                .user(userRepository.getReferenceById(userId))
+                                .isRegistered(true)
+                                .build();
+                    } else {
+                        // Nếu là Private thì vẫn bắt buộc phải gọi Register trước để nhập pass
+                        throw new BusinessException(ErrorCode.NOT_REGISTERED, "You must register (with password) to join this private contest.");
+                    }
+                });
+
 
         if (participation.getIsDisqualified()) {
             throw new BusinessException(ErrorCode.BANNED_FROM_CONTEST, "You are disqualified from this contest.");

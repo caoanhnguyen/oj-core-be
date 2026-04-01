@@ -3,6 +3,7 @@ package com.kma.ojcore.repository;
 import com.kma.ojcore.dto.response.contests.ContestLeaderboardSdo;
 import com.kma.ojcore.dto.response.contests.ContestParticipantPublicSdo;
 import com.kma.ojcore.dto.response.contests.ContestParticipationSdo;
+import com.kma.ojcore.dto.response.contests.MyActiveContestSdo;
 import com.kma.ojcore.entity.ContestParticipation;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +25,22 @@ public interface ContestParticipationRepository extends JpaRepository<ContestPar
     long countByContestId(UUID contestId);
 
     Optional<ContestParticipation> findByContestIdAndUserId(UUID contestId, UUID userId);
+
+    @Query("SELECT new com.kma.ojcore.dto.response.contests.MyActiveContestSdo(" +
+            "new com.kma.ojcore.dto.response.contests.ContestBasicSdo(" +
+            "c.id, c.title, c.startTime, c.endTime, c.ruleType, null, c.visibility, " +
+            "(SELECT COUNT(cp2) FROM ContestParticipation cp2 WHERE cp2.contest.id = c.id), " +
+            "c.status, c.durationMinutes), " +
+            "p.endTime) " +
+            "FROM ContestParticipation p " +
+            "JOIN p.contest c " +
+            "WHERE p.user.id = :userId " +
+            "AND p.isFinished = false " +
+            "AND p.startTime IS NOT NULL " +
+            "AND p.endTime > CURRENT_TIMESTAMP " +
+            "AND c.status = 'ACTIVE'")
+    List<MyActiveContestSdo> findMyActiveContestSdos(@Param("userId") UUID userId);
+
 
     @Modifying
     @Query("UPDATE ContestParticipation cp SET cp.isDisqualified = true WHERE cp.contest.id = :contestId AND cp.user.id IN :userIds")
