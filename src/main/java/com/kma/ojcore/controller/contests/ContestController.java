@@ -5,6 +5,7 @@ import com.kma.ojcore.dto.response.common.ApiResponse;
 import com.kma.ojcore.dto.response.contests.*;
 import com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo;
 import com.kma.ojcore.enums.ContestStatus;
+import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.RuleType;
 import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.service.ContestService;
@@ -49,7 +50,7 @@ public class ContestController {
         return ApiResponse.<Page<ContestLeaderboardSdo>>builder()
                 .status(200)
                 .message("Fetched leaderboard successfully")
-                .data(contestService.getContestLeaderboard(id, pageable))
+                .data(contestService.getContestLeaderboard(id, EStatus.ACTIVE, pageable))
                 .build();
     }
 

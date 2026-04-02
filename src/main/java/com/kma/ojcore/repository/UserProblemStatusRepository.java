@@ -22,7 +22,7 @@ public interface UserProblemStatusRepository extends JpaRepository<UserProblemSt
     @Query("SELECT COUNT(ups) FROM UserProblemStatus ups " +
             "WHERE ups.user.id = :userId " +
             "AND ups.state = :state " +
-            "AND ups.problem.status = 'ACTIVE'")
+            "AND ups.problem.problemStatus = 'PUBLISHED'")
     long countByUserIdAndState(UUID userId, UserProblemState state);
 
     @Query("SELECT p.difficulty AS difficulty, COUNT(ups.id) AS count " +

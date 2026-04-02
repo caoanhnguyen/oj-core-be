@@ -67,7 +67,7 @@ public class SubmissionServiceImpl implements SubmissionService {
 
         Contest contest = null;
         if (request.getContestId() != null) {
-            contest = contestRepository.findByIdAndStatusActive(request.getContestId())
+            contest = contestRepository.findByIdAndStatus(request.getContestId(), EStatus.ACTIVE)
                     .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND,
                             "Contest not found or not active."));
 

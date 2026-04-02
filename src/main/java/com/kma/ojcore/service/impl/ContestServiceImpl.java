@@ -330,9 +330,9 @@ public class ContestServiceImpl implements ContestService {
 
     @Transactional(readOnly = true)
     @Override
-    public Page<ContestLeaderboardSdo> getContestLeaderboard(UUID contestId, Pageable pageable) {
+    public Page<ContestLeaderboardSdo> getContestLeaderboard(UUID contestId, EStatus status, Pageable pageable) {
         // 1. Check chốt chặn Contest (Lấy từ DB lên cực nhanh vì dùng PK Indexed)
-        Contest contest = contestRepository.findByIdAndStatusActive(contestId)
+        Contest contest = contestRepository.findByIdAndStatus(contestId, status)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
 
         ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
@@ -384,8 +384,9 @@ public class ContestServiceImpl implements ContestService {
     @Transactional(readOnly = true)
     @Override
     public Page<SubmissionBasicSdo> getMyContestSubmissions(UUID contestId, UUID userId, UUID problemId, Pageable pageable) {
-        Contest contest = contestRepository.findByIdAndStatusActive(contestId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
+        if(!contestRepository.existsByIdAndStatus(contestId, EStatus.ACTIVE)) {
+            throw new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found.");
+        }
 
         // Chặn xem nếu chưa đăng ký
         if (!contestParticipationRepository.existsByContestIdAndUserId(contestId, userId)) {
@@ -462,7 +463,7 @@ public class ContestServiceImpl implements ContestService {
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public void registerContest(UUID contestId, UUID userId, RegisterContestSdi req) {
-        Contest contest = contestRepository.findByIdAndStatusActive(contestId)
+        Contest contest = contestRepository.findByIdAndStatus(contestId, EStatus.ACTIVE)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
 
         if (contestParticipationRepository.existsByContestIdAndUserId(contestId, userId)) {
@@ -494,7 +495,7 @@ public class ContestServiceImpl implements ContestService {
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public List<ContestProblemSdo> getContestProblemsForUser(UUID contestId, UUID userId) {
-        Contest contest = contestRepository.findByIdAndStatusActive(contestId)
+        Contest contest = contestRepository.findByIdAndStatus(contestId, EStatus.ACTIVE)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
 
         ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
@@ -515,7 +516,6 @@ public class ContestServiceImpl implements ContestService {
                 throw new BusinessException(ErrorCode.BANNED_FROM_CONTEST, "You are banned from participating in this contest.");
             }
 
-            // Sửa cái `if` ở dòng 504:
             if (participation.getStartTime() == null) {
                 // Nếu là Windowed Contest (có duration) -> Bắt buộc phải nhấn Start mới cho xem đề (để tính giờ cá nhân)
                 if (contest.getDurationMinutes() != null && contest.getDurationMinutes() > 0) {
@@ -525,8 +525,11 @@ public class ContestServiceImpl implements ContestService {
             }
 
 
-            // Tự động tước quyền nếu Hết giờ cá nhân
-            if (!participation.getIsFinished() && java.time.LocalDateTime.now().isAfter(participation.getEndTime())) {
+            // Tự động tước quyền nếu Hết giờ cá nhân (Chỉ check nếu đã có endTime cá nhân)
+            if (!participation.getIsFinished()
+                    && participation.getEndTime() != null
+                    && java.time.LocalDateTime.now().isAfter(participation.getEndTime())) {
+
                 participation.setIsFinished(true);
                 contestParticipationRepository.save(participation);
             }
@@ -590,7 +593,7 @@ public class ContestServiceImpl implements ContestService {
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public ContestParticipationSdo startContest(UUID contestId, UUID userId) {
-        Contest contest = contestRepository.findByIdAndStatusActive(contestId)
+        Contest contest = contestRepository.findByIdAndStatus(contestId, EStatus.ACTIVE)
                 .orElseThrow(
                         () -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found or not active."));
 

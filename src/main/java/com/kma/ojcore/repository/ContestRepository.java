@@ -63,6 +63,9 @@ public interface ContestRepository extends JpaRepository<Contest, UUID> {
 
     boolean existsByIdAndStatus(UUID id, EStatus status);
 
-    @Query("SELECT c FROM Contest c LEFT JOIN FETCH c.problems WHERE c.id = :contestId AND c.status = com.kma.ojcore.enums.EStatus.ACTIVE")
-    Optional<Contest> findByIdAndStatusActive(@Param("contestId") UUID contestId);
+    @Query("SELECT c FROM Contest c LEFT JOIN FETCH c.problems " +
+            "WHERE c.id = :contestId " +
+            "AND (:status IS NULL OR c.status = :status)")
+    Optional<Contest> findByIdAndStatus(@Param("contestId") UUID contestId,
+                                        @Param("status") EStatus status);
 }

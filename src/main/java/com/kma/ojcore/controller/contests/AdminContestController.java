@@ -4,10 +4,7 @@ import com.kma.ojcore.dto.request.contests.AddContestProblemSdi;
 import com.kma.ojcore.dto.request.contests.CreateContestSdi;
 import com.kma.ojcore.dto.request.contests.UpdateContestSdi;
 import com.kma.ojcore.dto.response.common.ApiResponse;
-import com.kma.ojcore.dto.response.contests.ContestAdminSdo;
-import com.kma.ojcore.dto.response.contests.ContestBasicSdo;
-import com.kma.ojcore.dto.response.contests.ContestParticipationSdo;
-import com.kma.ojcore.dto.response.contests.ContestProblemSdo;
+import com.kma.ojcore.dto.response.contests.*;
 import com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo;
 import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.ContestVisibility;
@@ -200,6 +197,17 @@ public class AdminContestController {
                 .status(200)
                 .message("Fetched all contest submissions successfully")
                 .data(contestService.getAdminContestSubmissions(id, pageable))
+                .build();
+    }
+
+    @GetMapping("/{id}/leaderboard")
+    public ApiResponse<Page<ContestLeaderboardSdo>> getLeaderboard(@PathVariable UUID id,
+                                                                   Pageable pageable) {
+
+        return ApiResponse.<Page<ContestLeaderboardSdo>>builder()
+                .status(200)
+                .message("Fetched leaderboard successfully")
+                .data(contestService.getContestLeaderboard(id, null, pageable))
                 .build();
     }
 }
