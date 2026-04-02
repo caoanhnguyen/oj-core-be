@@ -52,7 +52,7 @@ public interface ContestService {
 
     // Leaderboard & Submissions
 
-    Page<ContestLeaderboardSdo> getContestLeaderboard(UUID contestId, Pageable pageable);
+    Page<ContestLeaderboardSdo> getContestLeaderboard(UUID contestId, EStatus status, Pageable pageable);
 
     Page<SubmissionBasicSdo> getAdminContestSubmissions(UUID contestId, Pageable pageable);
 
