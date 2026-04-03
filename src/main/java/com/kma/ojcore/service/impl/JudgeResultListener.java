@@ -35,6 +35,7 @@ public class JudgeResultListener {
     private final ObjectMapper objectMapper;
     private final ScoringStrategyFactory scoringStrategyFactory;
     private final ContestParticipationRepository contestParticipationRepository;
+    private final ContestProblemRepository contestProblemRepository;
 
     // ========================================================
     // FLOW 1: PROCESS SUBMISSION JUDGE RESULT
@@ -50,9 +51,26 @@ public class JudgeResultListener {
             return;
         }
 
+        // Get User, Problem and calculate final scale score if this is an OI Contest
+        User user = submission.getUser();
+        Problem problem = submission.getProblem();
+        
+        Integer finalScore = result.getScore();
+        if (submission.getContest() != null && submission.getContest().getRuleType() == RuleType.OI) {
+            Integer contestPoints = contestProblemRepository.findPointsByContestIdAndProblemId(
+                    submission.getContest().getId(), problem.getId()
+            );
+
+            if (contestPoints != null) {
+                double rawScore = result.getScore() != null ? result.getScore().doubleValue() : 0.0;
+                double baseScore = problem.getTotalScore() != null ? problem.getTotalScore().doubleValue() : 100.0;
+                finalScore = (int) Math.round((rawScore / baseScore) * contestPoints);
+            }
+        }
+
         // Update Submission
         submission.setVerdict(result.getSubmissionVerdict());
-        submission.setScore(result.getScore());
+        submission.setScore(finalScore); 
         submission.setPassedTestCount(result.getPassedTestCount());
         submission.setTotalTestCount(result.getTotalTestCount());
         submission.setExecutionTimeMs(result.getExecutionTimeMs());
@@ -63,10 +81,6 @@ public class JudgeResultListener {
         // Ensure Admin submission history is saved even if the flow is interrupted below
         submission.setSubmissionStatus(result.getSubmissionStatus());
         submissionRepository.save(submission);
-
-        // Get User and Problem
-        User user = submission.getUser();
-        Problem problem = submission.getProblem();
 
         if (user != null && problem != null) {
 

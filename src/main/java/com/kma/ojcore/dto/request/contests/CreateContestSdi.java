@@ -2,6 +2,7 @@ package com.kma.ojcore.dto.request.contests;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.kma.ojcore.enums.ContestVisibility;
+import com.kma.ojcore.enums.ContestFormat;
 import com.kma.ojcore.enums.RuleType;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Future;
@@ -41,7 +42,12 @@ public class CreateContestSdi {
 
     String password;
 
+    @NotNull(message = "Format is required.")
+    ContestFormat format;
+
     Integer durationMinutes;
+
+    Boolean allowLateRegistration = false;
 
     // 1. CHECK THỜI GIAN (End phải lớn hơn Start)
     @JsonIgnore

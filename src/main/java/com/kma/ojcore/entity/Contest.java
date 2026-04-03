@@ -1,6 +1,7 @@
 package com.kma.ojcore.entity;
 
 import com.kma.ojcore.enums.ContestVisibility;
+import com.kma.ojcore.enums.ContestFormat;
 import com.kma.ojcore.enums.RuleType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -39,8 +40,17 @@ public class Contest extends BaseEntity {
     @Column(nullable = false)
     ContestVisibility visibility;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    ContestFormat format = ContestFormat.STRICT;
+
     @Column(name = "duration_minutes")
     Integer durationMinutes;
+
+    @Column(name = "allow_late_registration")
+    @Builder.Default
+    Boolean allowLateRegistration = false;
 
     String password;
 
