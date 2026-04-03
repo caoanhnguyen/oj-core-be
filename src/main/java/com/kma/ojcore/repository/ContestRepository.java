@@ -23,7 +23,7 @@ public interface ContestRepository extends JpaRepository<Contest, UUID> {
             "null, " +
             "c.visibility, " +
             "(SELECT COUNT(p) FROM ContestParticipation p WHERE p.contest.id = c.id), " +
-            "c.status, c.durationMinutes) " +
+            "c.status, c.durationMinutes, c.format, c.allowLateRegistration) " +
             "FROM Contest c " +
             "WHERE (:keyword IS NULL OR LOWER(c.title) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!') " +
             "AND (:ruleType IS NULL OR c.ruleType = :ruleType) " +

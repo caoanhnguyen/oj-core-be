@@ -85,6 +85,14 @@ public class ContestServiceImpl implements ContestService {
         User author = userRepository.findById(authorId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
+        if (req.getFormat() == ContestFormat.WINDOWED) {
+            if (req.getDurationMinutes() == null || req.getDurationMinutes() <= 0) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Windowed contests must have a valid duration.");
+            }
+        } else {
+            req.setDurationMinutes(null);
+        }
+
         Contest contest = contestMapper.toEntity(req);
         contest.setAuthor(author);
         contest.setStatus(EStatus.INACTIVE);
@@ -109,6 +117,14 @@ public class ContestServiceImpl implements ContestService {
 
         if (req.getVisibility() == ContestVisibility.PUBLIC) {
             req.setPassword(null);
+        }
+
+        if (req.getFormat() == ContestFormat.WINDOWED) {
+            if (req.getDurationMinutes() == null || req.getDurationMinutes() <= 0) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Windowed contests must have a valid duration.");
+            }
+        } else {
+            req.setDurationMinutes(null);
         }
 
         contestMapper.updateEntityFromSdi(req, contest);
@@ -470,8 +486,15 @@ public class ContestServiceImpl implements ContestService {
             throw new BusinessException(ErrorCode.ALREADY_REGISTERED);
         }
 
-        if (contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime()) == ContestStatus.ENDED) {
+        ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
+        if (timeStatus == ContestStatus.ENDED) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Contest has already ended.");
+        }
+
+        if (contest.getFormat() == ContestFormat.STRICT) {
+            if (timeStatus == ContestStatus.ONGOING && Boolean.FALSE.equals(contest.getAllowLateRegistration())) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Late registration is not allowed for this contest.");
+            }
         }
 
         if (contest.getVisibility() == ContestVisibility.PRIVATE) {
@@ -517,8 +540,8 @@ public class ContestServiceImpl implements ContestService {
             }
 
             if (participation.getStartTime() == null) {
-                // Nếu là Windowed Contest (có duration) -> Bắt buộc phải nhấn Start mới cho xem đề (để tính giờ cá nhân)
-                if (contest.getDurationMinutes() != null && contest.getDurationMinutes() > 0) {
+                // Nếu là Windowed Contest -> Bắt buộc phải nhấn Start mới cho xem đề (để tính giờ cá nhân)
+                if (contest.getFormat() == ContestFormat.WINDOWED) {
                     throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You must start the contest to view problems.");
                 }
                 // Nếu là Fixed Contest -> Không cần nhấn Start, cứ đến giờ là cho xem
@@ -636,14 +659,14 @@ public class ContestServiceImpl implements ContestService {
         // Bắt đầu tính giờ cho cá nhân
         participation.setStartTime(now);
 
-        // Thuật toán ghim giờ (Như DMOJ)
-        if (contest.getDurationMinutes() != null && contest.getDurationMinutes() > 0) {
+        // Thuật toán ghim giờ (Dựa trên Format Kỳ Thi)
+        if (contest.getFormat() == ContestFormat.WINDOWED) {
             LocalDateTime predictedEndTime = now.plusMinutes(contest.getDurationMinutes());
             // Lấy mốc thời gian nào đến TRƯỚC: Hết giờ làm bài cá nhân hay Đóng cửa kỳ thi
             participation.setEndTime(
                     predictedEndTime.isBefore(contest.getEndTime()) ? predictedEndTime : contest.getEndTime());
         } else {
-            // Nếu duration = null hoặc 0 -> Kỳ thi Fixed (Tất cả nộp bài cùng lúc)
+            // Nếu Format là STRICT -> Fixed Contest (Tất cả nộp bài cùng lúc)
             participation.setEndTime(contest.getEndTime());
         }
 

@@ -2,6 +2,7 @@ package com.kma.ojcore.dto.response.contests;
 
 import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.ContestVisibility;
+import com.kma.ojcore.enums.ContestFormat;
 import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.RuleType;
 import lombok.*;
@@ -27,4 +28,6 @@ public class ContestBasicSdo {
     Long participantCount;
     EStatus status;
     Integer durationMinutes;
+    ContestFormat format;
+    Boolean allowLateRegistration;
 }

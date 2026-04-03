@@ -123,6 +123,16 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             "GROUP BY s.problem.id")
     List<Double> findMaxScoresPerProblem(@Param("contestId") UUID contestId, @Param("userId") UUID userId);
 
+    // Dùng cho OI theo chuẩn xịn: Scale điểm từ Judger sang hệ số Contest (RawScore / BaseScore) * ContestProblemPoints
+    @Query("SELECT MAX((CAST(COALESCE(s.score, 0) AS double) / COALESCE(p.totalScore, 100.0)) * cp.points) " +
+            "FROM Submission s " +
+            "JOIN s.problem p " +
+            "JOIN ContestProblem cp ON s.contest.id = cp.contest.id AND s.problem.id = cp.problem.id " +
+            "WHERE s.contest.id = :contestId AND s.user.id = :userId " +
+            "AND s.createdDate <= s.contest.endTime " +
+            "GROUP BY s.problem.id")
+    List<Double> findMaxScaledScoresPerProblem(@Param("contestId") UUID contestId, @Param("userId") UUID userId);
+
     // 1. Dùng cho User: Lấy danh sách bài nộp CỦA CHÍNH HỌ trong một Contest cụ thể
     @Query("SELECT new com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo(" +
             "s.id, s.verdict, s.score, s.passedTestCount, s.totalTestCount, " +

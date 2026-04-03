@@ -91,14 +91,20 @@ public class SubmissionServiceImpl implements SubmissionService {
             // ==========================================
             // THÊM CHỐT CHẶN PHIÊN THI CÁ NHÂN (DMOJ)
             // ==========================================
+            // 1. Chỉ chặn chưa bấm Start NẾU ĐÂY LÀ WINDOWED CONTEST (có duration)
             if (participation.getStartTime() == null) {
-                throw new BusinessException(ErrorCode.VALIDATION_FAILED,
-                        "You must start the contest before submitting.");
+                if (contest.getDurationMinutes() != null && contest.getDurationMinutes() > 0) {
+                    throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                            "You must start the contest before submitting.");
+                }
             }
+            // 2. Chặn nếu đã bị ép kết thúc
             if (participation.getIsFinished()) {
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You have already finished this contest.");
             }
-            if (java.time.LocalDateTime.now().isAfter(participation.getEndTime())) {
+
+            // 3. Tự động tước quyền nếu Hết giờ cá nhân (CHỈ CHECK KHI END TIME KHÔNG NULL)
+            if (participation.getEndTime() != null && java.time.LocalDateTime.now().isAfter(participation.getEndTime())) {
                 participation.setIsFinished(true); // Tự động khóa mõm luôn
                 contestParticipationRepository.save(participation);
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Your contest session time has expired.");
@@ -133,7 +139,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         JudgeSdi sdi = JudgeSdi.builder()
                 .submissionId(submission.getId())
                 .problemId(problem.getId())
-                .ruleType(problem.getRuleType().name())
+                .ruleType(contest != null ? contest.getRuleType().name() : problem.getRuleType().name()) // TODO: Rule Type cần được lấy từ Contest nếu đây là bài thi Contest
                 .sourceCode(request.getSourceCode())
                 .languageKey(request.getLanguageKey())
                 .compileCommand(langConfig.getCompileCommand())

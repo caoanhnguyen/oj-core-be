@@ -3,6 +3,7 @@ package com.kma.ojcore.dto.response.contests;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.ContestVisibility;
+import com.kma.ojcore.enums.ContestFormat;
 import com.kma.ojcore.enums.RuleType;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -26,6 +27,8 @@ public class ContestDetailSdo {
     ContestStatus contestStatus;
     ContestVisibility visibility;
     Integer durationMinutes;
+    ContestFormat format;
+    Boolean allowLateRegistration;
     Long participantCount;
     @JsonProperty("isRegistered")
     boolean isRegistered;
