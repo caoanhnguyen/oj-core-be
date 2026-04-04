@@ -126,5 +126,11 @@ oj:
       # Tên bucket, lấy từ biến môi trường, nếu không có thì mặc định là oj-testcases
       bucket-testcase: ${MINIO_BUCKET_TESTCASE:oj-testcases}
       # Các prefix đường dẫn
-      prefix-problem: problems
-      suffix-testcase: testcases
+      prefix-problem: ${MINIO_PREFIX_PROBLEM:problems}
+      suffix-testcase: ${MINIO_SUFFIX_TESTCASE:testcases}
+  
+  redis:
+    prefix:
+      submit-code: ${REDIS_PREFIX_SUBMIT_CODE:SUBMIT_CODE:}
+      run-code: ${REDIS_PREFIX_RUN_CODE:RUN_CODE:}
+      leaderboard: ${REDIS_PREFIX_LEADERBOARD:CONTEST_LEADERBOARD:}

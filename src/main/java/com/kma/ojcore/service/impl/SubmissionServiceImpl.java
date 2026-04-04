@@ -56,6 +56,8 @@ public class SubmissionServiceImpl implements SubmissionService {
         Problem problem = problemRepository.findById(request.getProblemId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
 
+        // TODO: check status problem đối với luồng submit practice (với luồng contest thì INACTIVE vẫn chấp nhận) trước khi check ngôn ngữ để tránh lỗi không cần thiết
+
         if (!problem.getAllowedLanguages().contains(request.getLanguageKey())) {
             throw new BusinessException(ErrorCode.LANGUAGE_NOT_SUPPORTED);
         }
