@@ -15,8 +15,12 @@ import com.kma.ojcore.mapper.ContestMapper;
 import com.kma.ojcore.repository.*;
 import com.kma.ojcore.service.ContestService;
 import com.kma.ojcore.utils.EscapeHelper;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -42,9 +46,12 @@ public class ContestServiceImpl implements ContestService {
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
 
-    @lombok.Data
-    @lombok.NoArgsConstructor
-    @lombok.AllArgsConstructor
+    @Value("${REDIS_PREFIX_LEADERBOARD:CONTEST_LEADERBOARD:}")
+    private String leaderboardPrefix;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class LeaderboardCacheWrapper {
         private List<ContestLeaderboardSdo> content;
         private long totalElements;
@@ -360,9 +367,7 @@ public class ContestServiceImpl implements ContestService {
         // ==========================================
         // 2. KÍCH HOẠT LÁ CHẮN REDIS (TTL = 5 GIÂY)
         // ==========================================
-        // TODO: Config Redis Key prefix trong application.properties để dễ quản lý hơn,
-        // tránh hardcode
-        String redisKey = String.format("CONTEST_LEADERBOARD:%s:PAGE:%d:SIZE:%d",
+        String redisKey = String.format("%s:%s:PAGE:%d:SIZE:%d", leaderboardPrefix,
                 contestId, pageable.getPageNumber(), pageable.getPageSize());
 
         try {

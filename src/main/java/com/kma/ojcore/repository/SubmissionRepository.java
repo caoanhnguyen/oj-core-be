@@ -67,7 +67,7 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             "s.id, s.verdict, s.score, s.passedTestCount, s.totalTestCount, " +
             "s.executionTimeMs, s.executionMemoryMb, s.createdDate, s.languageKey, " +
             "s.user.id, s.user.username, s.problem.id, s.problem.title, s.problem.slug) " +
-            "FROM Submission s " +
+            "FROM Submission s LEFT JOIN s.contest c " +
             "WHERE (:problemId IS NULL OR s.problem.id = :problemId) " +
             "AND (:userId IS NULL OR s.user.id = :userId) " +
             "AND (:submissionVerdict IS NULL OR s.verdict = :submissionVerdict) " +
@@ -76,6 +76,7 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             "AND (:status IS NULL OR s.problem.status = :status) " +
             "AND (:problemStatus IS NULL OR s.problem.problemStatus = :problemStatus) " +
             "AND (s.verdict IN :verdicts) " +
+            "AND (c IS NULL OR c.endTime < CURRENT_TIMESTAMP) " +
             "AND (:hideStaff = false OR NOT EXISTS (SELECT 1 FROM s.user.roles r WHERE r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR')))")
     Page<SubmissionBasicSdo> getSubmissions(@Param("problemId") UUID problemId,
                                             @Param("userId") UUID userId,

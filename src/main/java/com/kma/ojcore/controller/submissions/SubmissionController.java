@@ -1,5 +1,6 @@
 package com.kma.ojcore.controller.submissions;
 
+import com.kma.ojcore.annotation.RateLimit;
 import com.kma.ojcore.dto.request.submissions.RunCodeSubmitDto;
 import com.kma.ojcore.dto.request.submissions.SubmissionSdi;
 import com.kma.ojcore.dto.response.common.ApiResponse;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("${app.api.prefix}/submissions")
@@ -34,6 +36,7 @@ public class SubmissionController {
 
     @PostMapping
     @PreAuthorize("isAuthenticated()")
+    @RateLimit(keyPrefix = "${oj.redis.prefix.submit-code}", timeout = 10, timeUnit = TimeUnit.SECONDS, errorMessage = "Please wait 10 seconds before submitting code again!")
     public ApiResponse<?> submitCode(@Valid @RequestBody SubmissionSdi request,
                                      @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
@@ -47,6 +50,7 @@ public class SubmissionController {
 
     @PostMapping("/run_code")
     @PreAuthorize("isAuthenticated()")
+    @RateLimit(keyPrefix = "${oj.redis.prefix.run-code}", timeout = 10, timeUnit = TimeUnit.SECONDS, errorMessage = "Please wait 10 seconds before running code again!")
     public ApiResponse<?> runCode(@Valid @RequestBody RunCodeSubmitDto request) {
         UUID runCodeToken = runCodeService.sendToJudge(request);
         return ApiResponse.builder()
