@@ -2,6 +2,7 @@ package com.kma.ojcore.scheduler;
 
 import com.kma.ojcore.config.LanguageLoader;
 import com.kma.ojcore.config.RabbitMQConfig;
+import com.kma.ojcore.dto.request.submissions.JudgeResultSdi;
 import com.kma.ojcore.dto.request.submissions.JudgeSdi;
 import com.kma.ojcore.entity.LanguageConfig;
 import com.kma.ojcore.entity.Problem;
@@ -52,12 +53,16 @@ public class SubmissionTimeoutScheduler {
             int currentRetry = submission.getRetryCount() != null ? submission.getRetryCount() : 0;
 
             if (currentRetry >= 3) {
-                // Quá tam ba bận -> Code này có độc hoặc MinIO sập, dừng lại để tránh vòng lặp chết
-                log.error("Submission [{}] đã retry 3 lần nhưng vẫn kẹt. Đánh dấu System Error.", submission.getId());
-                submission.setSubmissionStatus(SubmissionStatus.FAILED);
-                submission.setVerdict(SubmissionVerdict.SE); // Dùng đúng Enum của hệ thống
-                submission.setErrorMessage("Lỗi hệ thống: Máy chấm không phản hồi quá lâu. Vui lòng liên hệ Admin.");
-                submissionRepository.save(submission);
+                log.error("Submission [{}] đã retry 3 lần nhưng vẫn kẹt. Bắn kết quả System Error về hệ thống...", submission.getId());
+                
+                JudgeResultSdi failSdi = com.kma.ojcore.dto.request.submissions.JudgeResultSdi.builder()
+                        .submissionId(submission.getId())
+                        .submissionStatus(SubmissionStatus.FAILED)
+                        .submissionVerdict(SubmissionVerdict.SE)
+                        .errorMessage("Lỗi hệ thống: Máy chấm không phản hồi quá lâu. Vui lòng liên hệ Admin.")
+                        .build();
+
+                rabbitTemplate.convertAndSend(RabbitMQConfig.JUDGE_EXCHANGE, RabbitMQConfig.RESULT_ROUTING_KEY, failSdi);
             } else {
                 // Tăng biến đếm và reset thời gian trước khi build lại
                 submission.setRetryCount(currentRetry + 1);
@@ -79,7 +84,7 @@ public class SubmissionTimeoutScheduler {
                     JudgeSdi sdi = JudgeSdi.builder()
                             .submissionId(submission.getId())
                             .problemId(problem.getId())
-                            .ruleType(problem.getRuleType().name())
+                            .ruleType(submission.getContest() != null ? submission.getContest().getRuleType().name() : problem.getRuleType().name())
                             .sourceCode(submission.getSourceCode())
                             .languageKey(submission.getLanguageKey())
                             .compileCommand(langConfig.getCompileCommand())

@@ -482,10 +482,6 @@ public class ContestServiceImpl implements ContestService {
         Contest contest = contestRepository.findByIdAndStatus(contestId, EStatus.ACTIVE)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
 
-        if (contestParticipationRepository.existsByContestIdAndUserId(contestId, userId)) {
-            throw new BusinessException(ErrorCode.ALREADY_REGISTERED);
-        }
-
         ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
         if (timeStatus == ContestStatus.ENDED) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Contest has already ended.");
@@ -498,9 +494,13 @@ public class ContestServiceImpl implements ContestService {
         }
 
         if (contest.getVisibility() == ContestVisibility.PRIVATE) {
-            if (req == null || req.getPassword() == null || !req.getPassword().equals(contest.getPassword())) {
+            if (req == null || req.getPassword() == null || !req.getPassword().equals(contest.getPassword())) { // TODO: Nên hash password thay vì lưu thẳng, nhưng tạm thời để vậy cho nhanh
                 throw new BusinessException(ErrorCode.INCORRECT_PASSWORD);
             }
+        }
+
+        if (contestParticipationRepository.existsByContestIdAndUserId(contestId, userId)) {
+            throw new BusinessException(ErrorCode.ALREADY_REGISTERED);
         }
 
         User user = userRepository.getReferenceById(userId);
@@ -624,16 +624,19 @@ public class ContestServiceImpl implements ContestService {
         ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contestId, userId)
                 .orElseGet(() -> {
                     // Nếu chưa tìm thấy Participation (chưa đăng ký)
-                    if (contest.getVisibility() == ContestVisibility.PUBLIC) {
-                        // Tự động tạo bản ghi đăng ký ngầm luôn
+                    if (contest.getFormat() == ContestFormat.WINDOWED && contest.getVisibility() == ContestVisibility.PUBLIC) {
+                        // Tự động tạo bản ghi đăng ký ngầm luôn CHỈ dành cho WINDOWED PUBLIC
                         return ContestParticipation.builder()
                                 .contest(contest)
                                 .user(userRepository.getReferenceById(userId))
                                 .isRegistered(true)
                                 .build();
+                    } else if (contest.getFormat() == ContestFormat.STRICT) {
+                         // STRICT Contest (Dù Public hay Private) ĐỀU bắt buộc nhấn nút Register riêng biệt
+                        throw new BusinessException(ErrorCode.NOT_REGISTERED, "You must explicitly register for this Strict Contest.");
                     } else {
-                        // Nếu là Private thì vẫn bắt buộc phải gọi Register trước để nhập pass
-                        throw new BusinessException(ErrorCode.NOT_REGISTERED, "You must register (with password) to join this private contest.");
+                        // WINDOWED mà Private thì cũng phải gọi Register trước để nhập pass
+                        throw new BusinessException(ErrorCode.NOT_REGISTERED, "You must register (with password) to join this Private Windowed contest.");
                     }
                 });
 

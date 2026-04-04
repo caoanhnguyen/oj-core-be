@@ -51,6 +51,11 @@ public class JudgeResultListener {
             return;
         }
 
+        if (!"PENDING".equalsIgnoreCase(submission.getVerdict().name())) {
+            log.info("Submission [{}] đang ở trạng thái {}. Bỏ qua xử lý nháy đúp/retry.", result.getSubmissionId(), submission.getVerdict());
+            return;
+        }
+
         // Get User, Problem and calculate final scale score if this is an OI Contest
         User user = submission.getUser();
         Problem problem = submission.getProblem();
