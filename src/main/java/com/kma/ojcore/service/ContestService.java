@@ -1,6 +1,7 @@
 package com.kma.ojcore.service;
 
 import com.kma.ojcore.dto.request.contests.AddContestProblemSdi;
+import com.kma.ojcore.dto.request.contests.UpdateContestProblemSdi;
 import com.kma.ojcore.dto.request.contests.CreateContestSdi;
 import com.kma.ojcore.dto.request.contests.RegisterContestSdi;
 import com.kma.ojcore.dto.request.contests.UpdateContestSdi;
@@ -37,6 +38,8 @@ public interface ContestService {
     // Problems Contest
 
     void addProblemsToContest(UUID contestId, List<AddContestProblemSdi> requests);
+
+    void updateProblemsInContest(UUID contestId, List<UpdateContestProblemSdi> requests);
 
     void removeProblemsFromContest(UUID contestId, List<UUID> problemIds);
 

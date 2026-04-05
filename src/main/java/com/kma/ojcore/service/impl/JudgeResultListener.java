@@ -60,18 +60,8 @@ public class JudgeResultListener {
         User user = submission.getUser();
         Problem problem = submission.getProblem();
         
+        // Remove scaling here, since dynamic scaling is handled in SubmissionRepository.findMaxScaledScoresPerProblem
         Integer finalScore = result.getScore();
-        if (submission.getContest() != null && submission.getContest().getRuleType() == RuleType.OI) {
-            Integer contestPoints = contestProblemRepository.findPointsByContestIdAndProblemId(
-                    submission.getContest().getId(), problem.getId()
-            );
-
-            if (contestPoints != null) {
-                double rawScore = result.getScore() != null ? result.getScore().doubleValue() : 0.0;
-                double baseScore = problem.getTotalScore() != null ? problem.getTotalScore().doubleValue() : 100.0;
-                finalScore = (int) Math.round((rawScore / baseScore) * contestPoints);
-            }
-        }
 
         // Update Submission
         submission.setVerdict(result.getSubmissionVerdict());

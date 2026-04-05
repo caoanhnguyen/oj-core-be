@@ -58,8 +58,10 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             "s.languageKey, s.submissionStatus, s.verdict, s.score, " +
             "s.passedTestCount, s.totalTestCount, " +
             "s.executionTimeMs, s.executionMemoryMb, s.createdDate, " +
-            "s.errorMessage, s.sourceCode) " +
+            "s.errorMessage, s.sourceCode, " +
+            "(CASE WHEN cp IS NULL THEN CAST(s.score AS double) ELSE (CAST(COALESCE(s.score, 0) AS double) / COALESCE(s.problem.totalScore, 100.0)) * cp.points END)) " +
             "FROM Submission s " +
+            "LEFT JOIN ContestProblem cp ON cp.contest.id = s.contest.id AND cp.problem.id = s.problem.id " +
             "WHERE s.id = :submissionId")
     SubmissionDetailsSdo getDetails(UUID submissionId);
 
@@ -138,8 +140,10 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
     @Query("SELECT new com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo(" +
             "s.id, s.verdict, s.score, s.passedTestCount, s.totalTestCount, " +
             "s.executionTimeMs, s.executionMemoryMb, s.createdDate, s.languageKey, " +
-            "s.user.id, s.user.username, s.problem.id, s.problem.title, s.problem.slug) " +
+            "s.user.id, s.user.username, p.id, p.title, p.slug, " +
+            "(CASE WHEN cp IS NULL THEN CAST(s.score AS double) ELSE (CAST(COALESCE(s.score, 0) AS double) / COALESCE(p.totalScore, 100.0)) * cp.points END)) " +
             "FROM Submission s JOIN s.problem p " +
+            "LEFT JOIN ContestProblem cp ON cp.contest.id = s.contest.id AND cp.problem.id = s.problem.id " +
             "WHERE s.contest.id = :contestId AND s.user.id = :userId " +
             "AND (:problemId IS NULL OR s.problem.id = :problemId) " +
             "ORDER BY s.createdDate DESC")
@@ -152,8 +156,10 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
     @Query("SELECT new com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo(" +
             "s.id, s.verdict, s.score, s.passedTestCount, s.totalTestCount, " +
             "s.executionTimeMs, s.executionMemoryMb, s.createdDate, s.languageKey, " +
-            "s.user.id, s.user.username, s.problem.id, s.problem.title, s.problem.slug) " +
+            "s.user.id, s.user.username, p.id, p.title, p.slug, " +
+            "(CASE WHEN cp IS NULL THEN CAST(s.score AS double) ELSE (CAST(COALESCE(s.score, 0) AS double) / COALESCE(p.totalScore, 100.0)) * cp.points END)) " +
             "FROM Submission s JOIN s.problem p " +
+            "LEFT JOIN ContestProblem cp ON cp.contest.id = s.contest.id AND cp.problem.id = s.problem.id " +
             "WHERE s.contest.id = :contestId " +
             "ORDER BY s.createdDate DESC")
     Page<SubmissionBasicSdo> findAllContestSubmissions(@Param("contestId") UUID contestId,

@@ -166,7 +166,7 @@ public class ProblemServiceImpl implements ProblemService {
             List<UUID> addedProblemIds = contestProblemRepository.findProblemIdsByContestId(contestId);
 
             // Bỏ vào HashSet để tra cứu với tốc độ bàn thờ O(1)
-            java.util.Set<UUID> addedSet = new java.util.HashSet<>(addedProblemIds);
+            Set<UUID> addedSet = new HashSet<>(addedProblemIds);
 
             // Gắn cờ isAdded cho FE vẽ giao diện
             pageResult.getContent().forEach(problem -> {

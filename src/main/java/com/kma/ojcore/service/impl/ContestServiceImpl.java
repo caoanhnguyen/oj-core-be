@@ -2,6 +2,7 @@ package com.kma.ojcore.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kma.ojcore.dto.request.contests.AddContestProblemSdi;
+import com.kma.ojcore.dto.request.contests.UpdateContestProblemSdi;
 import com.kma.ojcore.dto.request.contests.CreateContestSdi;
 import com.kma.ojcore.dto.request.contests.RegisterContestSdi;
 import com.kma.ojcore.dto.request.contests.UpdateContestSdi;
@@ -29,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -251,8 +253,7 @@ public class ContestServiceImpl implements ContestService {
 
             toSave.add(ContestProblem.builder()
                     .contest(contest)
-                    .problem(problemRepository.getReferenceById(req.getProblemId())) // Lấy reference để tránh query
-                                                                                     // thừa
+                    .problem(problemRepository.getReferenceById(req.getProblemId()))
                     .displayId(req.getDisplayId())
                     .points(req.getPoints())
                     .sortOrder(req.getSortOrder())
@@ -261,6 +262,7 @@ public class ContestServiceImpl implements ContestService {
 
         contestProblemRepository.saveAll(toSave);
         log.info("Added {} problems to contest {}", toSave.size(), contestId);
+        recalculateLeaderboardScores(contestId, contest);
     }
 
     @Transactional(rollbackFor = Throwable.class)
@@ -288,6 +290,67 @@ public class ContestServiceImpl implements ContestService {
 
         contestProblemRepository.deleteByContestIdAndProblemIdIn(contestId, problemIds);
         log.info("Removed {} problems from contest {}", problemIds.size(), contestId);
+        recalculateLeaderboardScores(contestId, contest);
+    }
+
+    @Transactional(rollbackFor = Throwable.class)
+    @Override
+    public void updateProblemsInContest(UUID contestId, List<UpdateContestProblemSdi> requests) {
+        if (requests == null || requests.isEmpty()) return;
+
+        Contest contest = contestRepository.findById(contestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
+
+        if (contest.getStatus() == EStatus.DELETED) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot modify a deleted contest.");
+        }
+
+        List<ContestProblem> existingProblems = contestProblemRepository.findByContestId(contestId);
+        Map<UUID, ContestProblem> problemMap = existingProblems.stream()
+                .collect(Collectors.toMap(cp -> cp.getProblem().getId(), cp -> cp)); // TODO: đang bị N+1 ở đây, cần optimize
+
+        boolean updated = false;
+        for (UpdateContestProblemSdi req : requests) {
+            ContestProblem cp = problemMap.get(req.getProblemId());
+            if (cp != null) {
+                // Ignore matching checks for displayId overlaps within the same update list to avoid false positives. Just update directly.
+                cp.setDisplayId(req.getDisplayId());
+                cp.setPoints(req.getPoints());
+                cp.setSortOrder(req.getSortOrder());
+                updated = true;
+            }
+        }
+
+        if (updated) {
+            contestProblemRepository.saveAll(existingProblems);
+            log.info("Updated problems config for contest {}", contestId);
+            recalculateLeaderboardScores(contestId, contest);
+        }
+    }
+
+    private void recalculateLeaderboardScores(UUID contestId, Contest contest) {
+        if (contest.getRuleType() != RuleType.OI) {
+            return; // Chỉ OI mới cần tự động tính lại điểm gộp khi đổi cấu hình problem
+        }
+
+        // Bất đồng bộ hóa (Asynchronous Background Job) bằng Thread Pool của Spring
+        CompletableFuture.runAsync(() -> {
+            try {
+                // Tối ưu N+1: Đẩy hoàn toàn việc tính toán Aggregate (SUM, MAX, Toán học) xuống tầng Database.
+                // Hàm này chọc thẳng vào MySQL/PostgreSQL thực thi 1 câu UPDATE thay cho hàng ngàn câu lệnh rời rạc
+                int updatedRows = contestParticipationRepository.recalculateOiScoresByContestId(contestId);
+
+                // Đập bỏ Redis Cache cũ để người dùng F5 thấy điểm mới ngay lập tức
+                Set<String> keys = redisTemplate.keys(leaderboardPrefix + contestId + ":*");
+                if (!keys.isEmpty()) {
+                    redisTemplate.delete(keys);
+                }
+                log.info("[Background Job] Bắt đồng bộ update OK! Đã tính lại điểm cho {} thí sinh trong contest {}", updatedRows, contestId);
+                
+            } catch (Exception e) {
+                log.error("[Background Job] Failed to recalculate leaderboard scores for contest {}: {}", contestId, e.getMessage());
+            }
+        });
     }
 
     @Transactional(readOnly = true)

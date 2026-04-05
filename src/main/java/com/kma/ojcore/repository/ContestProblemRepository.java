@@ -21,6 +21,9 @@ public interface ContestProblemRepository extends JpaRepository<ContestProblem, 
             "ORDER BY cp.sortOrder ASC")
     List<ContestProblemSdo> findByContestIdOrderBySortOrderAsc(UUID contestId);
 
+    @Query("SELECT cp FROM ContestProblem cp JOIN FETCH cp.problem p WHERE cp.contest.id = :contestId")
+    List<ContestProblem> findByContestId(UUID contestId);
+
     @Modifying
     @Query("DELETE FROM ContestProblem cp WHERE cp.contest.id = :contestId AND cp.problem.id IN :problemIds")
     void deleteByContestIdAndProblemIdIn(@Param("contestId") UUID contestId, @Param("problemIds") List<UUID> problemIds);
