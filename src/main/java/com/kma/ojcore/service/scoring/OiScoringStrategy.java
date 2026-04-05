@@ -21,8 +21,9 @@ public class OiScoringStrategy implements ContestScoringStrategy {
         if (submission.getScore() == null) return;
 
         // 1. Lấy danh sách các điểm số cao nhất của từng bài
-        // Chú ý: Ở đây ta dùng hàm cũ vì bản nộp Submission ĐÃ ĐƯỢC scale điểm trực tiếp trong JudgeResultListener
-        List<Double> maxScores = submissionRepository.findMaxScoresPerProblem(
+        // 1. Phải dùng findMaxScaledScoresPerProblem vì lúc này Submission lưu RawScore
+        // Hàm này sẽ tự join bảng ContestProblem để tính ((RawScore / BaseScore) * Points)
+        List<Double> maxScores = submissionRepository.findMaxScaledScoresPerProblem(
                 submission.getContest().getId(),
                 submission.getUser().getId()
         );

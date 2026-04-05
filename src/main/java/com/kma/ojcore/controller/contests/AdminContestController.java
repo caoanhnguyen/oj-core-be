@@ -1,6 +1,7 @@
 package com.kma.ojcore.controller.contests;
 
 import com.kma.ojcore.dto.request.contests.AddContestProblemSdi;
+import com.kma.ojcore.dto.request.contests.UpdateContestProblemSdi;
 import com.kma.ojcore.dto.request.contests.CreateContestSdi;
 import com.kma.ojcore.dto.request.contests.UpdateContestSdi;
 import com.kma.ojcore.dto.response.common.ApiResponse;
@@ -133,6 +134,16 @@ public class AdminContestController {
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Added problems successfully.")
+                .build();
+    }
+
+    @PutMapping("/{id}/problems/bulk-update")
+    public ApiResponse<?> updateProblems(@PathVariable UUID id,
+                                         @RequestBody List<UpdateContestProblemSdi> requests) {
+        contestService.updateProblemsInContest(id, requests);
+        return ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Updated problems successfully.")
                 .build();
     }
 

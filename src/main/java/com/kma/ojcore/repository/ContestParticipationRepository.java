@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +24,8 @@ public interface ContestParticipationRepository extends JpaRepository<ContestPar
     boolean existsByContestIdAndUserId(UUID contestId, UUID userId);
 
     long countByContestId(UUID contestId);
+
+    List<ContestParticipation> findAllByContestId(UUID contestId);
 
     Optional<ContestParticipation> findByContestIdAndUserId(UUID contestId, UUID userId);
 
@@ -50,6 +53,24 @@ public interface ContestParticipationRepository extends JpaRepository<ContestPar
     @Modifying
     @Query("UPDATE ContestParticipation cp SET cp.isDisqualified = false WHERE cp.contest.id = :contestId AND cp.user.id IN :userIds")
     int unbanUsersInBulk(@Param("contestId") UUID contestId, @Param("userIds") List<UUID> userIds);
+
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE contest_participations cp " +
+            "SET score = ( " +
+            "    SELECT COALESCE(SUM(max_score), 0) " +
+            "    FROM ( " +
+            "        SELECT s.user_id, MAX((CAST(COALESCE(s.score, 0) AS float) / COALESCE(p.total_score, 100.0)) * c_p.points) as max_score " +
+            "        FROM submissions s " +
+            "        JOIN problems p ON p.id = s.problem_id " +
+            "        JOIN contest_problems c_p ON c_p.problem_id = s.problem_id AND c_p.contest_id = s.contest_id " +
+            "        WHERE s.contest_id = :contestId " +
+            "        GROUP BY s.user_id, s.problem_id " +
+            "    ) user_problem_scores " +
+            "    WHERE user_problem_scores.user_id = cp.user_id " +
+            ") " +
+            "WHERE cp.contest_id = :contestId", nativeQuery = true)
+    int recalculateOiScoresByContestId(@Param("contestId") UUID contestId);
 
     @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestParticipationSdo(" +
             "cp.user.id, cp.user.username, cp.user.email, cp.isDisqualified, cp.startTime, cp.endTime, cp.isFinished, cp.score, cp.penalty) " +
