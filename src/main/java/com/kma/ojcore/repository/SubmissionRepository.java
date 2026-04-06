@@ -10,6 +10,7 @@ import com.kma.ojcore.enums.SubmissionVerdict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -104,6 +105,19 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
 
     @Query("SELECT s FROM Submission s WHERE s.verdict = 'PENDING' AND s.updatedDate < :threshold")
     List<Submission> findStuckSubmissions(@Param("threshold") LocalDateTime threshold);
+
+    @Modifying
+    @Query("UPDATE Submission s SET s.isRejudged = true, s.submissionStatus = 'PENDING', s.verdict = 'PENDING', s.updatedDate = CURRENT_TIMESTAMP WHERE s.id IN :ids")
+    void markSubmissionsForRejudge(@Param("ids") List<UUID> ids);
+
+    @Query("SELECT s FROM Submission s JOIN FETCH s.problem LEFT JOIN FETCH s.contest WHERE s.id IN :ids")
+    List<Submission> findSubmissionsWithRulesByIds(@Param("ids") List<UUID> ids);
+
+    @Query("SELECT s.id FROM Submission s WHERE s.problem.id = :problemId")
+    List<UUID> findIdsByProblemId(@Param("problemId") UUID problemId);
+
+    @Query("SELECT s.id FROM Submission s WHERE s.contest.id = :contestId")
+    List<UUID> findIdsByContestId(@Param("contestId") UUID contestId);
 
     // 1. Dùng cho ACM: Kiểm tra xem trước đó đã AC bài này chưa?
     boolean existsByContestIdAndUserIdAndProblemIdAndVerdictAndCreatedDateBefore(

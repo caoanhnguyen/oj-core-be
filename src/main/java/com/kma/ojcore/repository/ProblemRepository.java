@@ -67,4 +67,10 @@ public interface ProblemRepository extends JpaRepository<Problem, UUID> {
     @Query("UPDATE Problem p SET p.submissionCount = p.submissionCount + 1 WHERE p.id = :problemId")
     void incrementSubmissionCount(@Param("problemId") UUID problemId);
 
+    @Modifying
+    @Query(value = "UPDATE problems p " +
+            "SET accepted_count = (SELECT COUNT(*) FROM submissions WHERE problem_id = p.id AND verdict = 'AC'), " +
+            "submission_count = (SELECT COUNT(*) FROM submissions WHERE problem_id = p.id) " +
+            "WHERE p.id = :problemId", nativeQuery = true)
+    int recalculateProblemStats(@Param("problemId") UUID problemId);
 }

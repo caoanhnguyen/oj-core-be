@@ -55,6 +55,9 @@ public class Submission extends BaseEntity {
     @Column(name = "error_message", columnDefinition = "TEXT")
     String errorMessage; // Lưu log báo lỗi nếu bị CE (Compile Error) hoặc RE
 
+    @Column(name = "is_rejudged", columnDefinition = "boolean default false")
+    Boolean isRejudged = false;
+
     // -- Relationships -- //
 
     // Submission - Problem //

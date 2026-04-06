@@ -12,8 +12,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.web.bind.annotation.*;
+
+import com.kma.ojcore.dto.request.submissions.RejudgeSdi;
 import java.util.List;
 import java.util.UUID;
+
 
 @RestController
 @RequestMapping("${app.api.prefix}/admin/submissions")
@@ -40,7 +44,7 @@ public class AdminSubmissionController {
             @RequestParam(required = false) UUID problemId,
             @RequestParam(required = false) UUID userId,
             @RequestParam(required = false) SubmissionVerdict submissionVerdict,
-            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @SortDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort
@@ -51,7 +55,7 @@ public class AdminSubmissionController {
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Submissions retrieved successfully")
-                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, username, null, null, allowedVerdicts, false, pageable))
+                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, keyword, null, null, allowedVerdicts, false, pageable))
                 .build();
     }
 
@@ -64,4 +68,12 @@ public class AdminSubmissionController {
                 .build();
     }
 
+    @PostMapping("/rejudge")
+    public ApiResponse<?> rejudgeSubmissions(@RequestBody RejudgeSdi request) {
+        submissionService.rejudgeSubmissions(request);
+        return ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Submissions have been queued for rejudging.")
+                .build();
+    }
 }
