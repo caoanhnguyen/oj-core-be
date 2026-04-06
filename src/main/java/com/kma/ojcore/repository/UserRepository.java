@@ -97,4 +97,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("UPDATE User u SET u.accountNonLocked = :accountNonLocked WHERE u.id IN :userIds")
     void bulkUpdateAccountNonLocked(@Param("accountNonLocked") boolean accountNonLocked,
                                     @Param("userIds") List<UUID> userIds);
+
+    @Modifying
+    @Query(value = "UPDATE users u " +
+            "SET `total-score` = (SELECT COALESCE(SUM(max_score), 0) FROM user_problem_status WHERE user_id = u.id), " +
+            "solved_count = (SELECT COUNT(*) FROM user_problem_status WHERE user_id = u.id AND state = 'SOLVED'), " +
+            "ac_count = (SELECT COUNT(*) FROM submissions WHERE user_id = u.id AND verdict = 'AC') " +
+            "WHERE u.id = :userId", nativeQuery = true)
+    int recalculateUserStats(@Param("userId") UUID userId);
 }

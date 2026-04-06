@@ -52,7 +52,7 @@ public class JudgeResultListener {
         }
 
         if (!"PENDING".equalsIgnoreCase(submission.getVerdict().name())) {
-            log.info("Submission [{}] đang ở trạng thái {}. Bỏ qua xử lý nháy đúp/retry.", result.getSubmissionId(), submission.getVerdict());
+            log.info("Submission [{}] is currently in state {}. Skipping duplicate/retry processing.", result.getSubmissionId(), submission.getVerdict());
             return;
         }
 
@@ -75,7 +75,7 @@ public class JudgeResultListener {
         // Save submission status early
         // Ensure Admin submission history is saved even if the flow is interrupted below
         submission.setSubmissionStatus(result.getSubmissionStatus());
-        submissionRepository.save(submission);
+        submissionRepository.saveAndFlush(submission);
 
         if (user != null && problem != null) {
 
@@ -86,6 +86,28 @@ public class JudgeResultListener {
             if (isStaff) {
                 log.info("Staff debug mode: Saved test result, SKIPPING points and ranking update for Submission [{}]", submission.getId());
                 return; // Interrupt flow here! Do not execute OI/ACM logic below.
+            }
+
+            // Kích hoạt cơ chế chống Đếm Ảo nếu là bài được Rejudge
+            boolean isRejudged = submission.getIsRejudged() != null ? submission.getIsRejudged() : false;
+
+            if (isRejudged) {
+                log.info("Submission [{}] is a REJUDGE. Triggering Native Recalculations and bypassing increments.", submission.getId());
+                
+                // Trực tiếp Recalculate bằng Native SQL an toàn, gọn lẹ!
+                userProblemStatusRepo.recalculateStatus(user.getId(), problem.getId());
+                userRepository.recalculateUserStats(user.getId());
+                problemRepository.recalculateProblemStats(problem.getId());
+
+                if (submission.getContest() != null) {
+                    // Update the global leaderboard in contest mode!
+                    contestParticipationRepository.recalculateOiScoresByContestId(submission.getContest().getId());
+                }
+
+                // Tắt cờ hiệu để bài nộp trở về trạng thái ổn định
+                submission.setIsRejudged(false);
+                submissionRepository.save(submission);
+                return;
             }
 
             // 2. ALWAYS INCREMENT SUBMISSION_COUNT FOR USER AND PROBLEM
@@ -165,6 +187,7 @@ public class JudgeResultListener {
             userRepository.save(user);
             problemRepository.save(problem);
             userProblemStatusRepo.save(status);
+
 
             // =======================================================
             // CONTEST SCORING ENGINE

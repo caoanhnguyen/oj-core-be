@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kma.ojcore.config.LanguageLoader;
 import com.kma.ojcore.config.RabbitMQConfig;
 import com.kma.ojcore.dto.request.submissions.JudgeSdi;
+import com.kma.ojcore.dto.request.submissions.RejudgeSdi;
 import com.kma.ojcore.dto.request.submissions.SubmissionSdi;
 import com.kma.ojcore.dto.response.problems.ProblemStatisticSdo;
 import com.kma.ojcore.dto.response.submissions.RunCodeResponse;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -253,5 +255,83 @@ public class SubmissionServiceImpl implements SubmissionService {
     public String getLatestSubmissionCode(UUID problemId, UUID userId, String languageKey) {
         return submissionRepository
                 .findFirstSourceCodeByProblemIdAndUserIdAndLanguageKey(problemId, userId, languageKey).orElse(null);
+    }
+
+    @Override
+    @Transactional
+    public void rejudgeSubmissions(RejudgeSdi request) {
+        log.info("Starting Rejudge request: {}", request);
+        List<UUID> targetIds = new ArrayList<>();
+
+        if (request.getSubmissionIds() != null && !request.getSubmissionIds().isEmpty()) {
+            targetIds.addAll(request.getSubmissionIds());
+        } else if (request.getProblemId() != null) {
+            targetIds.addAll(submissionRepository.findIdsByProblemId(request.getProblemId()));
+            log.info("Found {} submissions for Problem [{}] to rejudge", targetIds.size(), request.getProblemId());
+        } else if (request.getContestId() != null) {
+            targetIds.addAll(submissionRepository.findIdsByContestId(request.getContestId()));
+            log.info("Found {} submissions for Contest [{}] to rejudge", targetIds.size(), request.getContestId());
+        } else {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cần truyền submissionIds, problemId, hoặc contestId.");
+        }
+
+        if (targetIds.isEmpty()) {
+            log.info("No submissions found to rejudge.");
+            return;
+        }
+
+        // Chia mảng thành các batch 1000 ID để update status
+        int batchSize = 1000;
+        for (int i = 0; i < targetIds.size(); i += batchSize) {
+            List<UUID> batchIds = targetIds.subList(i, Math.min(i + batchSize, targetIds.size()));
+            submissionRepository.markSubmissionsForRejudge(batchIds);
+        }
+
+        // Bắn vào Message Queue (cũng chia batch để tránh OutOfMemory)
+        for (int i = 0; i < targetIds.size(); i += batchSize) {
+            List<UUID> batchIds = targetIds.subList(i, Math.min(i + batchSize, targetIds.size()));
+            List<Submission> submissionsBatch = submissionRepository.findSubmissionsWithRulesByIds(batchIds);
+
+            for (Submission submission : submissionsBatch) {
+                try {
+                    Problem problem = submission.getProblem();
+                    LanguageConfig langConfig = languageLoader.getConfigByKey(submission.getLanguageKey());
+
+                    if (langConfig == null) {
+                        log.warn("Skipping rejudge for submission {} because language {} is no longer supported",
+                                submission.getId(), submission.getLanguageKey());
+                        continue;
+                    }
+
+                    int finalTimeLimit = (int) (problem.getTimeLimitMs() * langConfig.getTimeMultiplier()) + langConfig.getTimeLimitAllowance();
+                    int finalMemoryLimit = (int) (problem.getMemoryLimitMb() * langConfig.getMemoryMultiplier()) + langConfig.getMemoryLimitAllowance();
+
+                    JudgeSdi sdi = JudgeSdi.builder()
+                            .submissionId(submission.getId())
+                            .problemId(problem.getId())
+                            .ruleType(submission.getContest() != null ? submission.getContest().getRuleType().name() : problem.getRuleType().name())
+                            .sourceCode(submission.getSourceCode())
+                            .languageKey(submission.getLanguageKey())
+                            .compileCommand(langConfig.getCompileCommand())
+                            .runCommand(langConfig.getRunCommand())
+                            .isCompiled(langConfig.isCompiled())
+                            .sourceName(langConfig.getSourceName())
+                            .exeName(langConfig.getExeName())
+                            .finalTimeLimitMs(finalTimeLimit)
+                            .finalMemoryLimitMb(finalMemoryLimit)
+                            .build();
+
+                    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            rabbitTemplate.convertAndSend(RabbitMQConfig.JUDGE_EXCHANGE, RabbitMQConfig.JUDGE_ROUTING_KEY, sdi);
+                        }
+                    });
+                } catch (Exception e) {
+                    log.error("Error building JudgeSdi for rejudging submission {}: {}", submission.getId(), e.getMessage());
+                }
+            }
+        }
+        log.info("Successfully queued {} submissions for rejudging.", targetIds.size());
     }
 }
