@@ -248,6 +248,10 @@ public class ProblemServiceImpl implements ProblemService {
         if (!problemRepository.existsById(id)) {
             throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND);
         }
+        if (contestProblemRepository.existsByProblemId(id)) {
+            log.warn("Cannot delete problem {} because it is currently used in a contest", id);
+            throw new BusinessException(ErrorCode.PROBLEM_IN_USE, "Problem is currently used in a contest and cannot be deleted");
+        }
         problemRepository.updateStatusById(EStatus.DELETED, id);
         log.info("Problem deleted successfully: {}", id);
     }
@@ -263,7 +267,7 @@ public class ProblemServiceImpl implements ProblemService {
         log.info("Problem restored successfully: {}", id);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Throwable.class)
     @Override
     public void publishProblem(UUID id) {
         log.info("Publishing problem: {}", id);

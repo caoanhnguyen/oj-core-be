@@ -38,6 +38,7 @@ public enum ErrorCode {
     // ==========================================
     PROBLEM_NOT_FOUND("PRB_001", "Problem not found.", HttpStatus.NOT_FOUND),
     PROBLEM_ALREADY_EXISTS("PRB_002", "Problem slug already exists.", HttpStatus.CONFLICT),
+    PROBLEM_IN_USE("PRB_003", "Problem is currently used in a contest and cannot be deleted.", HttpStatus.BAD_REQUEST),
     TOPIC_NOT_FOUND("TOP_001", "Topic not found.", HttpStatus.NOT_FOUND),
     TOPIC_ALREADY_EXISTS("TOP_002", "Topic name or slug already exists.", HttpStatus.CONFLICT),
 
