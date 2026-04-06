@@ -1,6 +1,7 @@
 package com.kma.ojcore.security;
 
 import com.kma.ojcore.entity.Submission;
+import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.exception.BusinessException;
 import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.repository.SubmissionRepository;
@@ -34,6 +35,10 @@ public class SubmissionSecurity {
 
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
+
+        if (submission.getStatus() != EStatus.ACTIVE) {
+            return false;
+        }
 
         UUID currentUserId = extractUserId(authentication);
         return submission.getUser().getId().equals(currentUserId);

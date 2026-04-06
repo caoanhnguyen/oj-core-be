@@ -9,6 +9,7 @@ import com.kma.ojcore.dto.request.submissions.SubmissionSdi;
 import com.kma.ojcore.dto.response.problems.ProblemStatisticSdo;
 import com.kma.ojcore.dto.response.submissions.RunCodeResponse;
 import com.kma.ojcore.dto.response.submissions.SubmissionDetailsSdo;
+import com.kma.ojcore.dto.response.submissions.SubmissionStatusSdo;
 import com.kma.ojcore.entity.*;
 import com.kma.ojcore.enums.*;
 import com.kma.ojcore.exception.BusinessException;
@@ -28,11 +29,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +41,7 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final SubmissionRepository submissionRepository;
     private final ProblemRepository problemRepository;
     private final UserRepository userRepository;
+    private final UserProblemStatusRepository userProblemStatusRepository;
     private final LanguageLoader languageLoader;
     private final RabbitTemplate rabbitTemplate;
     private final RedisTemplate<String, String> redisTemplate;
@@ -50,6 +50,7 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final ContestParticipationRepository contestParticipationRepository;
     private final ContestProblemRepository contestProblemRepository;
     private final ContestMapper contestMapper;
+    private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
@@ -203,8 +204,13 @@ public class SubmissionServiceImpl implements SubmissionService {
             String keyword,
             EStatus status,
             ProblemStatus problemStatus,
+            EStatus submissionStatus,
+            String languageKey,
+            LocalDateTime fromDate,
+            LocalDateTime toDate,
             List<SubmissionVerdict> allowedVerdicts,
             boolean hideStaff,
+            boolean ignoreContestPrivacy,
             Pageable pageable) {
 
         if (problemId != null && !problemRepository.existsById(problemId)) {
@@ -218,7 +224,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         String searchKeyword = EscapeHelper.escapeLike(keyword);
 
         return submissionRepository.getSubmissions(problemId, userId, submissionVerdict, searchKeyword, status,
-                problemStatus, allowedVerdicts, hideStaff, pageable);
+                problemStatus, submissionStatus, languageKey, fromDate, toDate, allowedVerdicts, hideStaff, ignoreContestPrivacy, pageable);
     }
 
     @Override
@@ -333,5 +339,92 @@ public class SubmissionServiceImpl implements SubmissionService {
             }
         }
         log.info("Successfully queued {} submissions for rejudging.", targetIds.size());
+    }
+
+    @Transactional(rollbackFor = Throwable.class)
+    @Override
+    public void softDeleteSubmissions(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) return;
+        submissionRepository.updateStatusForIds(ids, EStatus.DELETED);
+        triggerBulkRecalculations(ids);
+    }
+
+    @Transactional(rollbackFor = Throwable.class)
+    @Override
+    public void voidSubmissions(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) return;
+        submissionRepository.updateStatusForIds(ids, EStatus.INACTIVE);
+        triggerBulkRecalculations(ids);
+    }
+
+    @Transactional(rollbackFor = Throwable.class)
+    @Override
+    public void restoreSubmissions(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) return;
+        submissionRepository.updateStatusForIds(ids, EStatus.ACTIVE);
+        triggerBulkRecalculations(ids);
+    }
+
+    private void triggerBulkRecalculations(List<UUID> submissionIds) {
+        log.info("Registering Bulk Native Recalculations in background after commit for {} submissions", submissionIds.size());
+
+        // 1. Find impacted relations within the current transaction
+        List<Object[]> impacts = submissionRepository.findImpactedRelations(submissionIds);
+
+        // 2. Schedule Async task to run AFTER the transaction is committed
+        TransactionSynchronizationManager.registerSynchronization(
+            new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                   CompletableFuture.runAsync(() -> {
+                        try {
+                            log.info("[Background Job] Starting Native Recalculations for {} submissions...", submissionIds.size());
+                            
+                            transactionTemplate.execute(status -> {
+                                Set<UUID> uniqueUserIds = new HashSet<>();
+                                Set<UUID> uniqueProblemIds = new HashSet<>();
+                                Set<UUID> uniqueContestIds = new HashSet<>();
+                                Set<String> processedPairs = new HashSet<>();
+
+                                for (Object[] row : impacts) {
+                                    UUID userId = (UUID) row[0];
+                                    UUID problemId = (UUID) row[1];
+                                    UUID contestId = (UUID) row[2];
+
+                                    if (userId != null) uniqueUserIds.add(userId);
+                                    if (problemId != null) uniqueProblemIds.add(problemId);
+                                    if (contestId != null) uniqueContestIds.add(contestId);
+
+                                    if (userId != null && problemId != null) {
+                                        String pairKey = userId + "_" + problemId;
+                                        if (!processedPairs.contains(pairKey)) {
+                                            userProblemStatusRepository.recalculateStatus(userId, problemId);
+                                            processedPairs.add(pairKey);
+                                        }
+                                    }
+                                }
+
+                                for (UUID contestId : uniqueContestIds) contestParticipationRepository.recalculateOiScoresByContestId(contestId);
+                                for (UUID problemId : uniqueProblemIds) problemRepository.recalculateProblemStats(problemId);
+                                for (UUID userId : uniqueUserIds) userRepository.recalculateUserStats(userId);
+                                
+                                return null;
+                            });
+
+                            log.info("[Background Job] Completed Bulk Recalculations successfully.");
+                        } catch (Exception e) {
+                            log.error("[Background Job] Error during Bulk Recalculations: {}", e.getMessage(), e);
+                        }
+                    });
+                }
+            }
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SubmissionStatusSdo> checkSubmissionStatuses(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) return Collections.emptyList();
+        return submissionRepository.findSubmissionStatusesByIds(ids);
     }
 }

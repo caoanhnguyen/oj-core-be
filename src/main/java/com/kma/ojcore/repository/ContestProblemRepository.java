@@ -33,6 +33,5 @@ public interface ContestProblemRepository extends JpaRepository<ContestProblem, 
     @Query("SELECT cp.problem.id FROM ContestProblem cp WHERE cp.contest.id = :contestId")
     List<UUID> findProblemIdsByContestId(@Param("contestId") UUID contestId);
 
-    @Query("SELECT cp.points FROM ContestProblem cp WHERE cp.contest.id = :contestId AND cp.problem.id = :problemId")
-    Integer findPointsByContestIdAndProblemId(@Param("contestId") UUID contestId, @Param("problemId") UUID problemId);
+    boolean existsByProblemId(UUID problemId);
 }

@@ -45,11 +45,11 @@ public interface UserProblemStatusRepository extends JpaRepository<UserProblemSt
             "SET max_score = COALESCE(( " +
             "    SELECT MAX(s.score) " +
             "    FROM submissions s " +
-            "    WHERE s.user_id = ups.user_id AND s.problem_id = ups.problem_id AND s.contest_id IS NULL AND s.verdict != 'CE' AND s.verdict != 'SE' " +
+            "    WHERE s.user_id = ups.user_id AND s.problem_id = ups.problem_id AND s.contest_id IS NULL AND s.verdict != 'CE' AND s.verdict != 'SE' AND s.status = 'ACTIVE' " +
             "), 0), " +
             "state = CASE WHEN EXISTS ( " +
             "    SELECT 1 FROM submissions s2 " +
-            "    WHERE s2.user_id = ups.user_id AND s2.problem_id = ups.problem_id AND s2.contest_id IS NULL AND s2.verdict = 'AC' " +
+            "    WHERE s2.user_id = ups.user_id AND s2.problem_id = ups.problem_id AND s2.contest_id IS NULL AND s2.verdict = 'AC' AND s2.status = 'ACTIVE' " +
             ") THEN 'SOLVED' ELSE 'ATTEMPTED' END " +
             "WHERE ups.user_id = :userId AND ups.problem_id = :problemId", nativeQuery = true)
     int recalculateStatus(@Param("userId") UUID userId, @Param("problemId") UUID problemId);

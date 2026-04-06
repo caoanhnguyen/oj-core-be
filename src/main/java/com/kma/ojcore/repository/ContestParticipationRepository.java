@@ -21,94 +21,99 @@ import java.util.UUID;
 @Repository
 public interface ContestParticipationRepository extends JpaRepository<ContestParticipation, UUID> {
 
-    boolean existsByContestIdAndUserId(UUID contestId, UUID userId);
+        boolean existsByContestIdAndUserId(UUID contestId, UUID userId);
 
-    long countByContestId(UUID contestId);
+        long countByContestId(UUID contestId);
 
-    List<ContestParticipation> findAllByContestId(UUID contestId);
+        List<ContestParticipation> findAllByContestId(UUID contestId);
 
-    Optional<ContestParticipation> findByContestIdAndUserId(UUID contestId, UUID userId);
+        Optional<ContestParticipation> findByContestIdAndUserId(UUID contestId, UUID userId);
 
-    @Query("SELECT new com.kma.ojcore.dto.response.contests.MyActiveContestSdo(" +
-            "new com.kma.ojcore.dto.response.contests.ContestBasicSdo(" +
-            "c.id, c.title, c.startTime, c.endTime, c.ruleType, null, c.visibility, " +
-            "(SELECT COUNT(cp2) FROM ContestParticipation cp2 WHERE cp2.contest.id = c.id), " +
-            "c.status, c.durationMinutes, c.format, c.allowLateRegistration), " +
-            "p.endTime) " +
-            "FROM ContestParticipation p " +
-            "JOIN p.contest c " +
-            "WHERE p.user.id = :userId " +
-            "AND p.isFinished = false " +
-            "AND p.startTime IS NOT NULL " +
-            "AND p.endTime > CURRENT_TIMESTAMP " +
-            "AND c.status = 'ACTIVE'")
-    List<MyActiveContestSdo> findMyActiveContestSdos(@Param("userId") UUID userId);
+        @Query("SELECT new com.kma.ojcore.dto.response.contests.MyActiveContestSdo(" +
+                        "new com.kma.ojcore.dto.response.contests.ContestBasicSdo(" +
+                        "c.id, c.title, c.startTime, c.endTime, c.ruleType, null, c.visibility, " +
+                        "(SELECT COUNT(cp2) FROM ContestParticipation cp2 WHERE cp2.contest.id = c.id), " +
+                        "c.status, c.durationMinutes, c.format, c.allowLateRegistration), " +
+                        "p.endTime) " +
+                        "FROM ContestParticipation p " +
+                        "JOIN p.contest c " +
+                        "WHERE p.user.id = :userId " +
+                        "AND p.isFinished = false " +
+                        "AND p.startTime IS NOT NULL " +
+                        "AND p.endTime > CURRENT_TIMESTAMP " +
+                        "AND c.status = 'ACTIVE'")
+        List<MyActiveContestSdo> findMyActiveContestSdos(@Param("userId") UUID userId);
 
+        @Modifying
+        @Query("UPDATE ContestParticipation cp SET cp.isDisqualified = true WHERE cp.contest.id = :contestId AND cp.user.id IN :userIds")
+        int banUsersInBulk(@Param("contestId") UUID contestId,
+                        @Param("userIds") List<UUID> userIds);
 
-    @Modifying
-    @Query("UPDATE ContestParticipation cp SET cp.isDisqualified = true WHERE cp.contest.id = :contestId AND cp.user.id IN :userIds")
-    int banUsersInBulk(@Param("contestId") UUID contestId,
-                       @Param("userIds") List<UUID> userIds);
+        @Modifying
+        @Query("UPDATE ContestParticipation cp SET cp.isDisqualified = false WHERE cp.contest.id = :contestId AND cp.user.id IN :userIds")
+        int unbanUsersInBulk(@Param("contestId") UUID contestId, @Param("userIds") List<UUID> userIds);
 
-    @Modifying
-    @Query("UPDATE ContestParticipation cp SET cp.isDisqualified = false WHERE cp.contest.id = :contestId AND cp.user.id IN :userIds")
-    int unbanUsersInBulk(@Param("contestId") UUID contestId, @Param("userIds") List<UUID> userIds);
+        @Modifying
+        @Transactional
+        @Query(value = "UPDATE contest_participations cp " +
+                        "SET score = ( " +
+                        "    SELECT COALESCE(SUM(max_score), 0) " +
+                        "    FROM ( " +
+                        "        SELECT s.user_id, MAX((CAST(COALESCE(s.score, 0) AS float) / COALESCE(p.total_score, 100.0)) * c_p.points) as max_score "
+                        +
+                        "        FROM submissions s " +
+                        "        JOIN problems p ON p.id = s.problem_id " +
+                        "        JOIN contest_problems c_p ON c_p.problem_id = s.problem_id AND c_p.contest_id = s.contest_id "
+                        +
+                        "        WHERE s.contest_id = :contestId AND s.status = 'ACTIVE' " +
+                        "        GROUP BY s.user_id, s.problem_id " +
+                        "    ) user_problem_scores " +
+                        "    WHERE user_problem_scores.user_id = cp.user_id " +
+                        ") " +
+                        "WHERE cp.contest_id = :contestId", nativeQuery = true)
+        int recalculateOiScoresByContestId(@Param("contestId") UUID contestId);
 
-    @Modifying
-    @Transactional
-    @Query(value = "UPDATE contest_participations cp " +
-            "SET score = ( " +
-            "    SELECT COALESCE(SUM(max_score), 0) " +
-            "    FROM ( " +
-            "        SELECT s.user_id, MAX((CAST(COALESCE(s.score, 0) AS float) / COALESCE(p.total_score, 100.0)) * c_p.points) as max_score " +
-            "        FROM submissions s " +
-            "        JOIN problems p ON p.id = s.problem_id " +
-            "        JOIN contest_problems c_p ON c_p.problem_id = s.problem_id AND c_p.contest_id = s.contest_id " +
-            "        WHERE s.contest_id = :contestId " +
-            "        GROUP BY s.user_id, s.problem_id " +
-            "    ) user_problem_scores " +
-            "    WHERE user_problem_scores.user_id = cp.user_id " +
-            ") " +
-            "WHERE cp.contest_id = :contestId", nativeQuery = true)
-    int recalculateOiScoresByContestId(@Param("contestId") UUID contestId);
+        @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestParticipationSdo(" +
+                        "cp.user.id, cp.user.username, cp.user.email, cp.isDisqualified, cp.startTime, cp.endTime, cp.isFinished, cp.score, cp.penalty) "
+                        +
+                        "FROM ContestParticipation cp " +
+                        "WHERE cp.contest.id = :contestId " +
+                        "AND (:keyword IS NULL OR LOWER(cp.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!' "
+                        +
+                        "     OR LOWER(cp.user.email) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!') " +
+                        "AND (:isDisqualified IS NULL OR cp.isDisqualified = :isDisqualified)", countQuery = "SELECT COUNT(cp) FROM ContestParticipation cp "
+                                        +
+                                        "WHERE cp.contest.id = :contestId " +
+                                        "AND (:keyword IS NULL OR LOWER(cp.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!' "
+                                        +
+                                        "     OR LOWER(cp.user.email) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!') "
+                                        +
+                                        "AND (:isDisqualified IS NULL OR cp.isDisqualified = :isDisqualified)")
+        Page<ContestParticipationSdo> searchParticipants(@Param("contestId") UUID contestId,
+                        @Param("keyword") String keyword,
+                        @Param("isDisqualified") Boolean isDisqualified,
+                        Pageable pageable);
 
-    @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestParticipationSdo(" +
-            "cp.user.id, cp.user.username, cp.user.email, cp.isDisqualified, cp.startTime, cp.endTime, cp.isFinished, cp.score, cp.penalty) " +
-            "FROM ContestParticipation cp " +
-            "WHERE cp.contest.id = :contestId " +
-            "AND (:keyword IS NULL OR LOWER(cp.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!' " +
-            "     OR LOWER(cp.user.email) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!') " +
-            "AND (:isDisqualified IS NULL OR cp.isDisqualified = :isDisqualified)",
-            countQuery = "SELECT COUNT(cp) FROM ContestParticipation cp " +
-                    "WHERE cp.contest.id = :contestId " +
-                    "AND (:keyword IS NULL OR LOWER(cp.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!' " +
-                    "     OR LOWER(cp.user.email) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!') " +
-                    "AND (:isDisqualified IS NULL OR cp.isDisqualified = :isDisqualified)")
-    Page<ContestParticipationSdo> searchParticipants(@Param("contestId") UUID contestId,
-                                                     @Param("keyword") String keyword,
-                                                     @Param("isDisqualified") Boolean isDisqualified,
-                                                     Pageable pageable);
+        @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestParticipantPublicSdo(" +
+                        "cp.user.id, cp.user.username) " +
+                        "FROM ContestParticipation cp " +
+                        "WHERE cp.contest.id = :contestId " +
+                        "AND cp.isDisqualified = false " +
+                        "AND (:keyword IS NULL OR LOWER(cp.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!')", countQuery = "SELECT COUNT(cp) FROM ContestParticipation cp "
+                                        +
+                                        "WHERE cp.contest.id = :contestId " +
+                                        "AND cp.isDisqualified = false " +
+                                        "AND (:keyword IS NULL OR LOWER(cp.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!')")
+        Page<ContestParticipantPublicSdo> searchPublicParticipants(@Param("contestId") UUID contestId,
+                        @Param("keyword") String keyword,
+                        Pageable pageable);
 
-    @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestParticipantPublicSdo(" +
-            "cp.user.id, cp.user.username) " +
-            "FROM ContestParticipation cp " +
-            "WHERE cp.contest.id = :contestId " +
-            "AND cp.isDisqualified = false " +
-            "AND (:keyword IS NULL OR LOWER(cp.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!')",
-            countQuery = "SELECT COUNT(cp) FROM ContestParticipation cp " +
-                    "WHERE cp.contest.id = :contestId " +
-                    "AND cp.isDisqualified = false " +
-                    "AND (:keyword IS NULL OR LOWER(cp.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!')")
-    Page<ContestParticipantPublicSdo> searchPublicParticipants(@Param("contestId") UUID contestId,
-                                                               @Param("keyword") String keyword,
-                                                               Pageable pageable);
-
-    @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestLeaderboardSdo(" +
-            "cp.user.id, cp.user.username, cp.score, cp.penalty) " +
-            "FROM ContestParticipation cp " +
-            "WHERE cp.contest.id = :contestId AND cp.isDisqualified = false " +
-            "ORDER BY cp.score DESC, cp.penalty ASC",
-            countQuery = "SELECT COUNT(cp) FROM ContestParticipation cp " +
-                    "WHERE cp.contest.id = :contestId AND cp.isDisqualified = false")
-    Page<ContestLeaderboardSdo> getLeaderboard(@Param("contestId") UUID contestId, Pageable pageable);
+        @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestLeaderboardSdo(" +
+                        "cp.user.id, cp.user.username, cp.score, cp.penalty) " +
+                        "FROM ContestParticipation cp " +
+                        "WHERE cp.contest.id = :contestId AND cp.isDisqualified = false " +
+                        "ORDER BY cp.score DESC, cp.penalty ASC", countQuery = "SELECT COUNT(cp) FROM ContestParticipation cp "
+                                        +
+                                        "WHERE cp.contest.id = :contestId AND cp.isDisqualified = false")
+        Page<ContestLeaderboardSdo> getLeaderboard(@Param("contestId") UUID contestId, Pageable pageable);
 }

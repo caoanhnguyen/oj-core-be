@@ -17,11 +17,13 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.SortDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -104,6 +106,9 @@ public class SubmissionController {
             @RequestParam(required = false) UUID userId,
             @RequestParam(required = false) SubmissionVerdict submissionVerdict,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String languageKey,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime toDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @SortDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort
@@ -113,7 +118,7 @@ public class SubmissionController {
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Submissions retrieved successfully")
-                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, keyword, EStatus.ACTIVE, ProblemStatus.PUBLISHED, allowedVerdicts, true, pageable))
+                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, keyword, EStatus.ACTIVE, ProblemStatus.PUBLISHED, EStatus.ACTIVE, languageKey, fromDate, toDate, allowedVerdicts, true, false, pageable))
                 .build();
     }
 

@@ -330,22 +330,21 @@ public class ContestServiceImpl implements ContestService {
 
     private void recalculateLeaderboardScores(UUID contestId, Contest contest) {
         if (contest.getRuleType() != RuleType.OI) {
-            return; // Chỉ OI mới cần tự động tính lại điểm gộp khi đổi cấu hình problem
+            return; // Only OI requires automatic score recalculation upon problem updates
         }
 
-        // Bất đồng bộ hóa (Asynchronous Background Job) bằng Thread Pool của Spring
+        // Asynchronous Background Job via Spring's Thread Pool
         CompletableFuture.runAsync(() -> {
             try {
-                // Tối ưu N+1: Đẩy hoàn toàn việc tính toán Aggregate (SUM, MAX, Toán học) xuống tầng Database.
-                // Hàm này chọc thẳng vào MySQL/PostgreSQL thực thi 1 câu UPDATE thay cho hàng ngàn câu lệnh rời rạc
+                // Optimized N+1: Delegate aggregation logic to the database engine directly.
                 int updatedRows = contestParticipationRepository.recalculateOiScoresByContestId(contestId);
 
-                // Đập bỏ Redis Cache cũ để người dùng F5 thấy điểm mới ngay lập tức
+                // Evict obsolete Redis Leaderboard Caches
                 Set<String> keys = redisTemplate.keys(leaderboardPrefix + contestId + ":*");
-                if (!keys.isEmpty()) {
+                if (keys != null && !keys.isEmpty()) {
                     redisTemplate.delete(keys);
                 }
-                log.info("[Background Job] Bắt đồng bộ update OK! Đã tính lại điểm cho {} thí sinh trong contest {}", updatedRows, contestId);
+                log.info("[Background Job] Recalculation complete. Updated scores for {} participants in contest {}", updatedRows, contestId);
                 
             } catch (Exception e) {
                 log.error("[Background Job] Failed to recalculate leaderboard scores for contest {}: {}", contestId, e.getMessage());

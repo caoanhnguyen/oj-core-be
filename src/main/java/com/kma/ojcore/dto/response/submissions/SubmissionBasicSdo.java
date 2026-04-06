@@ -1,6 +1,6 @@
 package com.kma.ojcore.dto.response.submissions;
 
-import com.kma.ojcore.enums.SubmissionStatus;
+import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.SubmissionVerdict;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -19,11 +19,12 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class SubmissionBasicSdo {
     UUID submissionId;
+    EStatus status;
 
     // --- Kết quả đo lường ---
     SubmissionVerdict verdict;
 
-    Double score; // Đổi sang Double để linh hoạt chứa cả rawScore hoặc scaledScore
+    Double score;
 
     Integer passedTestCount;
 
@@ -50,6 +51,10 @@ public class SubmissionBasicSdo {
 
     String problemSlug;
 
+    UUID contestId;
+
+    String contestTitle;
+
     Double contestScore; // Điểm tính động trong contest
 
     // Constructor dùng riêng cho các HQL Query CŨ (Không có contestScore)
@@ -58,7 +63,8 @@ public class SubmissionBasicSdo {
                               Long executionTimeMs, Long executionMemoryMb,
                               LocalDateTime createdDate, String languageKey,
                               UUID userId, String username,
-                              UUID problemId, String problemTitle, String problemSlug) {
+                              UUID problemId, String problemTitle, String problemSlug,
+                              EStatus status, UUID contestId, String contestTitle) {
         this.submissionId = submissionId;
         this.verdict = verdict;
         this.score = score != null ? score.doubleValue() : null;
@@ -73,6 +79,9 @@ public class SubmissionBasicSdo {
         this.problemId = problemId;
         this.problemTitle = problemTitle;
         this.problemSlug = problemSlug;
+        this.status = status;
+        this.contestId = contestId;
+        this.contestTitle = contestTitle;
     }
 
     // Constructor dùng cho các HQL Query có tính `contestScore`
@@ -82,10 +91,9 @@ public class SubmissionBasicSdo {
                               LocalDateTime createdDate, String languageKey,
                               UUID userId, String username,
                               UUID problemId, String problemTitle, String problemSlug,
-                              Double contestScore) {
+                              Double contestScore, EStatus status, UUID contestId, String contestTitle) {
         this.submissionId = submissionId;
         this.verdict = verdict;
-        // Ưu tiên hiển thị contestScore (scaled score) nếu có, do frontend chỉ biết đến biến "score"
         this.score = contestScore != null ? contestScore : (rawScore != null ? rawScore.doubleValue() : null);
         this.passedTestCount = passedTestCount;
         this.totalTestCount = totalTestCount;
@@ -99,5 +107,8 @@ public class SubmissionBasicSdo {
         this.problemTitle = problemTitle;
         this.problemSlug = problemSlug;
         this.contestScore = contestScore;
+        this.status = status;
+        this.contestId = contestId;
+        this.contestTitle = contestTitle;
     }
 }

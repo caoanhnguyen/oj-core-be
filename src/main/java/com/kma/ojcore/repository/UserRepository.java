@@ -102,7 +102,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query(value = "UPDATE users u " +
             "SET `total-score` = (SELECT COALESCE(SUM(max_score), 0) FROM user_problem_status WHERE user_id = u.id), " +
             "solved_count = (SELECT COUNT(*) FROM user_problem_status WHERE user_id = u.id AND state = 'SOLVED'), " +
-            "ac_count = (SELECT COUNT(*) FROM submissions WHERE user_id = u.id AND verdict = 'AC') " +
+            "ac_count = (SELECT COUNT(*) FROM submissions WHERE user_id = u.id AND verdict = 'AC' AND status = 'ACTIVE') " +
             "WHERE u.id = :userId", nativeQuery = true)
     int recalculateUserStats(@Param("userId") UUID userId);
 }
