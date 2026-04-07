@@ -59,6 +59,7 @@ public enum ErrorCode {
     INCORRECT_PASSWORD("CON_004", "Incorrect contest password.", HttpStatus.FORBIDDEN),
     NOT_REGISTERED("CON_005", "You must register to view these problems.", HttpStatus.FORBIDDEN),
     BANNED_FROM_CONTEST("CON_006", "You are banned from participating in this contest.", HttpStatus.FORBIDDEN),
+    SCOREBOARD_HIDDEN("CON_007", "The contest scoreboard is currently hidden.", HttpStatus.FORBIDDEN),
 
     // ==========================================
     // 6. FIL - FILE/STORAGE

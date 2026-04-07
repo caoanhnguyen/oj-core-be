@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.kma.ojcore.enums.ContestVisibility;
 import com.kma.ojcore.enums.ContestFormat;
 import com.kma.ojcore.enums.RuleType;
+import com.kma.ojcore.enums.ScoreboardVisibility;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -44,6 +45,9 @@ public class UpdateContestSdi {
 
     Integer durationMinutes;
     Boolean allowLateRegistration;
+
+    @NotNull(message = "Scoreboard visibility is required.")
+    ScoreboardVisibility scoreboardVisibility;
 
     // 1. CHECK THỜI GIAN (End phải lớn hơn Start)
     @JsonIgnore

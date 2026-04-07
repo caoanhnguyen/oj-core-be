@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.kma.ojcore.enums.ContestVisibility;
 import com.kma.ojcore.enums.ContestFormat;
 import com.kma.ojcore.enums.RuleType;
+import com.kma.ojcore.enums.ScoreboardVisibility;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
@@ -48,6 +49,9 @@ public class CreateContestSdi {
     Integer durationMinutes;
 
     Boolean allowLateRegistration = false;
+
+    @Builder.Default
+    ScoreboardVisibility scoreboardVisibility = ScoreboardVisibility.VISIBLE;
 
     // 1. CHECK THỜI GIAN (End phải lớn hơn Start)
     @JsonIgnore

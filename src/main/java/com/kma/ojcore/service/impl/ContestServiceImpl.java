@@ -415,7 +415,7 @@ public class ContestServiceImpl implements ContestService {
 
     @Transactional(readOnly = true)
     @Override
-    public Page<ContestLeaderboardSdo> getContestLeaderboard(UUID contestId, EStatus status, Pageable pageable) {
+    public Page<ContestLeaderboardSdo> getContestLeaderboard(UUID contestId, EStatus status, Pageable pageable, boolean bypassVisibility) {
         // 1. Check chốt chặn Contest (Lấy từ DB lên cực nhanh vì dùng PK Indexed)
         Contest contest = contestRepository.findByIdAndStatus(contestId, status)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
@@ -424,6 +424,18 @@ public class ContestServiceImpl implements ContestService {
         if (timeStatus == ContestStatus.UPCOMING) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED,
                     "The contest has not started yet. Leaderboard is hidden.");
+        }
+
+        // Kiểm tra quyền xem Scoreboard
+        if (!bypassVisibility) {
+            ScoreboardVisibility visibility = contest.getScoreboardVisibility();
+            if (visibility == ScoreboardVisibility.HIDDEN_PERMANENTLY) {
+                throw new BusinessException(ErrorCode.SCOREBOARD_HIDDEN);
+            } else if (visibility == ScoreboardVisibility.HIDDEN_DURING_CONTEST) {
+                if (LocalDateTime.now().isBefore(contest.getEndTime())) {
+                    throw new BusinessException(ErrorCode.SCOREBOARD_HIDDEN);
+                }
+            }
         }
 
         // ==========================================

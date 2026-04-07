@@ -90,6 +90,13 @@ public class SecurityConfig {
                                     .requestMatchers(HttpMethod.GET, apiPrefix + "/files/view").permitAll()
                                     .requestMatchers(HttpMethod.GET, apiPrefix + "/rankings").permitAll()
 
+                                    // Public Contest API
+                                    .requestMatchers(HttpMethod.GET,
+                                            apiPrefix + "/contests",
+                                            apiPrefix + "/contests/*",
+                                            apiPrefix + "/contests/*/leaderboard",
+                                            apiPrefix + "/contests/*/participants").permitAll()
+
                                     .requestMatchers(apiPrefix + "/admin/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_MODERATOR")
 
                                     // Bắt buộc đăng nhập cho các request còn lại

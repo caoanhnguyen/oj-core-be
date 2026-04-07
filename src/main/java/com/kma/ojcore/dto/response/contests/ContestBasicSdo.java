@@ -4,6 +4,7 @@ import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.ContestVisibility;
 import com.kma.ojcore.enums.ContestFormat;
 import com.kma.ojcore.enums.EStatus;
+import com.kma.ojcore.enums.ScoreboardVisibility;
 import com.kma.ojcore.enums.RuleType;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -30,4 +31,5 @@ public class ContestBasicSdo {
     Integer durationMinutes;
     ContestFormat format;
     Boolean allowLateRegistration;
+    ScoreboardVisibility scoreboardVisibility;
 }

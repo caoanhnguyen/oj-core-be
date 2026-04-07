@@ -218,7 +218,7 @@ public class AdminContestController {
         return ApiResponse.<Page<ContestLeaderboardSdo>>builder()
                 .status(200)
                 .message("Fetched leaderboard successfully")
-                .data(contestService.getContestLeaderboard(id, null, pageable))
+                .data(contestService.getContestLeaderboard(id, null, pageable, true))
                 .build();
     }
 }

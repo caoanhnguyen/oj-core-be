@@ -55,7 +55,7 @@ public interface ContestService {
 
     // Leaderboard & Submissions
 
-    Page<ContestLeaderboardSdo> getContestLeaderboard(UUID contestId, EStatus status, Pageable pageable);
+    Page<ContestLeaderboardSdo> getContestLeaderboard(UUID contestId, EStatus status, Pageable pageable, boolean bypassVisibility);
 
     Page<SubmissionBasicSdo> getAdminContestSubmissions(UUID contestId, Pageable pageable);
 

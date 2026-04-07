@@ -50,7 +50,7 @@ public class ContestController {
         return ApiResponse.<Page<ContestLeaderboardSdo>>builder()
                 .status(200)
                 .message("Fetched leaderboard successfully")
-                .data(contestService.getContestLeaderboard(id, EStatus.ACTIVE, pageable))
+                .data(contestService.getContestLeaderboard(id, EStatus.ACTIVE, pageable, false))
                 .build();
     }
 
