@@ -12,7 +12,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users", indexes = {
+        @Index(name = "idx_user_rank_oi", columnList = "status, total-score DESC, solved_count DESC, ac_count DESC, submission_count ASC"),
+        @Index(name = "idx_user_rank_acm", columnList = "status, solved_count DESC, total-score DESC, ac_count DESC, submission_count ASC")
+})
 @Getter
 @Setter
 @Builder
@@ -27,7 +30,7 @@ public class User extends BaseEntity implements Serializable {
     @Column(name = "email", unique = true, length = 100)
     String email;
 
-    @Column(name = "password", length = 255)
+    @Column(name = "password")
     String password;
 
     @Column(name = "full_name", length = 100)
@@ -49,7 +52,7 @@ public class User extends BaseEntity implements Serializable {
     @Column(name = "phone_number", length = 20)
     String phoneNumber;
 
-    @Column(name = "address", length = 255)
+    @Column(name = "address")
     String address;
 
     @Column(name = "country", length = 50)
@@ -64,13 +67,13 @@ public class User extends BaseEntity implements Serializable {
     @Column(name = "major", length = 100)
     String major;
 
-    @Column(name = "github_url", length = 255)
+    @Column(name = "github_url")
     String githubUrl;
 
-    @Column(name = "linked_in_url", length = 255)
+    @Column(name = "linked_in_url")
     String linkedInUrl;
 
-    @Column(name = "website", length = 255)
+    @Column(name = "website")
     String website;
 
     @Column(name = "solved_count", nullable = false)
