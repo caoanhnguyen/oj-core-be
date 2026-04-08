@@ -19,6 +19,17 @@ import java.util.UUID;
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {
 
+    interface UserRankingProjection {
+        byte[] getUserId();
+        String getUsername();
+        String getAvatarUrl();
+        Integer getAcCount();
+        Integer getSolvedCount();
+        Integer getSubmissionCount();
+        Double getTotalScore();
+        Integer getRank();
+    }
+
     @Query("SELECT u FROM User u WHERE u.id = :userId AND u.status = 'ACTIVE'")
     Optional<User> findByUserIdAndStatusIsActive(UUID userId);
 
@@ -42,30 +53,55 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByUsernameOrEmail(String usernameOrEmail);
 
     /**
-     * Get ACM ranking: chỉ lấy user có ROLE_USER, loại ADMIN và MODERATOR,
-     * và chỉ lấy những user có solvedCount > 0.
+     * 2 query lấy ranking cho OI và ACM
+     * Cách xếp hạng:
+     * - OI: Tổng điểm -> Số bài giải được -> Số AC -> Số submission
+     * - ACM: Số bài giải được -> Tổng điểm -> Số AC -> Số submission
      */
-    @Query("SELECT new com.kma.ojcore.dto.response.users.UserRankSdo(" +
-            "u.id, u.username, u.avatarUrl, u.acCount, u.solvedCount, u.submissionCount, u.totalScore) " +
-            "FROM User u " +
-            "JOIN u.roles r " +
-            "WHERE r.name = 'ROLE_USER' " +
-            "AND NOT EXISTS (SELECT 1 FROM u.roles r2 WHERE r2.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR')) " +
-            "ORDER BY u.solvedCount DESC, u.submissionCount ASC, u.acCount DESC")
-    Page<UserRankSdo> getACMRanking(Pageable pageable);
+    @Query(value = "SELECT " +
+            "u.id AS userId, u.username AS username, u.avatar_url AS avatarUrl, " +
+            "u.`total-score` AS totalScore, u.solved_count AS solvedCount, u.ac_count AS acCount, u.submission_count AS submissionCount, " +
+            "RANK() OVER (ORDER BY u.`total-score` DESC, u.solved_count DESC, u.ac_count DESC, u.submission_count ASC) AS `rank` " +
+            "FROM users u " +
+            "WHERE u.status = 'ACTIVE' " +
+            "AND NOT EXISTS ( " +
+            "    SELECT 1 FROM user_roles ur " +
+            "    JOIN roles r ON ur.role_id = r.id " +
+            "    WHERE ur.user_id = u.id AND r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR') " +
+            ") " +
+            "ORDER BY `rank` ASC, u.username ASC",
+            countQuery = "SELECT count(*) FROM users u " +
+                    "WHERE u.status = 'ACTIVE' " +
+                    "AND NOT EXISTS ( " +
+                    "    SELECT 1 FROM user_roles ur " +
+                    "    JOIN roles r ON ur.role_id = r.id " +
+                    "    WHERE ur.user_id = u.id AND r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR') " +
+                    ")",
+            nativeQuery = true)
+    Page<UserRankingProjection> getGlobalRankingOI(Pageable pageable);
 
-    /**
-     * Get OI ranking: tương tự, chỉ lấy user có ROLE_USER,
-     * và chỉ lấy những user có totalScore > 0 (tuỳ logic bạn có thể bỏ điều kiện này).
-     */
-    @Query("SELECT new com.kma.ojcore.dto.response.users.UserRankSdo(" +
-            "u.id, u.username, u.avatarUrl, u.acCount, u.solvedCount, u.submissionCount, u.totalScore) " +
-            "FROM User u " +
-            "JOIN u.roles r " +
-            "WHERE r.name = 'ROLE_USER' " +
-            "AND NOT EXISTS (SELECT 1 FROM u.roles r2 WHERE r2.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR')) " +
-            "ORDER BY u.totalScore DESC, u.solvedCount DESC, u.submissionCount ASC")
-    Page<UserRankSdo> getOIRanking(Pageable pageable);
+
+    @Query(value = "SELECT " +
+            "u.id AS userId, u.username AS username, u.avatar_url AS avatarUrl, " +
+            "u.`total-score` AS totalScore, u.solved_count AS solvedCount, u.ac_count AS acCount, u.submission_count AS submissionCount, " +
+            "RANK() OVER (ORDER BY u.solved_count DESC, u.`total-score` DESC, u.ac_count DESC, u.submission_count ASC) AS `rank` " +
+            "FROM users u " +
+            "WHERE u.status = 'ACTIVE' " +
+            "AND NOT EXISTS ( " +
+            "    SELECT 1 FROM user_roles ur " +
+            "    JOIN roles r ON ur.role_id = r.id " +
+            "    WHERE ur.user_id = u.id AND r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR') " +
+            ") " +
+            "ORDER BY `rank` ASC, u.username ASC",
+            countQuery = "SELECT count(*) FROM users u " +
+                    "WHERE u.status = 'ACTIVE' " +
+                    "AND NOT EXISTS ( " +
+                    "    SELECT 1 FROM user_roles ur " +
+                    "    JOIN roles r ON ur.role_id = r.id " +
+                    "    WHERE ur.user_id = u.id AND r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR') " +
+                    ")",
+            nativeQuery = true)
+    Page<UserRankingProjection> getGlobalRankingACM(Pageable pageable);
 
     /**
      * Để tránh N+1 khi query phân trang với quan hệ Many to Many, thực hiện 2 query: 1 query lấy user với phân trang, 1 query lấy role của những user đó.

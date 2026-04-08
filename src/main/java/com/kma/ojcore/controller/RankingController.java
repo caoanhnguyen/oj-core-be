@@ -20,10 +20,8 @@ public class RankingController {
     @GetMapping("")
     public ApiResponse<?> getRankingsByRuleType(@RequestParam RuleType ruleType,
                                                 @RequestParam(defaultValue = "0") int page,
-                                                @RequestParam(defaultValue = "20") int size,
-                                                @SortDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort
-    ) {
-        Pageable pageable = PageRequest.of(page, size, sort);
+                                                @RequestParam(defaultValue = "100") int size) {
+        Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.builder()
                 .status(200)
                 .message("Rankings retrieved successfully")
