@@ -212,13 +212,13 @@ public class AdminContestController {
     }
 
     @GetMapping("/{id}/leaderboard")
-    public ApiResponse<Page<ContestLeaderboardSdo>> getLeaderboard(@PathVariable UUID id,
+    public ApiResponse<ContestLeaderboardPageSdo> getLeaderboard(@PathVariable UUID id,
                                                                    Pageable pageable) {
 
-        return ApiResponse.<Page<ContestLeaderboardSdo>>builder()
+        return ApiResponse.<ContestLeaderboardPageSdo>builder()
                 .status(200)
                 .message("Fetched leaderboard successfully")
-                .data(contestService.getContestLeaderboard(id, null, pageable, true))
+                .data(contestService.getContestLeaderboardForAdmin(id, pageable))
                 .build();
     }
 }

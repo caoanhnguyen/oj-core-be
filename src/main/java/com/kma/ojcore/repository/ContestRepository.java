@@ -19,7 +19,7 @@ import java.util.UUID;
 public interface ContestRepository extends JpaRepository<Contest, UUID> {
 
     @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestBasicSdo(" +
-            "c.id, c.title, c.startTime, c.endTime, c.ruleType, " +
+            "c.id, c.title, c.contestKey, c.startTime, c.endTime, c.ruleType, " +
             "null, " +
             "c.visibility, " +
             "(SELECT COUNT(p) FROM ContestParticipation p WHERE p.contest.id = c.id), " +
@@ -56,16 +56,26 @@ public interface ContestRepository extends JpaRepository<Contest, UUID> {
                                               @Param("status") EStatus status,
                                               Pageable pageable);
 
-    @Query("SELECT c FROM Contest c LEFT JOIN FETCH c.author WHERE c.id = :id " +
+    @Query("SELECT c FROM Contest c LEFT JOIN FETCH c.author WHERE c.contestKey = :contestKey " +
             "AND (:status IS NULL OR c.status = :status)")
-    Optional<Contest> findContestWithAuthorByIdAndStatus(@Param("id") UUID id,
-                                                         @Param("status") EStatus status);
+    Optional<Contest> findContestWithAuthorByContestKeyAndStatus(@Param("contestKey") String contestKey,
+                                                                 @Param("status") EStatus status);
 
     boolean existsByIdAndStatus(UUID id, EStatus status);
+
+    boolean existsByContestKeyAndStatus(String contestKey, EStatus status);
 
     @Query("SELECT c FROM Contest c LEFT JOIN FETCH c.problems " +
             "WHERE c.id = :contestId " +
             "AND (:status IS NULL OR c.status = :status)")
     Optional<Contest> findByIdAndStatus(@Param("contestId") UUID contestId,
                                         @Param("status") EStatus status);
+
+    @Query("SELECT c FROM Contest c LEFT JOIN FETCH c.problems " +
+                  "WHERE c.contestKey = :contestKey " +
+                  "AND (:status IS NULL OR c.status = :status)")
+    Optional<Contest> findByContestKeyAndStatus(@Param("contestKey") String contestKey,
+                                                @Param("status") EStatus status);
+
+    boolean existsByContestKey(String contestKey);
 }

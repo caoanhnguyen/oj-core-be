@@ -24,6 +24,9 @@ public class Contest extends BaseEntity {
     @Column(nullable = false)
     String title;
 
+    @Column(name = "contest_key", nullable = false, unique = true, length = 100)
+    String contestKey; // Unique identifier for the contest, used in URLs and API calls
+
     @Column(columnDefinition = "TEXT")
     String description;
 

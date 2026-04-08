@@ -21,6 +21,7 @@ import java.util.UUID;
 public class ContestDetailSdo {
     UUID id;
     String title;
+    String contestKey;
     String description;
     LocalDateTime startTime;
     LocalDateTime endTime;

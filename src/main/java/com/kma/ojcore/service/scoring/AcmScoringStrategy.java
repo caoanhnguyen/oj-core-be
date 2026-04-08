@@ -31,8 +31,8 @@ public class AcmScoringStrategy implements ContestScoringStrategy {
         );
         if (alreadySolved) return;
 
-        // 2. Tính thời gian từ lúc bắt đầu thi đến lúc AC (tính bằng Phút)
-        long minutesToAc = Duration.between(submission.getContest().getStartTime(), submission.getCreatedDate()).toMinutes();
+        // 2. Tính thời gian từ lúc tham gia thi đến lúc AC (tính bằng Phút)
+        long minutesToAc = Duration.between(participation.getStartTime(), submission.getCreatedDate()).toMinutes();
 
         // 3. Đếm số lần nộp sai (WA, TLE, MLE, CE...) TRƯỚC cái submission AC này
         // TODO: check cái submission này có vấn đề N+1 không

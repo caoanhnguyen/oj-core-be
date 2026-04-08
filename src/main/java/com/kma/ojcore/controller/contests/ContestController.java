@@ -43,14 +43,14 @@ public class ContestController {
     }
 
 
-    @GetMapping("/{id}/leaderboard")
-    public ApiResponse<Page<ContestLeaderboardSdo>> getLeaderboard(@PathVariable UUID id,
+    @GetMapping("/{contestKey}/leaderboard")
+    public ApiResponse<ContestLeaderboardPageSdo> getLeaderboard(@PathVariable String contestKey,
                                                                    Pageable pageable) {
-
-        return ApiResponse.<Page<ContestLeaderboardSdo>>builder()
+ 
+        return ApiResponse.<ContestLeaderboardPageSdo>builder()
                 .status(200)
                 .message("Fetched leaderboard successfully")
-                .data(contestService.getContestLeaderboard(id, EStatus.ACTIVE, pageable, false))
+                .data(contestService.getContestLeaderboard(contestKey, EStatus.ACTIVE, pageable, false))
                 .build();
     }
 
@@ -69,9 +69,9 @@ public class ContestController {
                 .build();
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{contestKey}")
     public ApiResponse<ContestDetailSdo> getContestDetails(
-            @PathVariable UUID id,
+            @PathVariable String contestKey,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         UUID userId = (userPrincipal != null) ? userPrincipal.getId() : null;
@@ -79,54 +79,54 @@ public class ContestController {
         return ApiResponse.<ContestDetailSdo>builder()
                 .status(HttpStatus.OK.value())
                 .message("Fetched contest details successfully.")
-                .data(contestService.getContestDetailsForUser(id, userId))
+                .data(contestService.getContestDetailsForUser(contestKey, userId))
                 .build();
     }
 
-    @PostMapping("/{id}/register")
+    @PostMapping("/{contestKey}/register")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<?> registerContest(
-            @PathVariable UUID id,
+            @PathVariable String contestKey,
             @RequestBody(required = false) RegisterContestSdi request,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
-        contestService.registerContest(id, userPrincipal.getId(), request);
+        contestService.registerContest(contestKey, userPrincipal.getId(), request);
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Successfully registered for the contest.")
                 .build();
     }
 
-    @GetMapping("/{id}/problems")
+    @GetMapping("/{contestKey}/problems")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<List<ContestProblemSdo>> getContestProblems(
-            @PathVariable UUID id,
+            @PathVariable String contestKey,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         return ApiResponse.<List<ContestProblemSdo>>builder()
                 .status(HttpStatus.OK.value())
                 .message("Fetched contest problems successfully.")
-                .data(contestService.getContestProblemsForUser(id, userPrincipal.getId()))
+                .data(contestService.getContestProblemsForUser(contestKey, userPrincipal.getId()))
                 .build();
     }
 
-    @GetMapping("/{id}/participants")
+    @GetMapping("/{contestKey}/participants")
     public ApiResponse<Page<ContestParticipantPublicSdo>> getPublicParticipants(
-                                @PathVariable UUID id,
+                                @PathVariable String contestKey,
                                 @RequestParam(value = "keyword", required = false) String keyword,
                                 @SortDefault(sort = "createdDate", direction = Sort.Direction.DESC) Pageable pageable) {
 
         return ApiResponse.<Page<ContestParticipantPublicSdo>>builder()
                 .status(HttpStatus.OK.value())
                 .message("Fetched public participants successfully")
-                .data(contestService.getPublicContestParticipants(id, keyword, pageable))
+                .data(contestService.getPublicContestParticipants(contestKey, keyword, pageable))
                 .build();
     }
 
-    @GetMapping("/{id}/submissions/me")
+    @GetMapping("/{contestKey}/submissions/me")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<Page<SubmissionBasicSdo>> getMySubmissions(
-            @PathVariable UUID id,
+            @PathVariable String contestKey,
             @RequestParam(required = false) UUID problemId,
             @AuthenticationPrincipal UserPrincipal userPrincipal,
             Pageable pageable) {
@@ -134,30 +134,30 @@ public class ContestController {
         return ApiResponse.<Page<SubmissionBasicSdo>>builder()
                 .status(200)
                 .message("Fetched your contest submissions successfully")
-                .data(contestService.getMyContestSubmissions(id, userPrincipal.getId(), problemId, pageable))
+                .data(contestService.getMyContestSubmissions(contestKey, userPrincipal.getId(), problemId, pageable))
                 .build();
     }
 
-    @PostMapping("/{id}/start")
+    @PostMapping("/{contestKey}/start")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<ContestParticipationSdo> startContest(
-            @PathVariable UUID id,
+            @PathVariable String contestKey,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         return ApiResponse.<ContestParticipationSdo>builder()
                 .status(200)
                 .message("Contest session started successfully.")
-                .data(contestService.startContest(id, userPrincipal.getId()))
+                .data(contestService.startContest(contestKey, userPrincipal.getId()))
                 .build();
     }
 
-    @PostMapping("/{id}/finish")
+    @PostMapping("/{contestKey}/finish")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<String> finishContest(
-            @PathVariable UUID id,
+            @PathVariable String contestKey,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
-        contestService.finishContest(id, userPrincipal.getId());
+        contestService.finishContest(contestKey, userPrincipal.getId());
         return ApiResponse.<String>builder()
                 .status(200)
                 .message("Contest session finished successfully.")

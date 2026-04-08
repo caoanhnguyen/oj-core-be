@@ -16,9 +16,6 @@ import com.kma.ojcore.mapper.ContestMapper;
 import com.kma.ojcore.repository.*;
 import com.kma.ojcore.service.ContestService;
 import com.kma.ojcore.utils.EscapeHelper;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,13 +48,8 @@ public class ContestServiceImpl implements ContestService {
     @Value("${REDIS_PREFIX_LEADERBOARD:CONTEST_LEADERBOARD:}")
     private String leaderboardPrefix;
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class LeaderboardCacheWrapper {
-        private List<ContestLeaderboardSdo> content;
-        private long totalElements;
-    }
+    // No longer needed, using ContestLeaderboardPageSdo directly for caching
+
 
     @Transactional(readOnly = true)
     @Override
@@ -80,11 +72,11 @@ public class ContestServiceImpl implements ContestService {
     @Transactional(readOnly = true)
     @Override
     public ContestAdminSdo getAdminContestById(UUID contestId) {
-        Contest contest = contestRepository.findContestWithAuthorByIdAndStatus(contestId, null)
+        Contest contest = contestRepository.findById(contestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
 
         ContestAdminSdo sdo = contestMapper.toAdminSdo(contest);
-        sdo.setParticipantCount(contestParticipationRepository.countByContestId(contestId));
+        sdo.setParticipantCount(contestParticipationRepository.countByContestContestKey(contest.getContestKey()));
         return sdo;
     }
 
@@ -93,6 +85,10 @@ public class ContestServiceImpl implements ContestService {
     public ContestAdminSdo createContest(CreateContestSdi req, UUID authorId) {
         User author = userRepository.findById(authorId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (contestRepository.existsByContestKey(req.getContestKey())) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Contest Key already exists.");
+        }
 
         if (req.getFormat() == ContestFormat.WINDOWED) {
             if (req.getDurationMinutes() == null || req.getDurationMinutes() <= 0) {
@@ -117,11 +113,15 @@ public class ContestServiceImpl implements ContestService {
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public ContestAdminSdo updateContest(UUID contestId, UpdateContestSdi req) {
-        Contest contest = contestRepository.findContestWithAuthorByIdAndStatus(contestId, null)
+        Contest contest = contestRepository.findById(contestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
 
         if (contest.getStatus() == EStatus.DELETED) {
             throw new BusinessException(ErrorCode.CONTEST_NOT_FOUND);
+        }
+
+        if (!contest.getContestKey().equals(req.getContestKey()) && contestRepository.existsByContestKey(req.getContestKey())) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Contest Key already exists.");
         }
 
         if (req.getVisibility() == ContestVisibility.PUBLIC) {
@@ -138,10 +138,10 @@ public class ContestServiceImpl implements ContestService {
 
         contestMapper.updateEntityFromSdi(req, contest);
         Contest updated = contestRepository.save(contest);
-        log.info("Updated contest: {}", updated.getId());
+        log.info("Updated contest: {}", updated.getContestKey());
 
         ContestAdminSdo sdo = contestMapper.toAdminSdo(updated);
-        sdo.setParticipantCount(contestParticipationRepository.countByContestId(contestId));
+        sdo.setParticipantCount(contestParticipationRepository.countByContestContestKey(updated.getContestKey()));
         return sdo;
     }
 
@@ -235,7 +235,7 @@ public class ContestServiceImpl implements ContestService {
                     "One or more problems do not exist or have been deleted.");
         }
 
-        List<ContestProblemSdo> existing = contestProblemRepository.findByContestIdOrderBySortOrderAsc(contestId);
+        List<ContestProblemSdo> existing = contestProblemRepository.findByContestKeyOrderBySortOrderAsc(contest.getContestKey());
         Set<UUID> existingProblemIds = existing.stream().map(ContestProblemSdo::getProblemId)
                 .collect(Collectors.toSet());
         Set<String> existingDisplayIds = existing.stream().map(ContestProblemSdo::getDisplayId)
@@ -307,7 +307,7 @@ public class ContestServiceImpl implements ContestService {
 
         List<ContestProblem> existingProblems = contestProblemRepository.findByContestId(contestId);
         Map<UUID, ContestProblem> problemMap = existingProblems.stream()
-                .collect(Collectors.toMap(cp -> cp.getProblem().getId(), cp -> cp)); // TODO: đang bị N+1 ở đây, cần optimize
+                .collect(Collectors.toMap(cp -> cp.getProblem().getId(), cp -> cp));
 
         boolean updated = false;
         for (UpdateContestProblemSdi req : requests) {
@@ -341,7 +341,7 @@ public class ContestServiceImpl implements ContestService {
 
                 // Evict obsolete Redis Leaderboard Caches
                 Set<String> keys = redisTemplate.keys(leaderboardPrefix + contestId + ":*");
-                if (keys != null && !keys.isEmpty()) {
+                if (!keys.isEmpty()) {
                     redisTemplate.delete(keys);
                 }
                 log.info("[Background Job] Recalculation complete. Updated scores for {} participants in contest {}", updatedRows, contestId);
@@ -355,11 +355,10 @@ public class ContestServiceImpl implements ContestService {
     @Transactional(readOnly = true)
     @Override
     public List<ContestProblemSdo> getContestProblemsForAdmin(UUID contestId) {
-        if (!contestRepository.existsById(contestId)) {
-            throw new BusinessException(ErrorCode.CONTEST_NOT_FOUND);
-        }
+        Contest contest = contestRepository.findById(contestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
 
-        return contestProblemRepository.findByContestIdOrderBySortOrderAsc(contestId);
+        return contestProblemRepository.findByContestKeyOrderBySortOrderAsc(contest.getContestKey());
     }
 
     // ==================================================================== //
@@ -369,12 +368,11 @@ public class ContestServiceImpl implements ContestService {
     @Override
     public Page<ContestParticipationSdo> searchContestParticipants(UUID contestId, String keyword,
             Boolean isDisqualified, Pageable pageable) {
-        if (!contestRepository.existsById(contestId)) {
-            throw new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found.");
-        }
+        Contest contest = contestRepository.findById(contestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
 
         String escapedKeyword = EscapeHelper.escapeLike(keyword);
-        return contestParticipationRepository.searchParticipants(contestId, escapedKeyword, isDisqualified, pageable);
+        return contestParticipationRepository.searchParticipants(contest.getContestKey(), escapedKeyword, isDisqualified, pageable);
     }
 
     @Transactional(rollbackFor = Throwable.class)
@@ -413,13 +411,15 @@ public class ContestServiceImpl implements ContestService {
 
     // Leaderboard & Submissions
 
-    @Transactional(readOnly = true)
     @Override
-    public Page<ContestLeaderboardSdo> getContestLeaderboard(UUID contestId, EStatus status, Pageable pageable, boolean bypassVisibility) {
-        // 1. Check chốt chặn Contest (Lấy từ DB lên cực nhanh vì dùng PK Indexed)
-        Contest contest = contestRepository.findByIdAndStatus(contestId, status)
+    @Transactional(readOnly = true)
+    public ContestLeaderboardPageSdo getContestLeaderboard(String contestKey, EStatus status, Pageable pageable, boolean bypassVisibility) {
+        Contest contest = contestRepository.findByContestKeyAndStatus(contestKey, status)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
+        return getContestLeaderboardInternal(contest, pageable, bypassVisibility);
+    }
 
+    private ContestLeaderboardPageSdo getContestLeaderboardInternal(Contest contest, Pageable pageable, boolean bypassVisibility) {
         ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
         if (timeStatus == ContestStatus.UPCOMING) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED,
@@ -441,16 +441,14 @@ public class ContestServiceImpl implements ContestService {
         // ==========================================
         // 2. KÍCH HOẠT LÁ CHẮN REDIS (TTL = 5 GIÂY)
         // ==========================================
-        String redisKey = String.format("%s:%s:PAGE:%d:SIZE:%d", leaderboardPrefix,
-                contestId, pageable.getPageNumber(), pageable.getPageSize());
+        String redisKey = String.format("%s:%s:PAGE:%d:SIZE:%d%s", leaderboardPrefix,
+                contest.getContestKey(), pageable.getPageNumber(), pageable.getPageSize(),
+                bypassVisibility ? ":ADMIN" : "");
 
         try {
-            String cachedData = redisTemplate.opsForValue().get(redisKey);
-            if (org.springframework.util.StringUtils.hasText(cachedData)) {
-                // Nếu có trong Redis -> Bắn thẳng về cho User (DB không hề biết gì)
-                LeaderboardCacheWrapper wrapper = objectMapper.readValue(cachedData, LeaderboardCacheWrapper.class);
-                return new org.springframework.data.domain.PageImpl<>(
-                        wrapper.getContent(), pageable, wrapper.getTotalElements());
+            String cachedLeaderboard = redisTemplate.opsForValue().get(redisKey);
+            if (cachedLeaderboard != null) {
+                return objectMapper.readValue(cachedLeaderboard, ContestLeaderboardPageSdo.class);
             }
         } catch (Exception e) {
             log.error("Redis Cache Error for Leaderboard: {}", e.getMessage());
@@ -460,35 +458,162 @@ public class ContestServiceImpl implements ContestService {
         // ==========================================
         // 3. NẾU REDIS TRỐNG -> CHỌC XUỐNG DB
         // ==========================================
-        Page<ContestLeaderboardSdo> page = contestParticipationRepository.getLeaderboard(contestId, pageable);
+        Page<ContestLeaderboardSdo> page = contestParticipationRepository.getLeaderboard(contest.getId(), pageable);
+        List<ContestProblem> contestProblems = contestProblemRepository.findByContestId(contest.getId());
 
-        // 4. Lấy data từ DB xong -> Lưu lên Redis để phục vụ cho 5 giây tiếp theo
+        if (!page.isEmpty()) {
+            List<UUID> userIds = page.getContent().stream().map(ContestLeaderboardSdo::getUserId).collect(Collectors.toList());
+            List<Submission> validSubmissions = submissionRepository.findValidSubmissionsByContestIdAndUserIds(contest.getId(), userIds);
+
+            // Tối ưu để tra cứu: (UserId, ProblemId) -> List<Submission>
+            Map<UUID, Map<UUID, List<Submission>>> subsByUserAndProblem = validSubmissions.stream()
+                    .collect(Collectors.groupingBy(s -> s.getUser().getId(),
+                            Collectors.groupingBy(s -> s.getProblem().getId())));
+
+            // Tối ưu lấy `participation.startTime` cho các Users này (cần cho việc tính Penalty/Time chính xác)
+            List<com.kma.ojcore.entity.ContestParticipation> participations = contestParticipationRepository.findAllByContestId(contest.getId())
+                    .stream().filter(p -> userIds.contains(p.getUser().getId())).toList();
+            Map<UUID, LocalDateTime> startTimeByUser = participations.stream()
+                    .collect(Collectors.toMap(p -> p.getUser().getId(), p -> p.getStartTime() != null ? p.getStartTime() : contest.getStartTime()));
+
+            Map<UUID, Double> pointsMap = contestProblems.stream().collect(Collectors.toMap(cp -> cp.getProblem().getId(), cp -> cp.getPoints() != null ? Double.valueOf(cp.getPoints()) : 100.0));
+
+            for (ContestLeaderboardSdo lb : page) {
+                Map<UUID, List<Submission>> userSubs = subsByUserAndProblem.getOrDefault(lb.getUserId(), Collections.emptyMap());
+                LocalDateTime userStartTime = startTimeByUser.getOrDefault(lb.getUserId(), contest.getStartTime());
+
+                double userTotalScore = 0.0;
+                long userTotalPenalty = 0;
+
+                for (ContestProblem cp : contestProblems) {
+                    UUID problemId = cp.getProblem().getId();
+                    String displayId = cp.getDisplayId();
+                    double baseTotalScore = cp.getProblem().getTotalScore() != null ? cp.getProblem().getTotalScore() : 100.0;
+                    double contestPoints = pointsMap.getOrDefault(problemId, 100.0);
+
+                    List<Submission> pSubs = userSubs.getOrDefault(problemId, Collections.emptyList());
+
+                    ContestProblemResultSdo result = new ContestProblemResultSdo();
+                    result.setProblemId(problemId);
+                    result.setDisplayId(displayId);
+                    result.setTries(0);
+                    result.setIsAc(false);
+                    result.setScore(0.0);
+                    result.setPenalty(0L);
+                    
+                    if (!pSubs.isEmpty()) {
+                        if (contest.getRuleType() == com.kma.ojcore.enums.RuleType.ACM) {
+                            // ACM Logic
+                            long pTries = 0;
+                            boolean accepted = false;
+                            long pPenalty = 0;
+                            pSubs.sort(Comparator.comparing(Submission::getCreatedDate));
+                            for (Submission s : pSubs) {
+                                if (s.getVerdict() == com.kma.ojcore.enums.SubmissionVerdict.CE) continue;
+                                if (s.getVerdict() == com.kma.ojcore.enums.SubmissionVerdict.AC) {
+                                    accepted = true;
+                                    long seconds = java.time.Duration.between(userStartTime, s.getCreatedDate()).toSeconds();
+                                    pPenalty = Math.max(0, seconds) + (pTries * 20 * 60);
+                                    break;
+                                } else {
+                                    pTries++;
+                                }
+                            }
+                            result.setTries((int) pTries);
+                            result.setIsAc(accepted);
+                            if (accepted) {
+                                result.setScore(1.0);
+                                result.setPenalty(pPenalty);
+                            }
+                        } else {
+                            // OI Logic
+                            double maxScaledScore = 0.0;
+                            long minPenalty = Long.MAX_VALUE;
+                            for (Submission s : pSubs) {
+                                double rawScore = s.getScore() != null ? s.getScore() : 0.0;
+                                double scaledScore = (rawScore / baseTotalScore) * contestPoints;
+                                long seconds = java.time.Duration.between(userStartTime, s.getCreatedDate()).toSeconds();
+                                if (seconds < 0) seconds = 0;
+
+                                if (scaledScore > maxScaledScore) {
+                                    maxScaledScore = scaledScore;
+                                    minPenalty = seconds;
+                                } else if (scaledScore == maxScaledScore && scaledScore > 0 && seconds < minPenalty) {
+                                    minPenalty = seconds;
+                                }
+                            }
+                            result.setScore(maxScaledScore);
+                            if (maxScaledScore > 0 && minPenalty != Long.MAX_VALUE) {
+                                result.setPenalty(minPenalty);
+                                result.setIsAc(maxScaledScore >= contestPoints); 
+                            }
+                        }
+                    }
+                    lb.getProblemResults().put(displayId, result);
+                    userTotalScore += (result.getScore() != null ? result.getScore() : 0.0);
+                    userTotalPenalty += (result.getPenalty() != null ? result.getPenalty() : 0L);
+                }
+                lb.setScore(userTotalScore);
+                lb.setPenalty(userTotalPenalty);
+            }
+        }
+
+        List<ContestProblemSdo> problemSdos = contestProblems.stream()
+                .map(cp -> ContestProblemSdo.builder()
+                        .id(cp.getId())
+                        .problemId(cp.getProblem().getId())
+                        .problemSlug(cp.getProblem().getSlug())
+                        .originalTitle(cp.getProblem().getTitle())
+                        .displayId(cp.getDisplayId())
+                        .points(cp.getPoints())
+                        .sortOrder(cp.getSortOrder())
+                        .build())
+                .sorted(Comparator.comparing(ContestProblemSdo::getSortOrder))
+                .toList();
+ 
+        ContestLeaderboardPageSdo response = ContestLeaderboardPageSdo.builder()
+                .content(page.getContent())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .size(page.getSize())
+                .number(page.getNumber())
+                .problems(problemSdos)
+                .build();
+
         try {
-            LeaderboardCacheWrapper wrapper = new LeaderboardCacheWrapper(page.getContent(), page.getTotalElements());
-            String jsonToCache = objectMapper.writeValueAsString(wrapper);
-
+            String jsonToCache = objectMapper.writeValueAsString(response);
+ 
             // TTL = 5 giây là quá đủ để chặn hàng vạn request F5 cùng lúc
             redisTemplate.opsForValue().set(redisKey, jsonToCache, 5, java.util.concurrent.TimeUnit.SECONDS);
         } catch (Exception e) {
             log.error("Failed to save Leaderboard to Redis: {}", e.getMessage());
         }
 
-        return page;
+        return response;
     }
 
     @Transactional(readOnly = true)
     @Override
-    public Page<SubmissionBasicSdo> getMyContestSubmissions(UUID contestId, UUID userId, UUID problemId, Pageable pageable) {
-        if(!contestRepository.existsByIdAndStatus(contestId, EStatus.ACTIVE)) {
+    public ContestLeaderboardPageSdo getContestLeaderboardForAdmin(UUID contestId, Pageable pageable) {
+        Contest contest = contestRepository.findById(contestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
+
+        return getContestLeaderboardInternal(contest, pageable, true);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Page<SubmissionBasicSdo> getMyContestSubmissions(String contestKey, UUID userId, UUID problemId, Pageable pageable) {
+        if(!contestRepository.existsByContestKeyAndStatus(contestKey, EStatus.ACTIVE)) {
             throw new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found.");
         }
 
         // Chặn xem nếu chưa đăng ký
-        if (!contestParticipationRepository.existsByContestIdAndUserId(contestId, userId)) {
+        if (!contestParticipationRepository.existsByContestContestKeyAndUserId(contestKey, userId)) {
             throw new BusinessException(ErrorCode.NOT_REGISTERED, "You are not registered for this contest.");
         }
 
-        return submissionRepository.findMyContestSubmissions(contestId, userId, problemId, pageable);
+        return submissionRepository.findMyContestSubmissions(contestKey, userId, problemId, pageable);
     }
 
     // ==================================================================== //
@@ -525,12 +650,12 @@ public class ContestServiceImpl implements ContestService {
 
     @Transactional(readOnly = true)
     @Override
-    public ContestDetailSdo getContestDetailsForUser(UUID contestId, UUID userId) {
-        Contest contest = contestRepository.findContestWithAuthorByIdAndStatus(contestId, EStatus.ACTIVE)
+    public ContestDetailSdo getContestDetailsForUser(String contestKey, UUID userId) {
+        Contest contest = contestRepository.findContestWithAuthorByContestKeyAndStatus(contestKey, EStatus.ACTIVE)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
 
         ContestDetailSdo sdo = contestMapper.toDetailSdo(contest);
-        sdo.setParticipantCount(contestParticipationRepository.countByContestId(contest.getId()));
+        sdo.setParticipantCount(contestParticipationRepository.countByContestContestKey(contestKey));
 
         // 1. Bơm serverTime vào cho Frontend đồng bộ đồng hồ chống cheat
         sdo.setServerTime(java.time.LocalDateTime.now());
@@ -538,7 +663,7 @@ public class ContestServiceImpl implements ContestService {
         // 2. Xử lý lấy thông tin User (Gộp làm 1 câu query duy nhất)
         if (userId != null) {
             ContestParticipation participation = contestParticipationRepository
-                    .findByContestIdAndUserId(contestId, userId).orElse(null);
+                    .findByContestContestKeyAndUserId(contestKey, userId).orElse(null);
 
             if (participation != null) {
                 sdo.setRegistered(true);
@@ -557,8 +682,8 @@ public class ContestServiceImpl implements ContestService {
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
-    public void registerContest(UUID contestId, UUID userId, RegisterContestSdi req) {
-        Contest contest = contestRepository.findByIdAndStatus(contestId, EStatus.ACTIVE)
+    public void registerContest(String contestKey, UUID userId, RegisterContestSdi req) {
+        Contest contest = contestRepository.findByContestKeyAndStatus(contestKey, EStatus.ACTIVE)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
 
         ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
@@ -578,7 +703,7 @@ public class ContestServiceImpl implements ContestService {
             }
         }
 
-        if (contestParticipationRepository.existsByContestIdAndUserId(contestId, userId)) {
+        if (contestParticipationRepository.existsByContestIdAndUserId(contest.getId(), userId)) {
             throw new BusinessException(ErrorCode.ALREADY_REGISTERED);
         }
 
@@ -591,13 +716,13 @@ public class ContestServiceImpl implements ContestService {
                 .build();
 
         contestParticipationRepository.save(participation);
-        log.info("User {} registered for contest {}", userId, contestId);
+        log.info("User {} registered for contest {}", userId, contest.getId());
     }
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
-    public List<ContestProblemSdo> getContestProblemsForUser(UUID contestId, UUID userId) {
-        Contest contest = contestRepository.findByIdAndStatus(contestId, EStatus.ACTIVE)
+    public List<ContestProblemSdo> getContestProblemsForUser(String contestKey, UUID userId) {
+        Contest contest = contestRepository.findByContestKeyAndStatus(contestKey, EStatus.ACTIVE)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
 
         ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
@@ -611,7 +736,7 @@ public class ContestServiceImpl implements ContestService {
         // 2. CHỈ KIỂM TRA QUYỀN KHẮT KHE KHI KỲ THI ĐANG DIỄN RA (ONGOING)
         // ========================================================
         if (timeStatus == ContestStatus.ONGOING) {
-            ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contestId, userId)
+            ContestParticipation participation = contestParticipationRepository.findByContestContestKeyAndUserId(contestKey, userId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED, "You must register to view problems during an active contest."));
 
             if (participation.getIsDisqualified()) {
@@ -642,12 +767,12 @@ public class ContestServiceImpl implements ContestService {
         // Đi thẳng xuống logic lấy đề bài bên dưới
         // ========================================================
 
-        List<ContestProblemSdo> contestProblems = contestProblemRepository.findByContestIdOrderBySortOrderAsc(contestId);
+        List<ContestProblemSdo> contestProblems = contestProblemRepository.findByContestKeyOrderBySortOrderAsc(contestKey);
 
         // Đoạn lấy Verdict này vẫn chạy an toàn ngay cả khi User chưa đăng ký
         // (Vì findVerdictsByContestAndUser sẽ trả về list rỗng, không gây lỗi)
         List<SubmissionRepository.ProblemVerdictProjection> userSubmissions =
-                submissionRepository.findVerdictsByContestAndUser(contestId, userId);
+                submissionRepository.findVerdictsByContestAndUser(contest.getId(), userId);
 
         java.util.Map<UUID, SubmissionVerdict> bestVerdicts = new java.util.HashMap<>();
         for (var sub : userSubmissions) {
@@ -670,37 +795,36 @@ public class ContestServiceImpl implements ContestService {
 
     @Transactional(readOnly = true)
     @Override
-    public Page<ContestParticipantPublicSdo> getPublicContestParticipants(UUID contestId, String keyword,
-            Pageable pageable) {
-        if (!contestRepository.existsByIdAndStatus(contestId, EStatus.ACTIVE)) {
+    public Page<ContestParticipantPublicSdo> getPublicContestParticipants(String contestKey,
+                                                                          String keyword,
+                                                                          Pageable pageable) {
+        if (!contestRepository.existsByContestKeyAndStatus(contestKey, EStatus.ACTIVE)) {
             throw new BusinessException(ErrorCode.CONTEST_NOT_FOUND);
         }
 
         String escapedKeyword = EscapeHelper.escapeLike(keyword);
 
-        return contestParticipationRepository.searchPublicParticipants(contestId, escapedKeyword, pageable);
+        return contestParticipationRepository.searchPublicParticipants(contestKey, escapedKeyword, pageable);
     }
 
     @Transactional(readOnly = true)
     @Override
     public Page<SubmissionBasicSdo> getAdminContestSubmissions(UUID contestId, Pageable pageable) {
-        // Admin thì cứ tồn tại Contest là soi được hết
-        if (!contestRepository.existsById(contestId)) {
-            throw new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found.");
-        }
+        Contest contest = contestRepository.findById(contestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
 
-        return submissionRepository.findAllContestSubmissions(contestId, pageable);
+        return submissionRepository.findAllContestSubmissions(contest.getContestKey(), pageable);
     }
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
-    public ContestParticipationSdo startContest(UUID contestId, UUID userId) {
-        Contest contest = contestRepository.findByIdAndStatus(contestId, EStatus.ACTIVE)
+    public ContestParticipationSdo startContest(String contestKey, UUID userId) {
+        Contest contest = contestRepository.findByContestKeyAndStatus(contestKey, EStatus.ACTIVE)
                 .orElseThrow(
                         () -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found or not active."));
 
         // Sửa đoạn này:
-        ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contestId, userId)
+        ContestParticipation participation = contestParticipationRepository.findByContestContestKeyAndUserId(contest.getContestKey(), userId)
                 .orElseGet(() -> {
                     // Nếu chưa tìm thấy Participation (chưa đăng ký)
                     if (contest.getFormat() == ContestFormat.WINDOWED && contest.getVisibility() == ContestVisibility.PUBLIC) {
@@ -753,15 +877,18 @@ public class ContestServiceImpl implements ContestService {
         }
 
         participation = contestParticipationRepository.save(participation);
-        log.info("User {} started contest {}. Session ends at {}", userId, contestId, participation.getEndTime());
+        log.info("User {} started contest {}. Session ends at {}", userId, contest.getId(), participation.getEndTime());
 
         return contestMapper.toParticipationSdo(participation);
     }
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
-    public void finishContest(UUID contestId, UUID userId) {
-        ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contestId, userId)
+    public void finishContest(String contestKey, UUID userId) {
+        Contest contest = contestRepository.findByContestKeyAndStatus(contestKey, EStatus.ACTIVE)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
+
+        ContestParticipation participation = contestParticipationRepository.findByContestIdAndUserId(contest.getId(), userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED,
                         "You are not registered for this contest."));
 
@@ -777,6 +904,6 @@ public class ContestServiceImpl implements ContestService {
         participation.setIsFinished(true);
         contestParticipationRepository.save(participation);
 
-        log.info("User {} finished contest {} early.", userId, contestId);
+        log.info("User {} finished contest {} early.", userId, contest.getId());
     }
 }

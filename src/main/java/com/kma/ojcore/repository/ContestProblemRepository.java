@@ -17,9 +17,9 @@ public interface ContestProblemRepository extends JpaRepository<ContestProblem, 
     @Query("SELECT new com.kma.ojcore.dto.response.contests.ContestProblemSdo(" +
             "cp.id, p.id, p.slug, p.title, cp.displayId, cp.points, cp.sortOrder, p.status, null) " +
             "FROM ContestProblem cp JOIN cp.problem p " +
-            "WHERE cp.contest.id = :contestId " +
+            "WHERE cp.contest.contestKey = :contestKey " +
             "ORDER BY cp.sortOrder ASC")
-    List<ContestProblemSdo> findByContestIdOrderBySortOrderAsc(UUID contestId);
+    List<ContestProblemSdo> findByContestKeyOrderBySortOrderAsc(String contestKey);
 
     @Query("SELECT cp FROM ContestProblem cp JOIN FETCH cp.problem p WHERE cp.contest.id = :contestId")
     List<ContestProblem> findByContestId(UUID contestId);
@@ -34,4 +34,5 @@ public interface ContestProblemRepository extends JpaRepository<ContestProblem, 
     List<UUID> findProblemIdsByContestId(@Param("contestId") UUID contestId);
 
     boolean existsByProblemId(UUID problemId);
+
 }

@@ -24,6 +24,9 @@ public class UpdateContestSdi {
     @NotBlank(message = "Title is required.")
     String title;
 
+    @NotBlank(message = "Contest key is required.")
+    String contestKey;
+
     @NotBlank(message = "Description is required.")
     String description;
 

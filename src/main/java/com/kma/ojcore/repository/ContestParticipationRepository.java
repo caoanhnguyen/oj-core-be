@@ -23,15 +23,19 @@ public interface ContestParticipationRepository extends JpaRepository<ContestPar
 
         boolean existsByContestIdAndUserId(UUID contestId, UUID userId);
 
-        long countByContestId(UUID contestId);
+        boolean existsByContestContestKeyAndUserId(String contestKey, UUID userId);
+
+        long countByContestContestKey(String contestKey);
 
         List<ContestParticipation> findAllByContestId(UUID contestId);
+
+        Optional<ContestParticipation> findByContestContestKeyAndUserId(String contestKey, UUID userId);
 
         Optional<ContestParticipation> findByContestIdAndUserId(UUID contestId, UUID userId);
 
         @Query("SELECT new com.kma.ojcore.dto.response.contests.MyActiveContestSdo(" +
                         "new com.kma.ojcore.dto.response.contests.ContestBasicSdo(" +
-                        "c.id, c.title, c.startTime, c.endTime, c.ruleType, null, c.visibility, " +
+                        "c.id, c.title, c.contestKey, c.startTime, c.endTime, c.ruleType, null, c.visibility, " +
                         "(SELECT COUNT(cp2) FROM ContestParticipation cp2 WHERE cp2.contest.id = c.id), " +
                         "c.status, c.durationMinutes, c.format, c.allowLateRegistration, c.scoreboardVisibility), " +
                         "p.endTime) " +
@@ -77,19 +81,19 @@ public interface ContestParticipationRepository extends JpaRepository<ContestPar
                         "cp.user.id, cp.user.username, cp.user.email, cp.isDisqualified, cp.startTime, cp.endTime, cp.isFinished, cp.score, cp.penalty) "
                         +
                         "FROM ContestParticipation cp " +
-                        "WHERE cp.contest.id = :contestId " +
+                        "WHERE cp.contest.contestKey = :contestKey " +
                         "AND (:keyword IS NULL OR LOWER(cp.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!' "
                         +
                         "     OR LOWER(cp.user.email) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!') " +
                         "AND (:isDisqualified IS NULL OR cp.isDisqualified = :isDisqualified)", countQuery = "SELECT COUNT(cp) FROM ContestParticipation cp "
                                         +
-                                        "WHERE cp.contest.id = :contestId " +
+                                        "WHERE cp.contest.contestKey = :contestKey " +
                                         "AND (:keyword IS NULL OR LOWER(cp.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!' "
                                         +
                                         "     OR LOWER(cp.user.email) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!') "
                                         +
                                         "AND (:isDisqualified IS NULL OR cp.isDisqualified = :isDisqualified)")
-        Page<ContestParticipationSdo> searchParticipants(@Param("contestId") UUID contestId,
+        Page<ContestParticipationSdo> searchParticipants(@Param("contestKey") String contestKey,
                         @Param("keyword") String keyword,
                         @Param("isDisqualified") Boolean isDisqualified,
                         Pageable pageable);
@@ -97,16 +101,16 @@ public interface ContestParticipationRepository extends JpaRepository<ContestPar
         @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestParticipantPublicSdo(" +
                         "cp.user.id, cp.user.username) " +
                         "FROM ContestParticipation cp " +
-                        "WHERE cp.contest.id = :contestId " +
+                        "WHERE cp.contest.contestKey = :contestKey " +
                         "AND cp.isDisqualified = false " +
                         "AND (:keyword IS NULL OR LOWER(cp.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!')", countQuery = "SELECT COUNT(cp) FROM ContestParticipation cp "
                                         +
-                                        "WHERE cp.contest.id = :contestId " +
+                                        "WHERE cp.contest.contestKey = :contestKey " +
                                         "AND cp.isDisqualified = false " +
                                         "AND (:keyword IS NULL OR LOWER(cp.user.username) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!')")
-        Page<ContestParticipantPublicSdo> searchPublicParticipants(@Param("contestId") UUID contestId,
-                        @Param("keyword") String keyword,
-                        Pageable pageable);
+        Page<ContestParticipantPublicSdo> searchPublicParticipants(@Param("contestKey") String contestKey,
+                                                                   @Param("keyword") String keyword,
+                                                                   Pageable pageable);
 
         @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestLeaderboardSdo(" +
                         "cp.user.id, cp.user.username, cp.score, cp.penalty) " +

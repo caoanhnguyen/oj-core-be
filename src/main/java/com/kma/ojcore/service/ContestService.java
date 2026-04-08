@@ -55,7 +55,9 @@ public interface ContestService {
 
     // Leaderboard & Submissions
 
-    Page<ContestLeaderboardSdo> getContestLeaderboard(UUID contestId, EStatus status, Pageable pageable, boolean bypassVisibility);
+    ContestLeaderboardPageSdo getContestLeaderboard(String contestKey, EStatus status, Pageable pageable, boolean bypassVisibility);
+
+    ContestLeaderboardPageSdo getContestLeaderboardForAdmin(UUID contestId, Pageable pageable);
 
     Page<SubmissionBasicSdo> getAdminContestSubmissions(UUID contestId, Pageable pageable);
 
@@ -65,17 +67,17 @@ public interface ContestService {
 
     Page<ContestBasicSdo> getContestsForUser(String keyword, RuleType ruleType, ContestStatus contestStatus, Pageable pageable);
 
-    ContestDetailSdo getContestDetailsForUser(UUID contestId, UUID userId);
+    ContestDetailSdo getContestDetailsForUser(String contestKey, UUID userId);
 
-    void registerContest(UUID contestId, UUID userId, RegisterContestSdi req);
+    void registerContest(String contestKey, UUID userId, RegisterContestSdi req);
 
-    List<ContestProblemSdo> getContestProblemsForUser(UUID contestId, UUID userId);
+    List<ContestProblemSdo> getContestProblemsForUser(String contestKey, UUID userId);
 
-    Page<ContestParticipantPublicSdo> getPublicContestParticipants(UUID contestId, String keyword, Pageable pageable);
+    Page<ContestParticipantPublicSdo> getPublicContestParticipants(String contestKey, String keyword, Pageable pageable);
 
-    Page<SubmissionBasicSdo> getMyContestSubmissions(UUID contestId, UUID userId, UUID problemId, Pageable pageable);
+    Page<SubmissionBasicSdo> getMyContestSubmissions(String contestKey, UUID userId, UUID problemId, Pageable pageable);
 
-    ContestParticipationSdo startContest(UUID contestId, UUID userId);
+    ContestParticipationSdo startContest(String contestKey, UUID userId);
 
-    void finishContest(UUID contestId, UUID userId);
+    void finishContest(String contestKey, UUID userId);
 }

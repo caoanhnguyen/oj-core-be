@@ -21,6 +21,7 @@ import java.util.UUID;
 public class ContestBasicSdo {
     UUID id;
     String title;
+    String contestKey;
     LocalDateTime startTime;
     LocalDateTime endTime;
     RuleType ruleType;

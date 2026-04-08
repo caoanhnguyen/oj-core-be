@@ -55,6 +55,8 @@ public class SubmissionBasicSdo {
 
     String contestTitle;
 
+    String contestKey;
+
     Double contestScore; // Điểm tính động trong contest
 
     // Constructor dùng riêng cho các HQL Query CŨ (Không có contestScore)
@@ -64,7 +66,7 @@ public class SubmissionBasicSdo {
                               LocalDateTime createdDate, String languageKey,
                               UUID userId, String username,
                               UUID problemId, String problemTitle, String problemSlug,
-                              EStatus status, UUID contestId, String contestTitle) {
+                              EStatus status, UUID contestId, String contestTitle, String contestKey) {
         this.submissionId = submissionId;
         this.verdict = verdict;
         this.score = score != null ? score.doubleValue() : null;
@@ -82,6 +84,7 @@ public class SubmissionBasicSdo {
         this.status = status;
         this.contestId = contestId;
         this.contestTitle = contestTitle;
+        this.contestKey = contestKey;
     }
 
     // Constructor dùng cho các HQL Query có tính `contestScore`
@@ -91,7 +94,7 @@ public class SubmissionBasicSdo {
                               LocalDateTime createdDate, String languageKey,
                               UUID userId, String username,
                               UUID problemId, String problemTitle, String problemSlug,
-                              Double contestScore, EStatus status, UUID contestId, String contestTitle) {
+                              Double contestScore, EStatus status, UUID contestId, String contestTitle, String contestKey) {
         this.submissionId = submissionId;
         this.verdict = verdict;
         this.score = contestScore != null ? contestScore : (rawScore != null ? rawScore.doubleValue() : null);
@@ -110,5 +113,6 @@ public class SubmissionBasicSdo {
         this.status = status;
         this.contestId = contestId;
         this.contestTitle = contestTitle;
+        this.contestKey = contestKey;
     }
 }

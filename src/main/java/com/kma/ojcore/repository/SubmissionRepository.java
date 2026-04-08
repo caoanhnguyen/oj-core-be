@@ -42,6 +42,17 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
     List<ProblemVerdictProjection> findVerdictsByContestAndUser(@Param("contestId") UUID contestId,
                                                                 @Param("userId") UUID userId);
 
+    @Query("SELECT s FROM Submission s WHERE s.contest.id = :contestId AND s.user.id = :userId " +
+            "AND s.createdDate <= s.contest.endTime")
+    List<Submission> findValidSubmissionsByContestIdAndUserId(@Param("contestId") UUID contestId, @Param("userId") UUID userId);
+
+    @Query("SELECT s FROM Submission s WHERE s.contest.id = :contestId AND s.user.id IN :userIds " +
+            "AND s.createdDate <= s.contest.endTime")
+    List<Submission> findValidSubmissionsByContestIdAndUserIds(@Param("contestId") UUID contestId, @Param("userIds") List<UUID> userIds);
+
+    @Query("SELECT s FROM Submission s WHERE s.contest.id = :contestId AND s.createdDate <= s.contest.endTime")
+    List<Submission> findValidSubmissionsByContestId(@Param("contestId") UUID contestId);
+
     @Query("SELECT s.createdDate FROM Submission s " +
             "WHERE s.user.id = :userId " +
             "AND s.createdDate >= :startDate " +
@@ -72,7 +83,7 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             "s.executionTimeMs, s.executionMemoryMb, s.createdDate, s.languageKey, " +
             "s.user.id, s.user.username, s.problem.id, s.problem.title, s.problem.slug, " +
             "(CASE WHEN cp IS NULL THEN CAST(s.score AS double) ELSE (CAST(COALESCE(s.score, 0) AS double) / COALESCE(s.problem.totalScore, 100.0)) * cp.points END), " +
-            "s.status, c.id, c.title) " +
+            "s.status, c.id, c.title, c.contestKey) " +
             "FROM Submission s LEFT JOIN s.contest c " +
             "LEFT JOIN ContestProblem cp ON cp.contest.id = c.id AND cp.problem.id = s.problem.id " +
             "WHERE (:problemId IS NULL OR s.problem.id = :problemId) " +
@@ -180,14 +191,14 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             "s.executionTimeMs, s.executionMemoryMb, s.createdDate, s.languageKey, " +
             "s.user.id, s.user.username, p.id, p.title, p.slug, " +
             "(CASE WHEN cp IS NULL THEN CAST(s.score AS double) ELSE (CAST(COALESCE(s.score, 0) AS double) / COALESCE(p.totalScore, 100.0)) * cp.points END), " +
-            "s.status, s.contest.id, s.contest.title) " +
+            "s.status, s.contest.id, s.contest.title, s.contest.contestKey) " +
             "FROM Submission s JOIN s.problem p " +
             "LEFT JOIN ContestProblem cp ON cp.contest.id = s.contest.id AND cp.problem.id = s.problem.id " +
-            "WHERE s.contest.id = :contestId AND s.user.id = :userId " +
+            "WHERE s.contest.contestKey = :contestKey AND s.user.id = :userId " +
             "AND s.status = com.kma.ojcore.enums.EStatus.ACTIVE " +
             "AND (:problemId IS NULL OR s.problem.id = :problemId) " +
             "ORDER BY s.createdDate DESC")
-    Page<SubmissionBasicSdo> findMyContestSubmissions(@Param("contestId") UUID contestId,
+    Page<SubmissionBasicSdo> findMyContestSubmissions(@Param("contestKey") String contestKey,
                                                       @Param("userId") UUID userId,
                                                       @Param("problemId") UUID problemId,
                                                       Pageable pageable);
@@ -198,11 +209,11 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             "s.executionTimeMs, s.executionMemoryMb, s.createdDate, s.languageKey, " +
             "s.user.id, s.user.username, p.id, p.title, p.slug, " +
             "(CASE WHEN cp IS NULL THEN CAST(s.score AS double) ELSE (CAST(COALESCE(s.score, 0) AS double) / COALESCE(p.totalScore, 100.0)) * cp.points END), " +
-            "s.status, s.contest.id, s.contest.title) " +
+            "s.status, s.contest.id, s.contest.title, s.contest.contestKey) " +
             "FROM Submission s JOIN s.problem p " +
             "LEFT JOIN ContestProblem cp ON cp.contest.id = s.contest.id AND cp.problem.id = s.problem.id " +
-            "WHERE s.contest.id = :contestId AND s.status = com.kma.ojcore.enums.EStatus.ACTIVE " +
+            "WHERE s.contest.contestKey = :contestKey AND s.status = com.kma.ojcore.enums.EStatus.ACTIVE " +
             "ORDER BY s.createdDate DESC")
-    Page<SubmissionBasicSdo> findAllContestSubmissions(@Param("contestId") UUID contestId,
+    Page<SubmissionBasicSdo> findAllContestSubmissions(@Param("contestKey") String contestKey,
                                                        Pageable pageable);
 }
