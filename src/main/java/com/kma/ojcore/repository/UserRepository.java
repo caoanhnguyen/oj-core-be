@@ -1,6 +1,5 @@
 package com.kma.ojcore.repository;
 
-import com.kma.ojcore.dto.response.users.UserRankSdo;
 import com.kma.ojcore.entity.User;
 import com.kma.ojcore.enums.Provider;
 import com.kma.ojcore.enums.RoleName;
@@ -58,6 +57,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      * - OI: Tổng điểm -> Số bài giải được -> Số AC -> Số submission
      * - ACM: Số bài giải được -> Tổng điểm -> Số AC -> Số submission
      */
+    // OI
     @Query(value = "SELECT " +
             "u.id AS userId, u.username AS username, u.avatar_url AS avatarUrl, " +
             "u.`total-score` AS totalScore, u.solved_count AS solvedCount, u.ac_count AS acCount, u.submission_count AS submissionCount, " +
@@ -80,7 +80,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             nativeQuery = true)
     Page<UserRankingProjection> getGlobalRankingOI(Pageable pageable);
 
-
+    // ACM
     @Query(value = "SELECT " +
             "u.id AS userId, u.username AS username, u.avatar_url AS avatarUrl, " +
             "u.`total-score` AS totalScore, u.solved_count AS solvedCount, u.ac_count AS acCount, u.submission_count AS submissionCount, " +
