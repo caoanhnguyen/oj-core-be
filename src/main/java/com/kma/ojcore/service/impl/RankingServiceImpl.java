@@ -11,6 +11,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 public class RankingServiceImpl implements RankingService {
@@ -20,12 +22,24 @@ public class RankingServiceImpl implements RankingService {
     @Override
     public Page<UserRankSdo> getRanking(RuleType ruleType, Pageable pageable) {
 
+        Page<UserRepository.UserRankingProjection> ranking;
+
         if(ruleType == RuleType.ACM) {
-            return userRepository.getACMRanking(pageable);
+            ranking = userRepository.getGlobalRankingACM(pageable);
         } else if(ruleType == RuleType.OI) {
-            return userRepository.getOIRanking(pageable);
+            ranking = userRepository.getGlobalRankingOI(pageable);
         } else {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Invalid rule type: " + ruleType);
         }
+        return ranking.map(projection -> new UserRankSdo(
+                UUID.nameUUIDFromBytes(projection.getUserId()),
+                projection.getUsername(),
+                projection.getAvatarUrl(),
+                projection.getAcCount(),
+                projection.getSolvedCount(),
+                projection.getSubmissionCount(),
+                projection.getTotalScore(),
+                projection.getRank()
+        ));
     }
 }
