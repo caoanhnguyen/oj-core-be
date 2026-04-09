@@ -1,12 +1,18 @@
 package com.kma.ojcore.service.scoring;
 
 import com.kma.ojcore.entity.ContestParticipation;
+import com.kma.ojcore.entity.ContestParticipationProblem;
+import com.kma.ojcore.entity.ContestProblem;
 import com.kma.ojcore.entity.Submission;
 import com.kma.ojcore.enums.SubmissionVerdict;
-import com.kma.ojcore.repository.SubmissionRepository;
+import com.kma.ojcore.repository.ContestParticipationProblemRepository;
+import com.kma.ojcore.repository.ContestParticipationRepository;
+import com.kma.ojcore.repository.ContestProblemRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.time.Duration;
 
 @Slf4j
@@ -14,43 +20,50 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class AcmScoringStrategy implements ContestScoringStrategy {
 
-    private final SubmissionRepository submissionRepository;
+    private final ContestParticipationProblemRepository cppRepository;
+    private final ContestParticipationRepository participationRepository;
+    private final ContestProblemRepository contestProblemRepository;
 
     @Override
+    @Transactional
     public void processScore(Submission submission, ContestParticipation participation) {
-        // ACM chỉ quan tâm khi làm đúng (AC)
-        if (submission.getVerdict() != SubmissionVerdict.AC) return;
+        ContestProblem cp = contestProblemRepository.findByContestIdAndProblemId(
+            submission.getContest().getId(), 
+            submission.getProblem().getId()
+        ).orElse(null);
 
-        // 1. Kiểm tra xem bài này trước đó User đã AC trong kỳ thi chưa? (Chống cheat nộp 1 bài 2 lần lấy điểm)
-        boolean alreadySolved = submissionRepository.existsByContestIdAndUserIdAndProblemIdAndVerdictAndCreatedDateBefore(
-                submission.getContest().getId(),
-                submission.getUser().getId(),
-                submission.getProblem().getId(),
-                SubmissionVerdict.AC,
-                submission.getCreatedDate()
-        );
-        if (alreadySolved) return;
+        if (cp == null) return;
 
-        // 2. Tính thời gian từ lúc tham gia thi đến lúc AC (tính bằng Phút)
-        long minutesToAc = Duration.between(participation.getStartTime(), submission.getCreatedDate()).toMinutes();
+        ContestParticipationProblem cpp = cppRepository.findByParticipationAndContestProblem(participation, cp)
+            .orElseGet(() -> ContestParticipationProblem.builder()
+                .participation(participation)
+                .contestProblem(cp)
+                .maxScore(0.0)
+                .penalty(0L)
+                .failedAttempts(0)
+                .isAc(false)
+                .build());
 
-        // 3. Đếm số lần nộp sai (WA, TLE, MLE, CE...) TRƯỚC cái submission AC này
-        // TODO: check cái submission này có vấn đề N+1 không
-        long failedAttempts = submissionRepository.countFailedAttemptsBeforeAc(
-                submission.getContest().getId(),
-                submission.getUser().getId(),
-                submission.getProblem().getId(),
-                submission.getCreatedDate()
-        );
+        if (cpp.getIsAc()) return;
 
-        // 4. Công thức Penalty chuẩn ACM: 1 lần sai phạt 20 phút
-        // TODO: config số phút phạn penalty vào application.yml
-        long penaltyForThisProblem = minutesToAc + (failedAttempts * 20);
+        if (submission.getVerdict() != SubmissionVerdict.AC && submission.getVerdict() != SubmissionVerdict.CE) {
+            cpp.setFailedAttempts(cpp.getFailedAttempts() + 1);
+            cppRepository.save(cpp);
+            return;
+        }
 
-        // 5. Cập nhật vào Bảng thành tích
-        participation.setScore(participation.getScore() + 1.0);
-        participation.setPenalty(participation.getPenalty() + penaltyForThisProblem);
+        if (submission.getVerdict() == SubmissionVerdict.AC) {
+            long minutesToAc = Duration.between(participation.getStartTime(), submission.getCreatedDate()).toMinutes();
+            long penaltyForThisProblem = minutesToAc + (cpp.getFailedAttempts() * 20L);
 
-        log.info("ACM Score updated for User {}: +1 point, Penalty +{}", submission.getUser().getUsername(), penaltyForThisProblem);
+            cpp.setIsAc(true);
+            cpp.setMaxScore(1.0);
+            cpp.setPenalty(penaltyForThisProblem);
+            cppRepository.save(cpp);
+
+            participationRepository.addScoreAndPenalty(participation.getId(), 1.0, penaltyForThisProblem);
+
+            log.info("ACM Score updated for User {}: +1 point, Penalty +{}", submission.getUser().getUsername(), penaltyForThisProblem);
+        }
     }
 }

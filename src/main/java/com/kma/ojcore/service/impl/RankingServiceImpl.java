@@ -6,6 +6,7 @@ import com.kma.ojcore.exception.BusinessException;
 import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.repository.UserRepository;
 import com.kma.ojcore.service.RankingService;
+import com.kma.ojcore.utils.UuidHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,7 +33,7 @@ public class RankingServiceImpl implements RankingService {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Invalid rule type: " + ruleType);
         }
         return ranking.map(projection -> new UserRankSdo(
-                UUID.nameUUIDFromBytes(projection.getUserId()),
+                UuidHelper.getUuidFromBytes(projection.getUserId()),
                 projection.getUsername(),
                 projection.getAvatarUrl(),
                 projection.getAcCount(),

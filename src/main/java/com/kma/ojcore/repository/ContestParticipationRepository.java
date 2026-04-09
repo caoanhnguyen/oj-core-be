@@ -33,6 +33,10 @@ public interface ContestParticipationRepository extends JpaRepository<ContestPar
 
         Optional<ContestParticipation> findByContestIdAndUserId(UUID contestId, UUID userId);
 
+        @Modifying
+        @Query("UPDATE ContestParticipation cp SET cp.score = cp.score + :deltaScore, cp.penalty = cp.penalty + :deltaPenalty WHERE cp.id = :participationId")
+        void addScoreAndPenalty(@Param("participationId") UUID participationId, @Param("deltaScore") Double deltaScore, @Param("deltaPenalty") Long deltaPenalty);
+
         @Query("SELECT new com.kma.ojcore.dto.response.contests.MyActiveContestSdo(" +
                         "new com.kma.ojcore.dto.response.contests.ContestBasicSdo(" +
                         "c.id, c.title, c.contestKey, c.startTime, c.endTime, c.ruleType, null, c.visibility, " +
@@ -111,6 +115,24 @@ public interface ContestParticipationRepository extends JpaRepository<ContestPar
         Page<ContestParticipantPublicSdo> searchPublicParticipants(@Param("contestKey") String contestKey,
                                                                    @Param("keyword") String keyword,
                                                                    Pageable pageable);
+
+        interface ContestLeaderboardProjection {
+                byte[] getUserId();
+                String getUsername();
+                Double getScore();
+                Long getPenalty();
+                Integer getRank();
+        }
+
+        @Query(value = "SELECT cp.user_id AS userId, u.username AS username, cp.score AS score, cp.penalty AS penalty, " +
+                        "CAST(RANK() OVER (ORDER BY cp.score DESC, cp.penalty ASC) AS UNSIGNED) AS `rank` " +
+                        "FROM contest_participations cp " +
+                        "JOIN users u ON cp.user_id = u.id " +
+                        "WHERE cp.contest_id = :contestId AND cp.is_disqualified = false " +
+                        "ORDER BY cp.score DESC, cp.penalty ASC", countQuery = "SELECT COUNT(*) FROM contest_participations "
+                                        +
+                                        "WHERE contest_id = :contestId AND is_disqualified = false", nativeQuery = true)
+        Page<ContestLeaderboardProjection> getLeaderboardNative(@Param("contestId") UUID contestId, Pageable pageable);
 
         @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestLeaderboardSdo(" +
                         "cp.user.id, cp.user.username, cp.score, cp.penalty) " +

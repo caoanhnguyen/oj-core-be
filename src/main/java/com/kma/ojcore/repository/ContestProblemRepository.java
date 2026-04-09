@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -20,6 +21,8 @@ public interface ContestProblemRepository extends JpaRepository<ContestProblem, 
             "WHERE cp.contest.contestKey = :contestKey " +
             "ORDER BY cp.sortOrder ASC")
     List<ContestProblemSdo> findByContestKeyOrderBySortOrderAsc(String contestKey);
+
+    Optional<ContestProblem> findByContestIdAndProblemId(UUID contestId, UUID problemId);
 
     @Query("SELECT cp FROM ContestProblem cp JOIN FETCH cp.problem p WHERE cp.contest.id = :contestId")
     List<ContestProblem> findByContestId(UUID contestId);

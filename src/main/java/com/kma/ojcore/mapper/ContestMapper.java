@@ -18,6 +18,7 @@ public interface ContestMapper {
 
     Contest toEntity(CreateContestSdi sdi);
 
+    @Mapping(target = "password", ignore = true)
     @Mapping(target = "contestStatus", expression = "java(getRealTimeStatus(contest.getStartTime(), contest.getEndTime()))")
     @Mapping(source = "author.id", target = "authorId")
     @Mapping(source = "author.username", target = "authorUsername")

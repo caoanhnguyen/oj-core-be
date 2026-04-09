@@ -1,79 +1,79 @@
 package com.kma.ojcore.service.scoring;
 
 import com.kma.ojcore.entity.ContestParticipation;
+import com.kma.ojcore.entity.ContestParticipationProblem;
+import com.kma.ojcore.entity.ContestProblem;
 import com.kma.ojcore.entity.Submission;
-import com.kma.ojcore.repository.SubmissionRepository;
+import com.kma.ojcore.repository.ContestParticipationProblemRepository;
+import com.kma.ojcore.repository.ContestParticipationRepository;
+import com.kma.ojcore.repository.ContestProblemRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.time.Duration;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class OiScoringStrategy implements ContestScoringStrategy {
 
-    private final SubmissionRepository submissionRepository;
-    private final com.kma.ojcore.repository.ContestProblemRepository contestProblemRepository;
+    private final ContestParticipationProblemRepository cppRepository;
+    private final ContestParticipationRepository participationRepository;
+    private final ContestProblemRepository contestProblemRepository;
 
     @Override
+    @Transactional
     public void processScore(Submission submission, ContestParticipation participation) {
         if (submission.getScore() == null) return;
 
-        List<Submission> validSubmissions = submissionRepository.findValidSubmissionsByContestIdAndUserId(
-                submission.getContest().getId(),
-                submission.getUser().getId()
-        );
+        ContestProblem cp = contestProblemRepository.findByContestIdAndProblemId(
+            submission.getContest().getId(), 
+            submission.getProblem().getId()
+        ).orElse(null);
 
-        List<com.kma.ojcore.entity.ContestProblem> contestProblems = contestProblemRepository.findByContestId(submission.getContest().getId());
-        java.util.Map<java.util.UUID, Double> problemPointsMap = new java.util.HashMap<>();
-        for (com.kma.ojcore.entity.ContestProblem cp : contestProblems) {
-            problemPointsMap.put(cp.getProblem().getId(), cp.getPoints() != null ? Double.valueOf(cp.getPoints()) : 100.0);
-        }
+        if (cp == null) return;
 
-        double totalOiScore = 0.0;
-        long totalPenaltyMinutes = 0L;
+        double maxContestPoints = cp.getPoints() != null ? cp.getPoints() : 100.0;
+        double totalProblemScore = submission.getProblem().getTotalScore() != null ? submission.getProblem().getTotalScore() : 100.0;
 
-        // Group submissions by problem
-        java.util.Map<java.util.UUID, List<Submission>> subsByProblem = validSubmissions.stream()
-                .collect(java.util.stream.Collectors.groupingBy(s -> s.getProblem().getId()));
+        double newScaledScore = (submission.getScore() / totalProblemScore) * maxContestPoints;
+        long newPenaltyMins = Math.max(0, Duration.between(participation.getStartTime(), submission.getCreatedDate()).toMinutes());
 
-        for (java.util.Map.Entry<java.util.UUID, List<Submission>> entry : subsByProblem.entrySet()) {
-            java.util.UUID problemId = entry.getKey();
-            List<Submission> subs = entry.getValue();
+        ContestParticipationProblem cpp = cppRepository.findByParticipationAndContestProblem(participation, cp)
+            .orElseGet(() -> ContestParticipationProblem.builder()
+                .participation(participation)
+                .contestProblem(cp)
+                .maxScore(0.0)
+                .penalty(Long.MAX_VALUE)
+                .failedAttempts(0)
+                .isAc(false)
+                .build());
 
-            double maxScaledScore = 0.0;
-            long earliestPenaltyForMaxScore = Long.MAX_VALUE;
+        double oldScore = cpp.getMaxScore();
+        long oldPenalty = cpp.getPenalty();
 
-            for (Submission s : subs) {
-                double rawScore = s.getScore() != null ? s.getScore() : 0.0;
-                double totalScore = s.getProblem().getTotalScore() != null ? s.getProblem().getTotalScore() : 100.0;
-                double contestWeight = problemPointsMap.getOrDefault(problemId, 100.0);
-                double scaledScore = (rawScore / totalScore) * contestWeight;
+        boolean isScoreImproved = newScaledScore > oldScore;
+        boolean isPenaltyImproved = (newScaledScore == oldScore) && (newPenaltyMins < oldPenalty) && (newScaledScore > 0);
 
-                long penaltyMins = java.time.Duration.between(participation.getStartTime(), s.getCreatedDate()).toMinutes();
-                if (penaltyMins < 0) penaltyMins = 0;
+        if (isScoreImproved || isPenaltyImproved) {
+            double scoreDiff = newScaledScore - oldScore;
+            
+            long oldEffectivePenalty = (oldScore > 0 && oldPenalty != Long.MAX_VALUE) ? oldPenalty : 0;
+            long newEffectivePenalty = (newScaledScore > 0) ? newPenaltyMins : 0;
+            long penaltyDiff = newEffectivePenalty - oldEffectivePenalty;
 
-                if (scaledScore > maxScaledScore) {
-                    maxScaledScore = scaledScore;
-                    earliestPenaltyForMaxScore = penaltyMins;
-                } else if (scaledScore == maxScaledScore && scaledScore > 0) {
-                    if (penaltyMins < earliestPenaltyForMaxScore) {
-                        earliestPenaltyForMaxScore = penaltyMins;
-                    }
-                }
+            cpp.setMaxScore(newScaledScore);
+            cpp.setPenalty(newEffectivePenalty > 0 ? newEffectivePenalty : Long.MAX_VALUE);
+            if (newScaledScore >= maxContestPoints) {
+                cpp.setIsAc(true);
             }
+            cppRepository.save(cpp);
 
-            totalOiScore += maxScaledScore;
-            if (maxScaledScore > 0 && earliestPenaltyForMaxScore != Long.MAX_VALUE) {
-                totalPenaltyMinutes += earliestPenaltyForMaxScore;
-            }
+            participationRepository.addScoreAndPenalty(participation.getId(), scoreDiff, penaltyDiff);
+
+            log.info("OI Score updated for User {}: +{} points, Penalty diff: {}", submission.getUser().getUsername(), scoreDiff, penaltyDiff);
         }
-
-        participation.setScore(totalOiScore);
-        participation.setPenalty(totalPenaltyMinutes);
-
-        log.info("OI Score updated for User {}: Total Score = {}, Penalty = {}", submission.getUser().getUsername(), totalOiScore, totalPenaltyMinutes);
     }
 }
