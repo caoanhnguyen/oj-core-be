@@ -16,14 +16,17 @@ import com.kma.ojcore.mapper.ContestMapper;
 import com.kma.ojcore.repository.*;
 import com.kma.ojcore.service.ContestService;
 import com.kma.ojcore.utils.EscapeHelper;
+import com.kma.ojcore.utils.UuidHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -41,9 +44,11 @@ public class ContestServiceImpl implements ContestService {
     private final UserRepository userRepository;
     private final ContestMapper contestMapper;
     private final ContestParticipationRepository contestParticipationRepository;
+    private final ContestParticipationProblemRepository cppRepository;
     private final SubmissionRepository submissionRepository;
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
+    private final PasswordEncoder passwordEncoder;
 
     @Value("${REDIS_PREFIX_LEADERBOARD:CONTEST_LEADERBOARD:}")
     private String leaderboardPrefix;
@@ -99,6 +104,11 @@ public class ContestServiceImpl implements ContestService {
         }
 
         Contest contest = contestMapper.toEntity(req);
+        if (contest.getVisibility() == ContestVisibility.PRIVATE && contest.getPassword() != null && !contest.getPassword().isEmpty()) {
+            contest.setPassword(passwordEncoder.encode(contest.getPassword()));
+        } else {
+            contest.setPassword(null);
+        }
         contest.setAuthor(author);
         contest.setStatus(EStatus.INACTIVE);
 
@@ -125,6 +135,10 @@ public class ContestServiceImpl implements ContestService {
         }
 
         if (req.getVisibility() == ContestVisibility.PUBLIC) {
+            req.setPassword(null);
+        } else if (req.getPassword() != null && !req.getPassword().isBlank()) {
+            req.setPassword(passwordEncoder.encode(req.getPassword()));
+        } else {
             req.setPassword(null);
         }
 
@@ -452,109 +466,63 @@ public class ContestServiceImpl implements ContestService {
             }
         } catch (Exception e) {
             log.error("Redis Cache Error for Leaderboard: {}", e.getMessage());
-            // Lỗi Redis thì bỏ qua, chạy tiếp xuống DB chứ không làm chết API
         }
 
         // ==========================================
         // 3. NẾU REDIS TRỐNG -> CHỌC XUỐNG DB
         // ==========================================
-        Page<ContestLeaderboardSdo> page = contestParticipationRepository.getLeaderboard(contest.getId(), pageable);
+        Page<ContestParticipationRepository.ContestLeaderboardProjection> nativePage = contestParticipationRepository.getLeaderboardNative(contest.getId(), pageable);
+
+        List<ContestLeaderboardSdo> sdoContent = nativePage.getContent().stream().map(p -> {
+            ContestLeaderboardSdo sdo = new ContestLeaderboardSdo();
+            sdo.setUserId(UuidHelper.getUuidFromBytes(p.getUserId()));
+            sdo.setUsername(p.getUsername());
+            sdo.setScore(p.getScore());
+            sdo.setPenalty(p.getPenalty());
+            sdo.setRank(p.getRank());
+            return sdo;
+        }).collect(Collectors.toList());
+
+        Page<ContestLeaderboardSdo> page = new PageImpl<>(sdoContent, pageable, nativePage.getTotalElements());
+
         List<ContestProblem> contestProblems = contestProblemRepository.findByContestId(contest.getId());
 
         if (!page.isEmpty()) {
             List<UUID> userIds = page.getContent().stream().map(ContestLeaderboardSdo::getUserId).collect(Collectors.toList());
-            List<Submission> validSubmissions = submissionRepository.findValidSubmissionsByContestIdAndUserIds(contest.getId(), userIds);
+            
+            // Lấy trạng thái trung gian (Intermediate State) của tất cả user trong Page này
+            List<ContestParticipationProblem> matrixRecords = cppRepository.findByParticipationUserIdInAndContestProblemContestId(userIds, contest.getId());
 
-            // Tối ưu để tra cứu: (UserId, ProblemId) -> List<Submission>
-            Map<UUID, Map<UUID, List<Submission>>> subsByUserAndProblem = validSubmissions.stream()
-                    .collect(Collectors.groupingBy(s -> s.getUser().getId(),
-                            Collectors.groupingBy(s -> s.getProblem().getId())));
-
-            // Tối ưu lấy `participation.startTime` cho các Users này (cần cho việc tính Penalty/Time chính xác)
-            List<com.kma.ojcore.entity.ContestParticipation> participations = contestParticipationRepository.findAllByContestId(contest.getId())
-                    .stream().filter(p -> userIds.contains(p.getUser().getId())).toList();
-            Map<UUID, LocalDateTime> startTimeByUser = participations.stream()
-                    .collect(Collectors.toMap(p -> p.getUser().getId(), p -> p.getStartTime() != null ? p.getStartTime() : contest.getStartTime()));
-
-            Map<UUID, Double> pointsMap = contestProblems.stream().collect(Collectors.toMap(cp -> cp.getProblem().getId(), cp -> cp.getPoints() != null ? Double.valueOf(cp.getPoints()) : 100.0));
+            // Nhóm dữ liệu: UserId -> (DisplayId -> ContestParticipationProblem)
+            Map<UUID, Map<String, ContestParticipationProblem>> cppByUserAndDisplayId = matrixRecords.stream()
+                    .collect(Collectors.groupingBy(cpp -> cpp.getParticipation().getUser().getId(),
+                            Collectors.toMap(cpp -> cpp.getContestProblem().getDisplayId(), cpp -> cpp)));
 
             for (ContestLeaderboardSdo lb : page) {
-                Map<UUID, List<Submission>> userSubs = subsByUserAndProblem.getOrDefault(lb.getUserId(), Collections.emptyMap());
-                LocalDateTime userStartTime = startTimeByUser.getOrDefault(lb.getUserId(), contest.getStartTime());
+                Map<String, ContestParticipationProblem> userCpps = cppByUserAndDisplayId.getOrDefault(lb.getUserId(), Collections.emptyMap());
 
-                double userTotalScore = 0.0;
-                long userTotalPenalty = 0;
-
-                for (ContestProblem cp : contestProblems) {
-                    UUID problemId = cp.getProblem().getId();
+                for (ContestProblem cp : contestProblems) { // Vòng lặp này đã duyệt qua toàn bộ problems của contest rồi
                     String displayId = cp.getDisplayId();
-                    double baseTotalScore = cp.getProblem().getTotalScore() != null ? cp.getProblem().getTotalScore() : 100.0;
-                    double contestPoints = pointsMap.getOrDefault(problemId, 100.0);
-
-                    List<Submission> pSubs = userSubs.getOrDefault(problemId, Collections.emptyList());
+                    ContestParticipationProblem cpp = userCpps.get(displayId);
 
                     ContestProblemResultSdo result = new ContestProblemResultSdo();
-                    result.setProblemId(problemId);
+                    result.setProblemId(cp.getProblem().getId());
                     result.setDisplayId(displayId);
-                    result.setTries(0);
-                    result.setIsAc(false);
-                    result.setScore(0.0);
-                    result.setPenalty(0L);
                     
-                    if (!pSubs.isEmpty()) {
-                        if (contest.getRuleType() == com.kma.ojcore.enums.RuleType.ACM) {
-                            // ACM Logic
-                            long pTries = 0;
-                            boolean accepted = false;
-                            long pPenalty = 0;
-                            pSubs.sort(Comparator.comparing(Submission::getCreatedDate));
-                            for (Submission s : pSubs) {
-                                if (s.getVerdict() == com.kma.ojcore.enums.SubmissionVerdict.CE) continue;
-                                if (s.getVerdict() == com.kma.ojcore.enums.SubmissionVerdict.AC) {
-                                    accepted = true;
-                                    long seconds = java.time.Duration.between(userStartTime, s.getCreatedDate()).toSeconds();
-                                    pPenalty = Math.max(0, seconds) + (pTries * 20 * 60);
-                                    break;
-                                } else {
-                                    pTries++;
-                                }
-                            }
-                            result.setTries((int) pTries);
-                            result.setIsAc(accepted);
-                            if (accepted) {
-                                result.setScore(1.0);
-                                result.setPenalty(pPenalty);
-                            }
-                        } else {
-                            // OI Logic
-                            double maxScaledScore = 0.0;
-                            long minPenalty = Long.MAX_VALUE;
-                            for (Submission s : pSubs) {
-                                double rawScore = s.getScore() != null ? s.getScore() : 0.0;
-                                double scaledScore = (rawScore / baseTotalScore) * contestPoints;
-                                long seconds = java.time.Duration.between(userStartTime, s.getCreatedDate()).toSeconds();
-                                if (seconds < 0) seconds = 0;
-
-                                if (scaledScore > maxScaledScore) {
-                                    maxScaledScore = scaledScore;
-                                    minPenalty = seconds;
-                                } else if (scaledScore == maxScaledScore && scaledScore > 0 && seconds < minPenalty) {
-                                    minPenalty = seconds;
-                                }
-                            }
-                            result.setScore(maxScaledScore);
-                            if (maxScaledScore > 0 && minPenalty != Long.MAX_VALUE) {
-                                result.setPenalty(minPenalty);
-                                result.setIsAc(maxScaledScore >= contestPoints); 
-                            }
-                        }
+                    if (cpp != null) {
+                        result.setTries(cpp.getFailedAttempts());
+                        result.setIsAc(cpp.getIsAc());
+                        result.setScore(cpp.getMaxScore());
+                        result.setPenalty(cpp.getPenalty() == Long.MAX_VALUE ? 0L : cpp.getPenalty());
+                    } else {
+                        result.setTries(0);
+                        result.setIsAc(false);
+                        result.setScore(0.0);
+                        result.setPenalty(0L);
                     }
+                    
                     lb.getProblemResults().put(displayId, result);
-                    userTotalScore += (result.getScore() != null ? result.getScore() : 0.0);
-                    userTotalPenalty += (result.getPenalty() != null ? result.getPenalty() : 0L);
                 }
-                lb.setScore(userTotalScore);
-                lb.setPenalty(userTotalPenalty);
             }
         }
 
@@ -698,7 +666,7 @@ public class ContestServiceImpl implements ContestService {
         }
 
         if (contest.getVisibility() == ContestVisibility.PRIVATE) {
-            if (req == null || req.getPassword() == null || !req.getPassword().equals(contest.getPassword())) { // TODO: Nên hash password thay vì lưu thẳng, nhưng tạm thời để vậy cho nhanh
+            if (req == null || req.getPassword() == null || !passwordEncoder.matches(req.getPassword(), contest.getPassword())) {
                 throw new BusinessException(ErrorCode.INCORRECT_PASSWORD);
             }
         }

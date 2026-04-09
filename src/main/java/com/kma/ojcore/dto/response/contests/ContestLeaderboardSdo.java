@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Data
@@ -16,8 +18,9 @@ public class ContestLeaderboardSdo {
     String username;
     Double score;
     Long penalty;
+    Integer rank;
     // Map with Key = String (DisplayId) and Value = ContestProblemResultSdo
-    java.util.Map<String, ContestProblemResultSdo> problemResults = new java.util.HashMap<>();
+    Map<String, ContestProblemResultSdo> problemResults = new HashMap<>();
 
     // We can also have an additional constructor for legacy JPQL fetches
     public ContestLeaderboardSdo(UUID userId, String username, Double score, Long penalty) {
@@ -25,6 +28,15 @@ public class ContestLeaderboardSdo {
         this.username = username;
         this.score = score;
         this.penalty = penalty;
-        this.problemResults = new java.util.HashMap<>();
+        this.problemResults = new HashMap<>();
+    }
+
+    public ContestLeaderboardSdo(UUID userId, String username, Double score, Long penalty, Integer rank) {
+        this.userId = userId;
+        this.username = username;
+        this.score = score;
+        this.penalty = penalty;
+        this.rank = rank;
+        this.problemResults = new HashMap<>();
     }
 }
