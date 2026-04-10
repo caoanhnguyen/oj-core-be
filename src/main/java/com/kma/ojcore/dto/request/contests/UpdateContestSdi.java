@@ -12,6 +12,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -51,6 +52,8 @@ public class UpdateContestSdi {
 
     @NotNull(message = "Scoreboard visibility is required.")
     ScoreboardVisibility scoreboardVisibility;
+
+    UUID organizationId;
 
     // 1. CHECK THỜI GIAN (End phải lớn hơn Start)
     @JsonIgnore
