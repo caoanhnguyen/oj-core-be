@@ -71,7 +71,21 @@ public enum ErrorCode {
     FILE_EMPTY("FIL_005", "Uploaded file is empty.", HttpStatus.BAD_REQUEST),
     FILE_NOT_FOUND("FIL_006", "File not found in storage.", HttpStatus.NOT_FOUND),
     INVALID_TESTCASE_ARCHIVE("FIL_007", "ZIP file does not contain valid testcases (.in/.out).", HttpStatus.BAD_REQUEST),
-    MISSING_OUTPUT_FILE("FIL_008", "Missing corresponding output file.", HttpStatus.BAD_REQUEST);
+    MISSING_OUTPUT_FILE("FIL_008", "Missing corresponding output file.", HttpStatus.BAD_REQUEST),
+
+    // ==========================================
+    // 8. ORG - ORGANIZATION
+    // ==========================================
+    ORGANIZATION_NOT_FOUND("ORG_001", "Organization not found.", HttpStatus.NOT_FOUND),
+    ORGANIZATION_INACTIVE("ORG_002", "Organization is not active.", HttpStatus.BAD_REQUEST),
+    ORGANIZATION_NAME_EXISTS("ORG_003", "Organization name already exists.", HttpStatus.CONFLICT),
+    ORGANIZATION_SLUG_EXISTS("ORG_004", "Organization slug already exists.", HttpStatus.CONFLICT),
+
+    ORG_MEMBER_NOT_FOUND("ORG_005", "Organization member not found.", HttpStatus.NOT_FOUND),
+    ORG_MEMBER_ALREADY_EXISTS("ORG_006", "User is already a member of this organization.", HttpStatus.BAD_REQUEST),
+    ORG_ROLE_INVALID("ORG_007", "Invalid organization role.", HttpStatus.BAD_REQUEST),
+    ORG_PERMISSION_DENIED("ORG_008", "You do not have permission to manage this organization.", HttpStatus.FORBIDDEN),
+    ORG_OWNER_LIMIT_REACHED("ORG_009", "You have reached the maximum number of organizations you can own.", HttpStatus.BAD_REQUEST);
 
     private final String code;
     private final String message;

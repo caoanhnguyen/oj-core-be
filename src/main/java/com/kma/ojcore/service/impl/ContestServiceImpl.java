@@ -42,6 +42,8 @@ public class ContestServiceImpl implements ContestService {
     private final ContestProblemRepository contestProblemRepository;
     private final ProblemRepository problemRepository;
     private final UserRepository userRepository;
+    private final OrganizationRepository organizationRepository;
+    private final OrganizationMemberRepository organizationMemberRepository;
     private final ContestMapper contestMapper;
     private final ContestParticipationRepository contestParticipationRepository;
     private final ContestParticipationProblemRepository cppRepository;
@@ -112,6 +114,9 @@ public class ContestServiceImpl implements ContestService {
         contest.setAuthor(author);
         contest.setStatus(EStatus.INACTIVE);
 
+        Organization org = validateAndGetOrganizationForContest(author, req.getOrganizationId(), req.getVisibility());
+        contest.setOrganization(org);
+
         Contest saved = contestRepository.save(contest);
         log.info("Created new contest: {}", saved.getId());
 
@@ -150,7 +155,11 @@ public class ContestServiceImpl implements ContestService {
             req.setDurationMinutes(null);
         }
 
+        Organization org = validateAndGetOrganizationForContest(contest.getAuthor(), req.getOrganizationId(), req.getVisibility());
+
         contestMapper.updateEntityFromSdi(req, contest);
+        contest.setOrganization(org);
+
         Contest updated = contestRepository.save(contest);
         log.info("Updated contest: {}", updated.getContestKey());
 
@@ -873,5 +882,26 @@ public class ContestServiceImpl implements ContestService {
         contestParticipationRepository.save(participation);
 
         log.info("User {} finished contest {} early.", userId, contest.getId());
+    }
+
+    private Organization validateAndGetOrganizationForContest(User currentUser, UUID orgId, ContestVisibility visibility) {
+        Organization org = null;
+        if (orgId != null) {
+            org = organizationRepository.findById(orgId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.ORGANIZATION_NOT_FOUND));
+
+            if (org.getStatus() != EStatus.ACTIVE) {
+                throw new BusinessException(ErrorCode.ORGANIZATION_INACTIVE);
+            }
+            
+            // Authorization logic will be handled by @PreAuthorize in the Controller
+        }
+
+        if (visibility == ContestVisibility.PUBLIC) {
+            if (org != null && org.getApprovalStatus() != OrgApprovalStatus.VERIFIED) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Organization must be VERIFIED to create PUBLIC contests. Please set to PRIVATE.");
+            }
+        }
+        return org;
     }
 }

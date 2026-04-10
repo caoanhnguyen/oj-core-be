@@ -71,6 +71,11 @@ public class UserPrincipal implements UserDetails, OAuth2User, Serializable {
         return userPrincipal;
     }
 
+    public boolean hasRole(String roleName) {
+        return this.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals(roleName));
+    }
+
     @Override
     public String getPassword() {
         return password;

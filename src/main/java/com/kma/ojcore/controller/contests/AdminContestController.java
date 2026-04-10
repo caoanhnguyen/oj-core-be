@@ -32,7 +32,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("${app.api.prefix}/admin/contests")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'MODERATOR')")
+//@PreAuthorize("hasAnyRole('ADMIN', 'MODERATOR')")
 @Validated
 public class AdminContestController {
 
@@ -42,6 +42,7 @@ public class AdminContestController {
     // CONTEST
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'MODERATOR')")
     public ApiResponse<?> getContests(@RequestParam(required = false) String keyword,
                                       @RequestParam(required = false) RuleType ruleType,
                                       @RequestParam(required = false) ContestStatus contestStatus,
@@ -59,6 +60,7 @@ public class AdminContestController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
     public ApiResponse<ContestAdminSdo> getContestDetails(@PathVariable UUID id) {
         return ApiResponse.<ContestAdminSdo>builder()
                 .status(HttpStatus.OK.value())
@@ -68,6 +70,7 @@ public class AdminContestController {
     }
 
     @PostMapping
+    @PreAuthorize("(#request.organizationId == null and hasAuthority('ROLE_ADMIN')) or (#request.organizationId != null and @orgSecurity.canManageOrganization(#request.organizationId, authentication))")
     public ApiResponse<ContestAdminSdo> createContest(@Valid @RequestBody CreateContestSdi request,
                                                       @AuthenticationPrincipal UserPrincipal userPrincipal) {
         return ApiResponse.<ContestAdminSdo>builder()
@@ -78,6 +81,7 @@ public class AdminContestController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("@contestSecurity.canManageContest(#id, authentication) and ((#request.organizationId == null and hasRole('ROLE_ADMIN')) or (#request.organizationId != null and @orgSecurity.canManageOrganization(#request.organizationId, authentication)))")
     public ApiResponse<ContestAdminSdo> updateContest(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateContestSdi request) {
@@ -89,6 +93,7 @@ public class AdminContestController {
     }
 
     @PostMapping("/{id}/restore")
+    @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
     public ApiResponse<?> restoreContest(@PathVariable UUID id) {
         contestService.restoreContest(id);
         return ApiResponse.builder()
@@ -98,6 +103,7 @@ public class AdminContestController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
     public ApiResponse<?> softDeleteContest(@PathVariable UUID id) {
         contestService.softDeleteContest(id);
         return ApiResponse.builder()
@@ -107,6 +113,7 @@ public class AdminContestController {
     }
 
     @PatchMapping("/{id}/visibility")
+    @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
     public ApiResponse<?> toggleVisibility(@PathVariable UUID id) {
         contestService.togglePublishStatus(id);
         return ApiResponse.<String>builder()
@@ -119,6 +126,7 @@ public class AdminContestController {
     // PROBLEMS CONTEST
 
     @GetMapping("/{id}/problems")
+    @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
     public ApiResponse<List<ContestProblemSdo>> getContestProblems(@PathVariable UUID id) {
         return ApiResponse.<List<ContestProblemSdo>>builder()
                 .status(HttpStatus.OK.value())
@@ -128,6 +136,7 @@ public class AdminContestController {
     }
 
     @PostMapping("/{id}/problems/bulk-add")
+    @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
     public ApiResponse<?> addProblems(@PathVariable UUID id,
                                       @RequestBody List<AddContestProblemSdi> requests) {
         contestService.addProblemsToContest(id, requests);
@@ -138,6 +147,7 @@ public class AdminContestController {
     }
 
     @PutMapping("/{id}/problems/bulk-update")
+    @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
     public ApiResponse<?> updateProblems(@PathVariable UUID id,
                                          @RequestBody List<UpdateContestProblemSdi> requests) {
         contestService.updateProblemsInContest(id, requests);
@@ -148,6 +158,7 @@ public class AdminContestController {
     }
 
     @DeleteMapping("/{id}/problems/bulk-remove")
+    @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
     public ApiResponse<?> removeProblems(@PathVariable UUID id,
                                          @RequestBody List<UUID> problemIds) {
         contestService.removeProblemsFromContest(id, problemIds);
@@ -161,6 +172,7 @@ public class AdminContestController {
     // PARTICIPANTS
 
     @GetMapping("/{id}/participants")
+    @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
     public ApiResponse<Page<ContestParticipationSdo>> getParticipants(
             @PathVariable UUID id,
               @RequestParam(value = "keyword", required = false) String keyword,
@@ -179,6 +191,7 @@ public class AdminContestController {
     }
 
     @PostMapping("/{id}/participants/bulk-ban")
+    @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
     public ApiResponse<?> banUsers(@PathVariable UUID id,
                                    @RequestBody List<UUID> userIds) {
 
@@ -190,6 +203,7 @@ public class AdminContestController {
     }
 
     @PostMapping("/{id}/participants/bulk-unban")
+    @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
     public ApiResponse<?> unbanUsers(@PathVariable UUID id,
                                      @RequestBody List<UUID> userIds) {
         contestService.requalifyUsers(id, userIds);
@@ -200,6 +214,7 @@ public class AdminContestController {
     }
 
     @GetMapping("/{id}/submissions")
+    @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
     public ApiResponse<Page<SubmissionBasicSdo>> getContestSubmissions(
             @PathVariable UUID id,
             Pageable pageable) {
@@ -212,6 +227,7 @@ public class AdminContestController {
     }
 
     @GetMapping("/{id}/leaderboard")
+    @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
     public ApiResponse<ContestLeaderboardPageSdo> getLeaderboard(@PathVariable UUID id,
                                                                    Pageable pageable) {
 

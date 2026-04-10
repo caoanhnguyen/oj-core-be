@@ -31,6 +31,7 @@ public class ContestController {
     private final ContestService contestService;
 
     @GetMapping("/my-active")
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<List<MyActiveContestSdo>> getMyActiveContests(@AuthenticationPrincipal UserPrincipal currentUser) {
 
         List<MyActiveContestSdo> activeContests = contestService.getMyActiveContests(currentUser.getId());

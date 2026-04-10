@@ -77,4 +77,9 @@ public class Contest extends BaseEntity {
     // Contest - ContestParticipation //
     @OneToMany(mappedBy = "contest", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
     List<ContestParticipation> participations;
+
+    // Contest - Organization
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id")
+    Organization organization;
 }
