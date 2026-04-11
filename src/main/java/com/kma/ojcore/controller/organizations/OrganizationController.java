@@ -6,10 +6,10 @@ import com.kma.ojcore.dto.request.organizations.OrganizationReviewJoinSdi;
 import com.kma.ojcore.dto.request.organizations.OrganizationUpdateMemberRoleSdi;
 import com.kma.ojcore.dto.request.organizations.OrganizationUpdateSdi;
 import com.kma.ojcore.dto.response.common.ApiResponse;
-import com.kma.ojcore.dto.response.organizations.OrganizationBasicSdo;
-import com.kma.ojcore.dto.response.organizations.OrganizationJoinRequestSdo;
-import com.kma.ojcore.dto.response.organizations.OrganizationMemberSdo;
-import com.kma.ojcore.dto.response.organizations.OrganizationSdo;
+import com.kma.ojcore.dto.response.organizations.*;
+import com.kma.ojcore.enums.EStatus;
+import com.kma.ojcore.enums.OrgMemberStatus;
+import com.kma.ojcore.enums.OrgRole;
 import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.service.OrganizationService;
 import com.kma.ojcore.enums.OrgApprovalStatus;
@@ -19,6 +19,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.web.SortDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -59,11 +60,9 @@ public class OrganizationController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) OrgApprovalStatus approvalStatus,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "name") String sortBy,
-            @RequestParam(defaultValue = "asc") String direction) {
+            @RequestParam(defaultValue = "20") int size,
+            @SortDefault Sort sort) {
         
-        Sort sort = Sort.by(Sort.Direction.fromString(direction), sortBy);
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<OrganizationBasicSdo> result = organizationService.searchOrganizations(keyword, approvalStatus, false, pageable);
         
@@ -139,8 +138,12 @@ public class OrganizationController {
     @GetMapping("/{orgId}/join-requests")
     @PreAuthorize("@orgSecurity.canManageOrganization(#orgId, authentication)")
     public ApiResponse<?> getJoinRequests(@PathVariable UUID orgId,
-                                          @AuthenticationPrincipal UserPrincipal userPrincipal) {
-        List<OrganizationJoinRequestSdo> requests = organizationService.getJoinRequests(orgId, userPrincipal.getId());
+                                          @AuthenticationPrincipal UserPrincipal userPrincipal,
+                                          @RequestParam(defaultValue = "0") int page,
+                                          @RequestParam(defaultValue = "20") int size,
+                                          @SortDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort) {
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<OrganizationJoinRequestSdo> requests = organizationService.getJoinRequests(orgId, userPrincipal.getId(), pageable);
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Pending join requests retrieved successfully.")
@@ -164,22 +167,50 @@ public class OrganizationController {
     }
 
     /**
-     * Lấy danh sách member của 1 organization.
-     * Chỉ ORG_OWNER / ORG_ADMIN (hoặc Site Staff) mới xem được.
+     * Lấy danh sách member của 1 organization cho user thường.
      */
     @GetMapping("/{orgId}/members")
-    @PreAuthorize("@orgSecurity.canManageOrganization(#orgId, authentication)")
-    // TODO: sửa lại có tìm kiếm, filter, sort + phân trang
     public ApiResponse<?> getMembers(@PathVariable UUID orgId,
-                                     @AuthenticationPrincipal UserPrincipal userPrincipal) {
+                                     @RequestParam(required = false) String keyword,
+                                     @RequestParam(defaultValue = "0") int page,
+                                     @RequestParam(defaultValue = "20") int size,
+                                     @SortDefault Sort sort) {
 
-        List<OrganizationMemberSdo> members =
-                organizationService.getMembers(orgId, userPrincipal.getId());
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<OrganizationMemberSdo> result = organizationService.getMembers(orgId, keyword, false, pageable);
 
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Organization members retrieved successfully.")
-                .data(members)
+                .data(result)
+                .build();
+    }
+
+    /**
+     * Tìm kiếm và quản trị member dành riêng cho Org Staff (Owner/Admin).
+     * Cho phép filter theo chi tiết: EStatus, OrgMemberStatus, Roles.
+     */
+    @GetMapping("/{orgId}/manage-members")
+    @PreAuthorize("@orgSecurity.canManageOrganization(#orgId, authentication)")
+    public ApiResponse<?> manageMembers(@PathVariable UUID orgId,
+                                        @RequestParam(required = false) String keyword,
+                                        @RequestParam(required = false) EStatus status,
+                                        @RequestParam(required = false) OrgMemberStatus memberStatus,
+                                        @RequestParam(required = false) OrgRole role,
+                                        @RequestParam(defaultValue = "0") int page,
+                                        @RequestParam(defaultValue = "20") int size,
+                                        @SortDefault Sort sort) {
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<OrganizationManageMemberSdo> result =
+                organizationService.getMembersForManagement(orgId, keyword, status, memberStatus, role, pageable);
+
+        return ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Organization members for management retrieved successfully.")
+                .data(result)
                 .build();
     }
 
@@ -220,6 +251,7 @@ public class OrganizationController {
 
     /**
      * Cập nhật thông tin profile của organization.
+     * Chỉ ORG_OWNER / ORG_ADMIN (hoặc Site Staff) mới được phép chỉnh sửa.
      */
     @PatchMapping("/{orgId}")
     @PreAuthorize("@orgSecurity.canManageOrganization(#orgId, authentication)")
@@ -227,16 +259,18 @@ public class OrganizationController {
                                                     @Valid @RequestBody OrganizationUpdateSdi request,
                                                     @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
-        organizationService.updateOrganizationProfile(orgId, request, userPrincipal.getId());
+        OrganizationSdo sdo = organizationService.updateOrganizationProfile(orgId, request, userPrincipal.getId());
 
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
+                .data(sdo)
                 .message("Organization profile updated successfully.")
                 .build();
     }
 
     /**
      * Yêu cầu xác thực organization (bật cờ pending).
+     * Chỉ ORG_OWNER / ORG_ADMIN (hoặc Site Staff) mới được phép thực hiện.
      */
     @PostMapping("/{orgId}/request-verify")
     @PreAuthorize("@orgSecurity.canManageOrganization(#orgId, authentication)")

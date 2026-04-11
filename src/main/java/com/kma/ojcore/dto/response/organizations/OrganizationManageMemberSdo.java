@@ -1,6 +1,8 @@
 package com.kma.ojcore.dto.response.organizations;
 
+import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.OrgMemberStatus;
+import com.kma.ojcore.enums.OrgRole;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,20 +18,15 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class OrganizationJoinRequestSdo {
-    // Thông tin user gửi request
+public class OrganizationManageMemberSdo {
+    UUID id;             
     UUID userId;
     String username;
     String fullName;
     String email;
-
-    // Thông tin organization mà user muốn join
-    UUID orgId;
-    String orgName;
-    String orgSlug;
-
-    // Trạng thái của request
-    OrgMemberStatus status;
-    String message;
-    LocalDateTime requestedAt;
+    OrgRole role;
+    EStatus status;
+    OrgMemberStatus memberStatus;
+    LocalDateTime createdDate;
+    LocalDateTime updatedDate;
 }

@@ -1,11 +1,9 @@
 package com.kma.ojcore.security;
 
-import com.kma.ojcore.entity.Organization;
 import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.OrgMemberStatus;
 import com.kma.ojcore.enums.OrgRole;
 import com.kma.ojcore.repository.OrganizationMemberRepository;
-import com.kma.ojcore.repository.OrganizationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
@@ -17,7 +15,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrgSecurity {
 
-    private final OrganizationRepository organizationRepository;
     private final OrganizationMemberRepository organizationMemberRepository;
 
     /**
@@ -36,16 +33,9 @@ public class OrgSecurity {
             return true;
         }
 
-        Organization org = organizationRepository.findById(orgId).orElse(null);
-        if (org == null || org.getStatus() != EStatus.ACTIVE) {
-            return false;
-        }
-
-        UUID userId = userPrincipal.getId();
-
         return organizationMemberRepository.existsByOrganizationIdAndUserIdAndRoleInAndStatusAndMemberStatus(
-                org.getId(),
-                userId,
+                orgId,
+                userPrincipal.getId(),
                 Arrays.asList(OrgRole.ORG_OWNER, OrgRole.ORG_ADMIN),
                 EStatus.ACTIVE,
                 OrgMemberStatus.APPROVED

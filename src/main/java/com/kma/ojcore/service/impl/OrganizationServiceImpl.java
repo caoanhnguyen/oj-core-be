@@ -5,10 +5,7 @@ import com.kma.ojcore.dto.request.organizations.OrganizationUpdateSdi;
 import com.kma.ojcore.dto.request.organizations.OrganizationUpdateMemberRoleSdi;
 import com.kma.ojcore.dto.request.organizations.OrganizationJoinSdi;
 import com.kma.ojcore.dto.request.organizations.OrganizationReviewJoinSdi;
-import com.kma.ojcore.dto.response.organizations.OrganizationBasicSdo;
-import com.kma.ojcore.dto.response.organizations.OrganizationJoinRequestSdo;
-import com.kma.ojcore.dto.response.organizations.OrganizationMemberSdo;
-import com.kma.ojcore.dto.response.organizations.OrganizationSdo;
+import com.kma.ojcore.dto.response.organizations.*;
 import com.kma.ojcore.entity.Organization;
 import com.kma.ojcore.entity.OrganizationMember;
 import com.kma.ojcore.entity.User;
@@ -18,6 +15,7 @@ import com.kma.ojcore.enums.OrgMemberStatus;
 import com.kma.ojcore.enums.OrgRole;
 import com.kma.ojcore.exception.BusinessException;
 import com.kma.ojcore.exception.ErrorCode;
+import com.kma.ojcore.utils.EscapeHelper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.kma.ojcore.mapper.OrganizationMapper;
@@ -31,10 +29,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.text.Normalizer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -52,7 +50,8 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Transactional(readOnly = true)
     public Page<OrganizationBasicSdo> searchOrganizations(String keyword, OrgApprovalStatus approvalStatus, boolean isAdmin, Pageable pageable) {
         EStatus statusFilter = isAdmin ? null : EStatus.ACTIVE;
-        return organizationRepository.searchOrganizations(keyword, approvalStatus, statusFilter, pageable);
+        String searchKeyword = EscapeHelper.escapeLike(keyword);
+        return organizationRepository.searchOrganizations(searchKeyword, approvalStatus, statusFilter, pageable);
     }
 
     // ================== Site Staff operations only ==================
@@ -77,15 +76,12 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<OrganizationJoinRequestSdo> getJoinRequests(UUID orgId, UUID currentUserId) {
+    // TODO: maybe là có thêm phân trang
+    public Page<OrganizationJoinRequestSdo> getJoinRequests(UUID orgId, UUID currentUserId, Pageable pageable) {
         Organization org = findActiveOrganization(orgId);
 
-        List<OrganizationMember> pendingMembers = organizationMemberRepository.findByOrganizationAndStatusAndMemberStatus(
-                org, EStatus.ACTIVE, OrgMemberStatus.PENDING);
-
-        return pendingMembers.stream()
-                .map(organizationMapper::toJoinRequestSdo)
-                .collect(Collectors.toList());
+        return organizationMemberRepository.findJoinReqsByOrganizationIdAndStatusAndMemberStatus(
+                org.getId(), EStatus.ACTIVE, OrgMemberStatus.PENDING, pageable);
     }
 
     @Override
@@ -106,7 +102,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         if (updatedCount != userIds.size()) {
             log.warn("Bulk update join requests mismatch. Expected to update {} but only updated {}. Org: {}, Admin: {}", 
                      userIds.size(), updatedCount, orgId, currentUserId);
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Một số yêu cầu gia nhập không hợp lệ hoặc đã không còn ở trạng thái chờ duyệt.");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Some join requests could not be processed. Please verify the user IDs and their current request status.");
         }
         
         log.info("Successfully reviewed {} join requests for organization [{}]. Approved: {}", 
@@ -115,19 +111,30 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<OrganizationMemberSdo> getMembers(UUID orgId, UUID currentUserId) {
+    public Page<OrganizationMemberSdo> getMembers(UUID orgId, String keyword, boolean isStaff, Pageable pageable) {
         Organization org = findActiveOrganization(orgId);
 
-        List<OrganizationMember> members =
-                organizationMemberRepository.findByOrganizationAndStatusAndMemberStatus(org, EStatus.ACTIVE, OrgMemberStatus.APPROVED);
+        // Dù là Staff hay User thường, danh sách Members chính thức của 1 Org luôn luôn chỉ gồm những người đã được APPROVED.
+        // Các trạng thái PENDING thì nằm bên API getJoinRequests.
+        EStatus statusFilter = EStatus.ACTIVE;
+        OrgMemberStatus memberStatusFilter = OrgMemberStatus.APPROVED;
+        
+        String searchKeyword = EscapeHelper.escapeLike(keyword);
 
-        return members.stream()
-                .map(organizationMapper::toMemberSdo)
-                .collect(Collectors.toList());
+        return organizationMemberRepository.searchMembers(org.getId(), searchKeyword, statusFilter, memberStatusFilter, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<OrganizationManageMemberSdo> getMembersForManagement(UUID orgId, String keyword, EStatus status, OrgMemberStatus memberStatus, OrgRole role, Pageable pageable) {
+        Organization org = findActiveOrganization(orgId);
+        String searchKeyword = EscapeHelper.escapeLike(keyword);
+        return organizationMemberRepository.searchManageMembers(org.getId(), searchKeyword, status, memberStatus, role, pageable);
     }
 
     @Override
     @Transactional(rollbackFor = Throwable.class)
+    // TODO: xem lại nghiệp vụ có được gán role owner cho người khác không, hay chỉ có thể gán admin thôi? Cần valid chặt hơn như là ORG luôn phải có 1 owner, api này chỉ cho phép owner thao tác gán quyền admin và member qua lại.
     public void updateMemberRole(UUID orgId, UUID memberId, OrganizationUpdateMemberRoleSdi request, UUID currentUserId) {
         Organization org = findActiveOrganization(orgId);
 
@@ -154,6 +161,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     @Override
     @Transactional(rollbackFor = Throwable.class)
+    // TODO: xem lại nghiệp vụ, có thể cho remove bulk. và khả năng là xóa bản ghi member luôn. Lưu ý cascade nếu xóa member thì set null các ràng buộc khóa ngoại ở các bảng khác (nếu có).
     public void removeMember(UUID orgId, UUID memberId, UUID currentUserId) {
         Organization org = findActiveOrganization(orgId);
 
@@ -175,9 +183,7 @@ public class OrganizationServiceImpl implements OrganizationService {
                     "Member is not active or approved.");
         }
 
-        member.setStatus(EStatus.DELETED);
-        member.setMemberStatus(OrgMemberStatus.REJECTED);
-        organizationMemberRepository.save(member);
+        organizationMemberRepository.delete(member);
 
         log.info("Removed user [{}] from organization [{}] by [{}]",
                 member.getUser().getUsername(), org.getName(), currentUserId);
@@ -185,7 +191,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     @Override
     @Transactional(rollbackFor = Throwable.class)
-    public void updateOrganizationProfile(UUID orgId, OrganizationUpdateSdi request, UUID currentUserId) {
+    public OrganizationSdo updateOrganizationProfile(UUID orgId, OrganizationUpdateSdi request, UUID currentUserId) {
         Organization org = findActiveOrganization(orgId);
 
         // Name trùng (nếu đổi)
@@ -215,6 +221,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         organizationRepository.save(org);
         log.info("Organization [{}] profile updated by user [{}]", org.getName(), currentUserId);
+        return organizationMapper.toSdo(org);
     }
 
     @Override
@@ -249,37 +256,41 @@ public class OrganizationServiceImpl implements OrganizationService {
                     "You can only own a maximum of 3 organizations.");
         }
 
-        // Check trùng name
-        if (organizationRepository.existsByNameIgnoreCase(request.getName())) {
-            throw new BusinessException(ErrorCode.ORGANIZATION_NAME_EXISTS);
-        }
-
-        // Slug lấy từ request; nếu null/blank thì tự generate fallback
         String slug = request.getSlug();
         if (slug == null || slug.isBlank()) {
             slug = generateSlug(request.getName());
         }
 
-        if (organizationRepository.existsBySlugIgnoreCase(slug)) {
-            throw new BusinessException(ErrorCode.ORGANIZATION_SLUG_EXISTS);
+        List<Organization> existingOrgs = organizationRepository.findByNameIgnoreCaseOrSlugIgnoreCase(request.getName(), slug);
+        for (Organization existing : existingOrgs) {
+            if (existing.getName().equalsIgnoreCase(request.getName())) {
+                throw new BusinessException(ErrorCode.ORGANIZATION_NAME_EXISTS);
+            }
+            if (existing.getSlug().equalsIgnoreCase(slug)) {
+                throw new BusinessException(ErrorCode.ORGANIZATION_SLUG_EXISTS);
+            }
         }
 
         Organization org = organizationMapper.toEntity(request);
         org.setOwner(owner);
-        org.setStatus(EStatus.ACTIVE); //
+        org.setStatus(EStatus.ACTIVE);
         org.setApprovalStatus(OrgApprovalStatus.UNVERIFIED);
         org.setSlug(slug);
 
-        organizationRepository.save(org);
-
-        // Gán user tạo ORG là ORG_OWNER
+        // Chuẩn bị User làm ORG_OWNER
         OrganizationMember ownerMember = OrganizationMember.builder()
                 .organization(org)
                 .user(owner)
                 .role(OrgRole.ORG_OWNER)
                 .build();
         ownerMember.setStatus(EStatus.ACTIVE);
-        organizationMemberRepository.save(ownerMember);
+        
+        // Thêm member vào List của cha (Set đúng quan hệ 2 chiều)
+        List<OrganizationMember> members = new ArrayList<>();
+        members.add(ownerMember);
+        org.setMembers(members);
+
+        organizationRepository.save(org);
 
         log.info("User [{}] created organization [{}]", owner.getUsername(), org.getName());
         return organizationMapper.toSdo(org);
@@ -292,14 +303,15 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     @Override
-    @Transactional(rollbackFor = Throwable.class)
+    @Transactional
     public void requestJoinOrganization(UUID orgId, OrganizationJoinSdi request, UUID currentUserId) {
         Organization org = findActiveOrganization(orgId);
         User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
+        // Query KHÔNG dùng trạng thái để tìm được cả request REJECTED (DELETED) cũ lôi lên dùng lại.
         OrganizationMember member = organizationMemberRepository
-                .findByOrganizationAndUserAndStatus(org, user, EStatus.ACTIVE).orElse(null);
+                .findByOrganizationAndUser_Id(org, user.getId()).orElse(null);
 
         if (member != null) {
             if (member.getMemberStatus() == OrgMemberStatus.PENDING) {
@@ -308,6 +320,13 @@ public class OrganizationServiceImpl implements OrganizationService {
             if (member.getMemberStatus() == OrgMemberStatus.APPROVED) {
                 throw new BusinessException(ErrorCode.ORG_MEMBER_ALREADY_EXISTS, "You are already a member of this organization.");
             }
+            
+            // Tái sử dụng Request cũ (bị Rejected)
+            member.setMemberStatus(OrgMemberStatus.PENDING);
+            member.setStatus(EStatus.ACTIVE);
+            member.setJoinRequestMessage(request.getMessage());
+            organizationMemberRepository.save(member);
+            return;
         }
 
         OrganizationMember newRequest = OrganizationMember.builder()
@@ -327,10 +346,12 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Transactional(rollbackFor = Throwable.class)
     public void cancelJoinRequest(UUID orgId, UUID currentUserId) {
         Organization org = findActiveOrganization(orgId);
-        User user = userRepository.findById(currentUserId).orElse(null);
+        if(!userRepository.existsById(currentUserId)) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
 
         OrganizationMember member = organizationMemberRepository
-                .findByOrganizationAndUserAndStatus(org, user, EStatus.ACTIVE)
+                .findByOrganizationAndUser_IdAndStatus(org, currentUserId, EStatus.ACTIVE)
                 .orElseThrow(() -> new BusinessException(ErrorCode.VALIDATION_FAILED, "Join request not found."));
 
         if (member.getMemberStatus() != OrgMemberStatus.PENDING) {
@@ -343,13 +364,11 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Override
     @Transactional(readOnly = true)
     public List<OrganizationJoinRequestSdo> getMyJoinRequests(UUID currentUserId) {
-        User user = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        if (!userRepository.existsById(currentUserId)) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
 
-        return organizationMemberRepository.findByUserAndStatusAndMemberStatus(
-                user, EStatus.ACTIVE, OrgMemberStatus.PENDING).stream()
-                .map(organizationMapper::toJoinRequestSdo)
-                .collect(Collectors.toList());
+        return organizationMemberRepository.findJoinReqsByUserId(currentUserId);
     }
 
     // ================== Helper methods ==================
@@ -358,7 +377,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         Organization org = organizationRepository.findById(orgId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORGANIZATION_NOT_FOUND));
         if (org.getStatus() != EStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.ORGANIZATION_INACTIVE);
+            throw new BusinessException(ErrorCode.ORGANIZATION_NOT_FOUND);
         }
         return org;
     }

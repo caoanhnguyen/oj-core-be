@@ -22,6 +22,8 @@ public interface OrganizationRepository extends JpaRepository<Organization, UUID
 
     boolean existsBySlugIgnoreCase(String slug);
 
+    List<Organization> findByNameIgnoreCaseOrSlugIgnoreCase(String name, String slug);
+
     @Query(value = "SELECT new com.kma.ojcore.dto.response.organizations.OrganizationBasicSdo(" +
             "o.id, o.name, o.slug, o.shortDescription, o.avatarUrl) " +
             "FROM Organization o " +

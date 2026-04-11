@@ -1,6 +1,7 @@
 package com.kma.ojcore.mapper;
 
 import com.kma.ojcore.dto.request.organizations.OrganizationCreateSdi;
+import com.kma.ojcore.dto.request.organizations.OrganizationUpdateSdi;
 import com.kma.ojcore.dto.response.organizations.OrganizationBasicSdo;
 import com.kma.ojcore.dto.response.organizations.OrganizationMemberSdo;
 import com.kma.ojcore.dto.response.organizations.OrganizationSdo;
@@ -13,8 +14,11 @@ import org.mapstruct.*;
 public interface OrganizationMapper {
 
     @Mapping(target = "slug", ignore = true)
-    @Mapping(target = "owner", ignore = true)
     Organization toEntity(OrganizationCreateSdi sdi);
+
+    @Mapping(target = "owner", ignore = true)
+    @Mapping(target = "members", ignore = true)
+    Organization toEntityFromUpdate(OrganizationUpdateSdi sdi);
 
     @Mapping(target = "ownerId", source = "owner.id")
     @Mapping(target = "ownerUsername", source = "owner.username")

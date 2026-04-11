@@ -1,5 +1,6 @@
 package com.kma.ojcore.dto.request.organizations;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
@@ -16,5 +17,6 @@ public class OrganizationReviewJoinSdi {
     List<UUID> userIds;
 
     @NotNull(message = "isApproved flag cannot be null")
+    @JsonProperty("isApproved")
     Boolean isApproved;
 }
