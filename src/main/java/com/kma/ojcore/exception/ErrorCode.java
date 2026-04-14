@@ -60,6 +60,7 @@ public enum ErrorCode {
     NOT_REGISTERED("CON_005", "You must register to view these problems.", HttpStatus.FORBIDDEN),
     BANNED_FROM_CONTEST("CON_006", "You are banned from participating in this contest.", HttpStatus.FORBIDDEN),
     SCOREBOARD_HIDDEN("CON_007", "The contest scoreboard is currently hidden.", HttpStatus.FORBIDDEN),
+    RESOURCE_ACCESS_DENIED("CON_008", "Contest resources are locked based on current visibility settings.", HttpStatus.FORBIDDEN),
 
     // ==========================================
     // 6. FIL - FILE/STORAGE

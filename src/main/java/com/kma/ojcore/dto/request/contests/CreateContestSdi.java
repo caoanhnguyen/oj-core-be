@@ -3,6 +3,7 @@ package com.kma.ojcore.dto.request.contests;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.kma.ojcore.enums.ContestVisibility;
 import com.kma.ojcore.enums.ContestFormat;
+import com.kma.ojcore.enums.ContestResourceVisibility;
 import com.kma.ojcore.enums.RuleType;
 import com.kma.ojcore.enums.ScoreboardVisibility;
 import jakarta.validation.constraints.AssertTrue;
@@ -55,6 +56,9 @@ public class CreateContestSdi {
 
     @Builder.Default
     ScoreboardVisibility scoreboardVisibility = ScoreboardVisibility.VISIBLE;
+
+    @Builder.Default
+    ContestResourceVisibility resourceVisibility = ContestResourceVisibility.ALWAYS_VISIBLE;
 
     // 1. CHECK THỜI GIAN (End phải lớn hơn Start)
     @JsonIgnore

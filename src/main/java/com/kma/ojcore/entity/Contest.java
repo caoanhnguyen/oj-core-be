@@ -2,6 +2,7 @@ package com.kma.ojcore.entity;
 
 import com.kma.ojcore.enums.ContestVisibility;
 import com.kma.ojcore.enums.ContestFormat;
+import com.kma.ojcore.enums.ContestResourceVisibility;
 import com.kma.ojcore.enums.RuleType;
 import com.kma.ojcore.enums.ScoreboardVisibility;
 import jakarta.persistence.*;
@@ -62,6 +63,11 @@ public class Contest extends BaseEntity {
     @Column(name = "scoreboard_visibility", nullable = false)
     @Builder.Default
     ScoreboardVisibility scoreboardVisibility = ScoreboardVisibility.VISIBLE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "resource_visibility", nullable = false)
+    @Builder.Default
+    ContestResourceVisibility resourceVisibility = ContestResourceVisibility.ALWAYS_VISIBLE;
 
     // -- Relationships -- //
 

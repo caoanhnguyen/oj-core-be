@@ -116,5 +116,11 @@ public class UserPrincipal implements UserDetails, OAuth2User, Serializable {
     public String getName() {
         return String.valueOf(id);
     }
+
+    public boolean hasRole(String roleName) {
+        if (authorities == null) return false;
+        return authorities.stream()
+                .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals(roleName));
+    }
 }
 

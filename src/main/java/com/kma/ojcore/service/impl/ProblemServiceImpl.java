@@ -112,6 +112,11 @@ public class ProblemServiceImpl implements ProblemService {
     public ProblemDetailsSdo getProblemBySlug(String slug) {
         Problem problem = problemRepository.findBySlug(slug)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+        
+        if (problem.getStatus() != EStatus.ACTIVE || problem.getProblemStatus() != ProblemStatus.PUBLISHED) {
+            throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND, "Problem is not available or inactive");
+        }
+        
         return problemMapper.toProblemDetailsSdo(problem);
     }
 

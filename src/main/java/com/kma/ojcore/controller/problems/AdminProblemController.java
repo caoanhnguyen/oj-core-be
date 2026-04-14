@@ -35,13 +35,14 @@ import java.util.UUID;
 @RequestMapping("${app.api.prefix}/admin/problems")
 @RequiredArgsConstructor
 @Validate
-@PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MODERATOR')")
+@PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MODERATOR', 'ROLE_ASSESSOR')")
 public class AdminProblemController {
 
     private final ProblemService problemService;
     private final SubmissionService submissionService;
 
     @PostMapping
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MODERATOR')")
     public ApiResponse<ProblemDetailsSdo> createProblem(@Valid @RequestBody CreateProblemSdi request,
                                                         @AuthenticationPrincipal UserPrincipal currentUser) throws BadRequestException {
         ProblemDetailsSdo result = problemService.createProblem(request, currentUser.getId());
@@ -79,6 +80,7 @@ public class AdminProblemController {
     }
 
     @PatchMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MODERATOR')")
     public ApiResponse<ProblemDetailsSdo> updateProblem(@PathVariable UUID id,
                                                         @Valid @RequestBody UpdateProblemSdi request) throws BadRequestException {
         ProblemDetailsSdo result = problemService.updateProblem(id, request);
@@ -90,6 +92,7 @@ public class AdminProblemController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MODERATOR')")
     public ApiResponse<Void> deleteProblem(@PathVariable UUID id) {
         problemService.deleteProblem(id);
         return ApiResponse.<Void>builder()
@@ -99,6 +102,7 @@ public class AdminProblemController {
     }
 
     @PostMapping("/{id}/restore")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MODERATOR')")
     public ApiResponse<?> restoreProblem(@PathVariable UUID id) {
         problemService.restoreProblem(id);
         return ApiResponse.builder()

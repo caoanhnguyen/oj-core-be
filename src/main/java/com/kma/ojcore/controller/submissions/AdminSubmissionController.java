@@ -26,7 +26,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("${app.api.prefix}/admin/submissions")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MODERATOR')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AdminSubmissionController {
 
     private final SubmissionService submissionService;

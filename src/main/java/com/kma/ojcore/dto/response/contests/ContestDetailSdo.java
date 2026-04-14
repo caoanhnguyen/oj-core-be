@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.ContestVisibility;
 import com.kma.ojcore.enums.ContestFormat;
+import com.kma.ojcore.enums.ContestResourceVisibility;
 import com.kma.ojcore.enums.RuleType;
 import com.kma.ojcore.enums.ScoreboardVisibility;
 import lombok.*;
@@ -32,6 +33,7 @@ public class ContestDetailSdo {
     ContestFormat format;
     Boolean allowLateRegistration;
     ScoreboardVisibility scoreboardVisibility;
+    ContestResourceVisibility resourceVisibility;
     Long participantCount;
     @JsonProperty("isRegistered")
     boolean isRegistered;

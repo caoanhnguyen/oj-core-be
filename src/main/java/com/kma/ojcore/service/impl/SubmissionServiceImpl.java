@@ -59,7 +59,6 @@ public class SubmissionServiceImpl implements SubmissionService {
         Problem problem = problemRepository.findById(request.getProblemId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
 
-        // TODO: check status problem đối với luồng submit practice (với luồng contest thì INACTIVE vẫn chấp nhận) trước khi check ngôn ngữ để tránh lỗi không cần thiết
 
         if (!problem.getAllowedLanguages().contains(request.getLanguageKey())) {
             throw new BusinessException(ErrorCode.LANGUAGE_NOT_SUPPORTED);
@@ -81,6 +80,16 @@ public class SubmissionServiceImpl implements SubmissionService {
             if (timeStatus == ContestStatus.UPCOMING) {
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED,
                         "Contest has not started yet. You cannot submit solutions at this time.");
+            }
+
+            // Luật 1b: Cấm nộp khi contest đã kết thúc VÀ tài nguyên bị khóa (ONLY_DURING)
+            if (timeStatus == ContestStatus.ENDED) {
+                com.kma.ojcore.enums.ContestResourceVisibility rv = contest.getResourceVisibility();
+                if (rv == com.kma.ojcore.enums.ContestResourceVisibility.ONLY_DURING) {
+                    throw new BusinessException(ErrorCode.RESOURCE_ACCESS_DENIED,
+                            "Contest has ended. You cannot submit solutions at this time.");
+                }
+                // ALWAYS_VISIBLE → Cho phép upsolving
             }
 
             // Luật 2: Lấy Participation lên để check đăng ký và quyền thi đấu cá nhân
@@ -109,7 +118,8 @@ public class SubmissionServiceImpl implements SubmissionService {
             }
 
             // 3. Tự động tước quyền nếu Hết giờ cá nhân (CHỈ CHECK KHI END TIME KHÔNG NULL)
-            if (participation.getEndTime() != null && java.time.LocalDateTime.now().isAfter(participation.getEndTime())) {
+            if (participation.getEndTime() != null
+                    && java.time.LocalDateTime.now().isAfter(participation.getEndTime())) {
                 participation.setIsFinished(true); // Tự động khóa mõm luôn
                 contestParticipationRepository.save(participation);
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Your contest session time has expired.");
@@ -144,7 +154,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         JudgeSdi sdi = JudgeSdi.builder()
                 .submissionId(submission.getId())
                 .problemId(problem.getId())
-                .ruleType(contest != null ? contest.getRuleType().name() : problem.getRuleType().name()) // TODO: Rule Type cần được lấy từ Contest nếu đây là bài thi Contest
+                .ruleType(contest != null ? contest.getRuleType().name() : problem.getRuleType().name())
                 .sourceCode(request.getSourceCode())
                 .languageKey(request.getLanguageKey())
                 .compileCommand(langConfig.getCompileCommand())
@@ -224,7 +234,8 @@ public class SubmissionServiceImpl implements SubmissionService {
         String searchKeyword = EscapeHelper.escapeLike(keyword);
 
         return submissionRepository.getSubmissions(problemId, userId, submissionVerdict, searchKeyword, status,
-                problemStatus, submissionStatus, languageKey, fromDate, toDate, allowedVerdicts, hideStaff, ignoreContestPrivacy, pageable);
+                problemStatus, submissionStatus, languageKey, fromDate, toDate, allowedVerdicts, hideStaff,
+                ignoreContestPrivacy, pageable);
     }
 
     @Override
@@ -278,7 +289,8 @@ public class SubmissionServiceImpl implements SubmissionService {
             targetIds.addAll(submissionRepository.findIdsByContestId(request.getContestId()));
             log.info("Found {} submissions for Contest [{}] to rejudge", targetIds.size(), request.getContestId());
         } else {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cần truyền submissionIds, problemId, hoặc contestId.");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                    "Cần truyền submissionIds, problemId, hoặc contestId.");
         }
 
         if (targetIds.isEmpty()) {
@@ -309,13 +321,16 @@ public class SubmissionServiceImpl implements SubmissionService {
                         continue;
                     }
 
-                    int finalTimeLimit = (int) (problem.getTimeLimitMs() * langConfig.getTimeMultiplier()) + langConfig.getTimeLimitAllowance();
-                    int finalMemoryLimit = (int) (problem.getMemoryLimitMb() * langConfig.getMemoryMultiplier()) + langConfig.getMemoryLimitAllowance();
+                    int finalTimeLimit = (int) (problem.getTimeLimitMs() * langConfig.getTimeMultiplier())
+                            + langConfig.getTimeLimitAllowance();
+                    int finalMemoryLimit = (int) (problem.getMemoryLimitMb() * langConfig.getMemoryMultiplier())
+                            + langConfig.getMemoryLimitAllowance();
 
                     JudgeSdi sdi = JudgeSdi.builder()
                             .submissionId(submission.getId())
                             .problemId(problem.getId())
-                            .ruleType(submission.getContest() != null ? submission.getContest().getRuleType().name() : problem.getRuleType().name())
+                            .ruleType(submission.getContest() != null ? submission.getContest().getRuleType().name()
+                                    : problem.getRuleType().name())
                             .sourceCode(submission.getSourceCode())
                             .languageKey(submission.getLanguageKey())
                             .compileCommand(langConfig.getCompileCommand())
@@ -330,11 +345,13 @@ public class SubmissionServiceImpl implements SubmissionService {
                     TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                         @Override
                         public void afterCommit() {
-                            rabbitTemplate.convertAndSend(RabbitMQConfig.JUDGE_EXCHANGE, RabbitMQConfig.JUDGE_ROUTING_KEY, sdi);
+                            rabbitTemplate.convertAndSend(RabbitMQConfig.JUDGE_EXCHANGE,
+                                    RabbitMQConfig.JUDGE_ROUTING_KEY, sdi);
                         }
                     });
                 } catch (Exception e) {
-                    log.error("Error building JudgeSdi for rejudging submission {}: {}", submission.getId(), e.getMessage());
+                    log.error("Error building JudgeSdi for rejudging submission {}: {}", submission.getId(),
+                            e.getMessage());
                 }
             }
         }
@@ -344,7 +361,8 @@ public class SubmissionServiceImpl implements SubmissionService {
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public void softDeleteSubmissions(List<UUID> ids) {
-        if (ids == null || ids.isEmpty()) return;
+        if (ids == null || ids.isEmpty())
+            return;
         submissionRepository.updateStatusForIds(ids, EStatus.DELETED);
         triggerBulkRecalculations(ids);
     }
@@ -352,7 +370,8 @@ public class SubmissionServiceImpl implements SubmissionService {
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public void voidSubmissions(List<UUID> ids) {
-        if (ids == null || ids.isEmpty()) return;
+        if (ids == null || ids.isEmpty())
+            return;
         submissionRepository.updateStatusForIds(ids, EStatus.INACTIVE);
         triggerBulkRecalculations(ids);
     }
@@ -360,71 +379,80 @@ public class SubmissionServiceImpl implements SubmissionService {
     @Transactional(rollbackFor = Throwable.class)
     @Override
     public void restoreSubmissions(List<UUID> ids) {
-        if (ids == null || ids.isEmpty()) return;
+        if (ids == null || ids.isEmpty())
+            return;
         submissionRepository.updateStatusForIds(ids, EStatus.ACTIVE);
         triggerBulkRecalculations(ids);
     }
 
     private void triggerBulkRecalculations(List<UUID> submissionIds) {
-        log.info("Registering Bulk Native Recalculations in background after commit for {} submissions", submissionIds.size());
+        log.info("Registering Bulk Native Recalculations in background after commit for {} submissions",
+                submissionIds.size());
 
         // 1. Find impacted relations within the current transaction
         List<Object[]> impacts = submissionRepository.findImpactedRelations(submissionIds);
 
         // 2. Schedule Async task to run AFTER the transaction is committed
         TransactionSynchronizationManager.registerSynchronization(
-            new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                   CompletableFuture.runAsync(() -> {
-                        try {
-                            log.info("[Background Job] Starting Native Recalculations for {} submissions...", submissionIds.size());
-                            
-                            transactionTemplate.execute(status -> {
-                                Set<UUID> uniqueUserIds = new HashSet<>();
-                                Set<UUID> uniqueProblemIds = new HashSet<>();
-                                Set<UUID> uniqueContestIds = new HashSet<>();
-                                Set<String> processedPairs = new HashSet<>();
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        CompletableFuture.runAsync(() -> {
+                            try {
+                                log.info("[Background Job] Starting Native Recalculations for {} submissions...",
+                                        submissionIds.size());
 
-                                for (Object[] row : impacts) {
-                                    UUID userId = (UUID) row[0];
-                                    UUID problemId = (UUID) row[1];
-                                    UUID contestId = (UUID) row[2];
+                                transactionTemplate.execute(status -> {
+                                    Set<UUID> uniqueUserIds = new HashSet<>();
+                                    Set<UUID> uniqueProblemIds = new HashSet<>();
+                                    Set<UUID> uniqueContestIds = new HashSet<>();
+                                    Set<String> processedPairs = new HashSet<>();
 
-                                    if (userId != null) uniqueUserIds.add(userId);
-                                    if (problemId != null) uniqueProblemIds.add(problemId);
-                                    if (contestId != null) uniqueContestIds.add(contestId);
+                                    for (Object[] row : impacts) {
+                                        UUID userId = (UUID) row[0];
+                                        UUID problemId = (UUID) row[1];
+                                        UUID contestId = (UUID) row[2];
 
-                                    if (userId != null && problemId != null) {
-                                        String pairKey = userId + "_" + problemId;
-                                        if (!processedPairs.contains(pairKey)) {
-                                            userProblemStatusRepository.recalculateStatus(userId, problemId);
-                                            processedPairs.add(pairKey);
+                                        if (userId != null)
+                                            uniqueUserIds.add(userId);
+                                        if (problemId != null)
+                                            uniqueProblemIds.add(problemId);
+                                        if (contestId != null)
+                                            uniqueContestIds.add(contestId);
+
+                                        if (userId != null && problemId != null) {
+                                            String pairKey = userId + "_" + problemId;
+                                            if (!processedPairs.contains(pairKey)) {
+                                                userProblemStatusRepository.recalculateStatus(userId, problemId);
+                                                processedPairs.add(pairKey);
+                                            }
                                         }
                                     }
-                                }
 
-                                for (UUID contestId : uniqueContestIds) contestParticipationRepository.recalculateOiScoresByContestId(contestId);
-                                for (UUID problemId : uniqueProblemIds) problemRepository.recalculateProblemStats(problemId);
-                                for (UUID userId : uniqueUserIds) userRepository.recalculateUserStats(userId);
-                                
-                                return null;
-                            });
+                                    for (UUID contestId : uniqueContestIds)
+                                        contestParticipationRepository.recalculateOiScoresByContestId(contestId);
+                                    for (UUID problemId : uniqueProblemIds)
+                                        problemRepository.recalculateProblemStats(problemId);
+                                    for (UUID userId : uniqueUserIds)
+                                        userRepository.recalculateUserStats(userId);
 
-                            log.info("[Background Job] Completed Bulk Recalculations successfully.");
-                        } catch (Exception e) {
-                            log.error("[Background Job] Error during Bulk Recalculations: {}", e.getMessage(), e);
-                        }
-                    });
-                }
-            }
-        );
+                                    return null;
+                                });
+
+                                log.info("[Background Job] Completed Bulk Recalculations successfully.");
+                            } catch (Exception e) {
+                                log.error("[Background Job] Error during Bulk Recalculations: {}", e.getMessage(), e);
+                            }
+                        });
+                    }
+                });
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<SubmissionStatusSdo> checkSubmissionStatuses(List<UUID> ids) {
-        if (ids == null || ids.isEmpty()) return Collections.emptyList();
+        if (ids == null || ids.isEmpty())
+            return Collections.emptyList();
         return submissionRepository.findSubmissionStatusesByIds(ids);
     }
 }

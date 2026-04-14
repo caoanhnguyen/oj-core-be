@@ -98,8 +98,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             "AND (CAST(:fromDate AS timestamp) IS NULL OR s.createdDate >= :fromDate) " +
             "AND (CAST(:toDate AS timestamp) IS NULL OR s.createdDate <= :toDate) " +
             "AND (s.verdict IN :verdicts) " +
-            "AND (c IS NULL OR c.endTime < CURRENT_TIMESTAMP OR :ignoreContestPrivacy = true) " +
-            "AND (:hideStaff = false OR NOT EXISTS (SELECT 1 FROM s.user.roles r WHERE r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR')))")
+            "AND (c IS NULL OR :ignoreContestPrivacy = true OR (c.status = com.kma.ojcore.enums.EStatus.ACTIVE AND c.endTime < CURRENT_TIMESTAMP AND c.visibility = com.kma.ojcore.enums.ContestVisibility.PUBLIC)) " +
+            "AND (:hideStaff = false OR NOT EXISTS (SELECT 1 FROM s.user.roles r WHERE r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR', 'ROLE_ASSESSOR')))")
     Page<SubmissionBasicSdo> getSubmissions(@Param("problemId") UUID problemId,
                                             @Param("userId") UUID userId,
                                             @Param("submissionVerdict") SubmissionVerdict submissionVerdict,
@@ -108,8 +108,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
                                             @Param("problemStatus") ProblemStatus problemStatus,
                                             @Param("submissionStatus") EStatus submissionStatus,
                                             @Param("languageKey") String languageKey,
-                                            @Param("fromDate") java.time.LocalDateTime fromDate,
-                                            @Param("toDate") java.time.LocalDateTime toDate,
+                                            @Param("fromDate") LocalDateTime fromDate,
+                                            @Param("toDate") LocalDateTime toDate,
                                             @Param("verdicts") List<SubmissionVerdict> allowedVerdicts,
                                             @Param("hideStaff") boolean hideStaff,
                                             @Param("ignoreContestPrivacy") boolean ignoreContestPrivacy,

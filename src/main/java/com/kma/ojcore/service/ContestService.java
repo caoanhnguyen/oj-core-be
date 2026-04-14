@@ -21,7 +21,7 @@ public interface ContestService {
 
     // ADMIN
 
-    Page<ContestBasicSdo> searchAdminContests(String keyword, RuleType ruleType, ContestStatus contestStatus, ContestVisibility visibility, EStatus status, Pageable pageable);
+    Page<ContestBasicSdo> searchAdminContests(String keyword, RuleType ruleType, ContestStatus contestStatus, ContestVisibility visibility, EStatus status, UUID authorId, Pageable pageable);
 
     ContestAdminSdo getAdminContestById(UUID contestId);
 
@@ -45,6 +45,12 @@ public interface ContestService {
 
     List<ContestProblemSdo> getContestProblemsForAdmin(UUID contestId);
 
+    // Whitelist
+
+    void saveContestWhitelist(UUID contestId, List<com.kma.ojcore.dto.request.contests.ContestWhitelistItemSdi> emails);
+
+    List<com.kma.ojcore.dto.response.contests.ContestWhitelistItemSdo> getContestWhitelist(UUID contestId);
+
     // Participants
 
     Page<ContestParticipationSdo> searchContestParticipants(UUID contestId, String keyword, Boolean isDisqualified, Pageable pageable);
@@ -52,6 +58,8 @@ public interface ContestService {
     void disqualifyUsers(UUID contestId, List<UUID> userId);
 
     void requalifyUsers(UUID contestId, List<UUID> userIds);
+
+    byte[] exportContestResults(UUID contestId);
 
     // Leaderboard & Submissions
 

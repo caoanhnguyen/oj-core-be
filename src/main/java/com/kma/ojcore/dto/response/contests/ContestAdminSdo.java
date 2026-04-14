@@ -3,6 +3,7 @@ package com.kma.ojcore.dto.response.contests;
 import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.ContestVisibility;
 import com.kma.ojcore.enums.ContestFormat;
+import com.kma.ojcore.enums.ContestResourceVisibility;
 import com.kma.ojcore.enums.EStatus;
 import com.kma.ojcore.enums.ScoreboardVisibility;
 import com.kma.ojcore.enums.RuleType;
@@ -34,6 +35,7 @@ public class ContestAdminSdo {
     ContestFormat format;
     Boolean allowLateRegistration;
     ScoreboardVisibility scoreboardVisibility;
+    ContestResourceVisibility resourceVisibility;
     Long participantCount;
     UUID authorId;
     String authorUsername;

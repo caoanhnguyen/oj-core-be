@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -45,6 +46,7 @@ public class ContestServiceImpl implements ContestService {
     private final ContestMapper contestMapper;
     private final ContestParticipationRepository contestParticipationRepository;
     private final ContestParticipationProblemRepository cppRepository;
+    private final com.kma.ojcore.repository.ContestWhitelistRepository contestWhitelistRepository;
     private final SubmissionRepository submissionRepository;
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
@@ -63,11 +65,12 @@ public class ContestServiceImpl implements ContestService {
             ContestStatus contestStatus,
             ContestVisibility visibility,
             EStatus status,
+            UUID authorId,
             Pageable pageable) {
         String searchKeyword = EscapeHelper.escapeLike(keyword);
         String contestStatusStr = (contestStatus != null) ? contestStatus.name() : null;
         return contestRepository
-                .searchAdminContests(searchKeyword, ruleType, contestStatusStr, visibility, status, pageable)
+                .searchAdminContests(searchKeyword, ruleType, contestStatusStr, visibility, status, authorId, pageable)
                 .map(sdo -> {
                     sdo.setContestStatus(contestMapper.getRealTimeStatus(sdo.getStartTime(), sdo.getEndTime()));
                     return sdo;
@@ -130,6 +133,8 @@ public class ContestServiceImpl implements ContestService {
             throw new BusinessException(ErrorCode.CONTEST_NOT_FOUND);
         }
 
+        validateContestStatusConfig(contest, false, req);
+
         if (!contest.getContestKey().equals(req.getContestKey()) && contestRepository.existsByContestKey(req.getContestKey())) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Contest Key already exists.");
         }
@@ -170,6 +175,8 @@ public class ContestServiceImpl implements ContestService {
                     "Only contests in DELETED status can be restored.");
         }
 
+        validateContestStatusConfig(contest, true, null);
+
         contest.setStatus(EStatus.INACTIVE);
         log.info("Contest {} restored to INACTIVE", contestId);
     }
@@ -182,6 +189,8 @@ public class ContestServiceImpl implements ContestService {
 
         if (contest.getStatus() == EStatus.DELETED)
             return;
+
+        validateContestStatusConfig(contest, true, null);
 
         contest.setStatus(EStatus.DELETED);
         log.info("Contest {} soft deleted", contestId);
@@ -223,14 +232,7 @@ public class ContestServiceImpl implements ContestService {
                     "Cannot modify a deleted contest. Please restore it first.");
         }
 
-        if (contest.getStatus() == EStatus.ACTIVE) {
-            ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
-            if (timeStatus != ContestStatus.UPCOMING) {
-                // Không cho thêm đề khi đang thi hoặc đã kết thúc
-                throw new BusinessException(ErrorCode.VALIDATION_FAILED,
-                        "Cannot add problems to a contest that is already ongoing or has ended.");
-            }
-        }
+        validateContestStatusConfig(contest, true, null);
 
         Set<UUID> reqProblemIds = requests.stream().map(AddContestProblemSdi::getProblemId).collect(Collectors.toSet());
         Set<String> reqDisplayIds = requests.stream().map(AddContestProblemSdi::getDisplayId)
@@ -293,14 +295,7 @@ public class ContestServiceImpl implements ContestService {
                     "Cannot modify a deleted contest. Please restore it first.");
         }
 
-        if (contest.getStatus() == EStatus.ACTIVE) {
-            ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
-            if (timeStatus != ContestStatus.UPCOMING) {
-                // Thông báo cấm rút đề khi đang thi
-                throw new BusinessException(ErrorCode.VALIDATION_FAILED,
-                        "Cannot remove problems from a contest that is already ongoing or has ended.");
-            }
-        }
+        validateContestStatusConfig(contest, true, null);
 
         contestProblemRepository.deleteByContestIdAndProblemIdIn(contestId, problemIds);
         log.info("Removed {} problems from contest {}", problemIds.size(), contestId);
@@ -318,6 +313,8 @@ public class ContestServiceImpl implements ContestService {
         if (contest.getStatus() == EStatus.DELETED) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot modify a deleted contest.");
         }
+        
+        validateContestStatusConfig(contest, true, null);
 
         List<ContestProblem> existingProblems = contestProblemRepository.findByContestId(contestId);
         Map<UUID, ContestProblem> problemMap = existingProblems.stream()
@@ -373,6 +370,47 @@ public class ContestServiceImpl implements ContestService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
 
         return contestProblemRepository.findByContestKeyOrderBySortOrderAsc(contest.getContestKey());
+    }
+
+    // ==================================================================== //
+    // Whitelist
+    
+    @Transactional
+    @Override
+    public void saveContestWhitelist(UUID contestId, List<com.kma.ojcore.dto.request.contests.ContestWhitelistItemSdi> items) {
+        Contest contest = contestRepository.findById(contestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
+        
+        // Remove all old emails
+        contestWhitelistRepository.deleteByContestId(contestId);
+        
+        // Insert new emails
+        if (items != null && !items.isEmpty()) {
+            List<com.kma.ojcore.entity.ContestWhitelist> entities = items.stream()
+                .filter(item -> item != null && item.getEmail() != null && !item.getEmail().trim().isEmpty())
+                .map(item -> com.kma.ojcore.entity.ContestWhitelist.builder()
+                        .contest(contest)
+                        .email(item.getEmail().trim().toLowerCase())
+                        .fullName(item.getFullName())
+                        .phoneNumber(item.getPhoneNumber())
+                        .note(item.getNote())
+                        .build())
+                .toList();
+            contestWhitelistRepository.saveAll(entities);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<com.kma.ojcore.dto.response.contests.ContestWhitelistItemSdo> getContestWhitelist(UUID contestId) {
+        return contestWhitelistRepository.findByContestId(contestId).stream()
+                .map(entity -> com.kma.ojcore.dto.response.contests.ContestWhitelistItemSdo.builder()
+                        .email(entity.getEmail())
+                        .fullName(entity.getFullName())
+                        .phoneNumber(entity.getPhoneNumber())
+                        .note(entity.getNote())
+                        .build())
+                .toList();
     }
 
     // ==================================================================== //
@@ -572,16 +610,65 @@ public class ContestServiceImpl implements ContestService {
     @Transactional(readOnly = true)
     @Override
     public Page<SubmissionBasicSdo> getMyContestSubmissions(String contestKey, UUID userId, UUID problemId, Pageable pageable) {
-        if(!contestRepository.existsByContestKeyAndStatus(contestKey, EStatus.ACTIVE)) {
-            throw new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found.");
-        }
+        Contest contest = contestRepository.findByContestKeyAndStatus(contestKey, EStatus.ACTIVE)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
 
-        // Chặn xem nếu chưa đăng ký
+        // Cha(^.n xem ne^'u chu'a da(ng ky'
         if (!contestParticipationRepository.existsByContestContestKeyAndUserId(contestKey, userId)) {
             throw new BusinessException(ErrorCode.NOT_REGISTERED, "You are not registered for this contest.");
         }
 
+        // Ne^'u contest da( ket thu'c, kie^?m tra resourceVisibility
+        ContestStatus submTimeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
+        if (submTimeStatus == ContestStatus.ENDED) {
+            com.kma.ojcore.enums.ContestResourceVisibility rv = contest.getResourceVisibility();
+            if (rv == com.kma.ojcore.enums.ContestResourceVisibility.ONLY_DURING) {
+                throw new BusinessException(ErrorCode.RESOURCE_ACCESS_DENIED,
+                        "Ky thi da ket thuc. Lich su nop bai da duoc bao mat.");
+            }
+        }
+
         return submissionRepository.findMyContestSubmissions(contestKey, userId, problemId, pageable);
+    }
+
+    // ==================================================================== //
+    // EXPORT
+    @Transactional(readOnly = true)
+    @Override
+    public byte[] exportContestResults(UUID contestId) {
+        Contest contest = contestRepository.findById(contestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
+
+        // Get all participants using a large page size
+        ContestLeaderboardPageSdo leaderboard = getContestLeaderboardInternal(contest, PageRequest.of(0, 100000), true);
+
+        StringBuilder csv = new StringBuilder();
+        csv.append('\uFEFF'); // BOM for UTF-8 Excel compat
+        csv.append("Rank,Username,Score,Penalty");
+
+        for (ContestProblemSdo prob : leaderboard.getProblems()) {
+            csv.append(",").append(prob.getDisplayId()).append(" (Score)");
+        }
+        csv.append("\n");
+
+        for (ContestLeaderboardSdo row : leaderboard.getContent()) {
+            csv.append(row.getRank() != null ? row.getRank() : "").append(",");
+            csv.append(row.getUsername() != null ? row.getUsername() : "").append(",");
+            csv.append(row.getScore() != null ? row.getScore() : 0).append(",");
+            csv.append(row.getPenalty() != null ? row.getPenalty() : 0);
+
+            for (ContestProblemSdo prob : leaderboard.getProblems()) {
+                ContestProblemResultSdo pr = row.getProblemResults().get(prob.getDisplayId());
+                if (pr != null) {
+                    csv.append(",").append(pr.getScore());
+                } else {
+                    csv.append(",0");
+                }
+            }
+            csv.append("\n");
+        }
+
+        return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
 
     // ==================================================================== //
@@ -608,7 +695,7 @@ public class ContestServiceImpl implements ContestService {
         String searchKeyword = EscapeHelper.escapeLike(keyword);
         String contestStatusStr = (contestStatus != null) ? contestStatus.name() : null;
         return contestRepository
-                .searchAdminContests(searchKeyword, ruleType, contestStatusStr, null, EStatus.ACTIVE, pageable)
+                .searchAdminContests(searchKeyword, ruleType, contestStatusStr, ContestVisibility.PUBLIC, EStatus.ACTIVE, null, pageable)
                 .map(contest -> {
                     contest.setContestStatus(
                             contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime()));
@@ -622,17 +709,40 @@ public class ContestServiceImpl implements ContestService {
         Contest contest = contestRepository.findContestWithAuthorByContestKeyAndStatus(contestKey, EStatus.ACTIVE)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND, "Contest not found."));
 
+        // ============================================================
+        // WHITELIST GATE: Private contest -> chan hoan toan neu khong
+        // co trong whitelist (chua dang ky va khong co trong ds)
+        // ============================================================
+        if (contest.getVisibility() == ContestVisibility.PRIVATE) {
+            if (userId == null) {
+                throw new BusinessException(ErrorCode.UNAUTHORIZED,
+                        "This is a private contest. Please log in to continue.");
+            }
+            boolean isParticipant = contestParticipationRepository
+                    .existsByContestContestKeyAndUserId(contestKey, userId);
+            if (!isParticipant) {
+                String email = userRepository.findById(userId)
+                        .map(com.kma.ojcore.entity.User::getEmail).orElse(null);
+                boolean isWhitelisted = email != null
+                        && contestWhitelistRepository.existsByContestIdAndEmail(contest.getId(), email);
+                if (!isWhitelisted) {
+                    throw new BusinessException(ErrorCode.UNAUTHORIZED,
+                            "You are not authorized to view this private contest.");
+                }
+            }
+        }
+        // ============================================================
+
         ContestDetailSdo sdo = contestMapper.toDetailSdo(contest);
         sdo.setParticipantCount(contestParticipationRepository.countByContestContestKey(contestKey));
 
-        // 1. Bơm serverTime vào cho Frontend đồng bộ đồng hồ chống cheat
+        // 1. Bom serverTime vao cho Frontend dong bo dong ho chong cheat
         sdo.setServerTime(java.time.LocalDateTime.now());
 
-        // 2. Xử lý lấy thông tin User (Gộp làm 1 câu query duy nhất)
+        // 2. Xu ly lay thong tin User (Gop lam 1 cau query duy nhat)
         if (userId != null) {
             ContestParticipation participation = contestParticipationRepository
                     .findByContestContestKeyAndUserId(contestKey, userId).orElse(null);
-
             if (participation != null) {
                 sdo.setRegistered(true);
                 sdo.setContestParticipation(contestMapper.toParticipationSdo(participation));
@@ -669,6 +779,7 @@ public class ContestServiceImpl implements ContestService {
             if (req == null || req.getPassword() == null || !passwordEncoder.matches(req.getPassword(), contest.getPassword())) {
                 throw new BusinessException(ErrorCode.INCORRECT_PASSWORD);
             }
+            checkWhitelistIfPrivate(contest, userId);
         }
 
         if (contestParticipationRepository.existsByContestIdAndUserId(contest.getId(), userId)) {
@@ -704,6 +815,8 @@ public class ContestServiceImpl implements ContestService {
         // 2. CHỈ KIỂM TRA QUYỀN KHẮT KHE KHI KỲ THI ĐANG DIỄN RA (ONGOING)
         // ========================================================
         if (timeStatus == ContestStatus.ONGOING) {
+            checkWhitelistIfPrivate(contest, userId);
+            
             ContestParticipation participation = contestParticipationRepository.findByContestContestKeyAndUserId(contestKey, userId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REGISTERED, "You must register to view problems during an active contest."));
 
@@ -727,14 +840,25 @@ public class ContestServiceImpl implements ContestService {
 
                 participation.setIsFinished(true);
                 contestParticipationRepository.save(participation);
+                
+                if (contest.getVisibility() == ContestVisibility.PRIVATE) {
+                    String email = userRepository.findById(userId).map(User::getEmail).orElse("");
+                    contestWhitelistRepository.deleteByContestIdAndEmail(contest.getId(), email);
+                }
             }
         }
 
         // ========================================================
-        // 3. NẾU timeStatus == ENDED -> BỎ QUA KIỂM TRA ĐĂNG KÝ (UPSOLVING)
-        // Đi thẳng xuống logic lấy đề bài bên dưới
+        // 3. NẾU timeStatus == ENDED → kiểm tra resourceVisibility
         // ========================================================
-
+        if (timeStatus == ContestStatus.ENDED) {
+            com.kma.ojcore.enums.ContestResourceVisibility rv = contest.getResourceVisibility();
+            if (rv == com.kma.ojcore.enums.ContestResourceVisibility.ONLY_DURING) {
+                throw new BusinessException(ErrorCode.RESOURCE_ACCESS_DENIED,
+                        "Ky thi da ket thuc. De thi va bai lam da duoc bao mat.");
+            }
+            // ALWAYS_VISIBLE -> upsolving, tiep tuc xuong
+        }
         List<ContestProblemSdo> contestProblems = contestProblemRepository.findByContestKeyOrderBySortOrderAsc(contestKey);
 
         // Đoạn lấy Verdict này vẫn chạy an toàn ngay cả khi User chưa đăng ký
@@ -872,6 +996,67 @@ public class ContestServiceImpl implements ContestService {
         participation.setIsFinished(true);
         contestParticipationRepository.save(participation);
 
+        // Xóa khỏi whitelist để chặn truy cập vĩnh viễn (nếu là Private)
+        if (contest.getVisibility() == ContestVisibility.PRIVATE) {
+            String email = participation.getUser().getEmail();
+            contestWhitelistRepository.deleteByContestIdAndEmail(contest.getId(), email);
+        }
+
         log.info("User {} finished contest {} early.", userId, contest.getId());
     }
+
+    private void checkWhitelistIfPrivate(Contest contest, UUID userId) {
+        if (contest.getVisibility() == ContestVisibility.PRIVATE) {
+            String email = userRepository.findById(userId).map(User::getEmail)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "User email not found."));
+            if (!contestWhitelistRepository.existsByContestIdAndEmail(contest.getId(), email)) {
+                throw new BusinessException(ErrorCode.UNAUTHORIZED, "Your email is not in the authorized whitelist, or you have already finished the contest.");
+            }
+        }
+    }
+
+    private void validateContestStatusConfig(Contest contest, boolean isCriticalAction, UpdateContestSdi req) {
+        ContestStatus status = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
+
+        if (status == ContestStatus.ENDED) {
+            if (isCriticalAction) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot perform critical modifications (e.g. problems, points) on an ended contest.");
+            }
+            if (req != null) {
+                if (contest.getFormat() != req.getFormat()) {
+                    throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot change contest format after it has ended.");
+                }
+                if (contest.getRuleType() != req.getRuleType()) {
+                    throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot change rule type after it has ended.");
+                }
+                if (!contest.getStartTime().equals(req.getStartTime())) {
+                    throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot change start time after the contest has ended.");
+                }
+                if (req.getEndTime() != null && !contest.getEndTime().equals(req.getEndTime())) {
+                    throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot change end time after the contest has ended.");
+                }
+            }
+        }
+
+        if (status == ContestStatus.ONGOING) {
+            if (isCriticalAction) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot perform critical modifications (e.g. problems, points) while the contest is ongoing.");
+            }
+            if (req != null) {
+                if (contest.getFormat() != req.getFormat()) {
+                    throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot change contest format while it is ongoing.");
+                }
+                if (contest.getRuleType() != req.getRuleType()) {
+                    throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot change rule type while it is ongoing.");
+                }
+                if (!contest.getStartTime().equals(req.getStartTime())) {
+                    throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Cannot change start time while the contest is ongoing.");
+                }
+                if (req.getEndTime() != null && req.getEndTime().isBefore(contest.getEndTime())) {
+                    throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Can only extend the end time while the contest is ongoing.");
+                }
+            }
+        }
+    }
 }
+

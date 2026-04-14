@@ -67,7 +67,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             "AND NOT EXISTS ( " +
             "    SELECT 1 FROM user_roles ur " +
             "    JOIN roles r ON ur.role_id = r.id " +
-            "    WHERE ur.user_id = u.id AND r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR') " +
+            "    WHERE ur.user_id = u.id AND r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR', 'ROLE_ASSESSOR') " +
             ") " +
             "ORDER BY `rank` ASC, u.username ASC",
             countQuery = "SELECT count(*) FROM users u " +
@@ -75,7 +75,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
                     "AND NOT EXISTS ( " +
                     "    SELECT 1 FROM user_roles ur " +
                     "    JOIN roles r ON ur.role_id = r.id " +
-                    "    WHERE ur.user_id = u.id AND r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR') " +
+                    "    WHERE ur.user_id = u.id AND r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR', 'ROLE_ASSESSOR') " +
                     ")",
             nativeQuery = true)
     Page<UserRankingProjection> getGlobalRankingOI(Pageable pageable);
@@ -90,7 +90,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             "AND NOT EXISTS ( " +
             "    SELECT 1 FROM user_roles ur " +
             "    JOIN roles r ON ur.role_id = r.id " +
-            "    WHERE ur.user_id = u.id AND r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR') " +
+            "    WHERE ur.user_id = u.id AND r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR', 'ROLE_ASSESSOR') " +
             ") " +
             "ORDER BY `rank` ASC, u.username ASC",
             countQuery = "SELECT count(*) FROM users u " +
@@ -98,7 +98,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
                     "AND NOT EXISTS ( " +
                     "    SELECT 1 FROM user_roles ur " +
                     "    JOIN roles r ON ur.role_id = r.id " +
-                    "    WHERE ur.user_id = u.id AND r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR') " +
+                    "    WHERE ur.user_id = u.id AND r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR', 'ROLE_ASSESSOR') " +
                     ")",
             nativeQuery = true)
     Page<UserRankingProjection> getGlobalRankingACM(Pageable pageable);
@@ -140,5 +140,5 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             "solved_count = (SELECT COUNT(*) FROM user_problem_status WHERE user_id = u.id AND state = 'SOLVED'), " +
             "ac_count = (SELECT COUNT(*) FROM submissions WHERE user_id = u.id AND verdict = 'AC' AND status = 'ACTIVE') " +
             "WHERE u.id = :userId", nativeQuery = true)
-    int recalculateUserStats(@Param("userId") UUID userId);
+    void recalculateUserStats(@Param("userId") UUID userId);
 }

@@ -41,7 +41,7 @@ public interface ContestParticipationRepository extends JpaRepository<ContestPar
                         "new com.kma.ojcore.dto.response.contests.ContestBasicSdo(" +
                         "c.id, c.title, c.contestKey, c.startTime, c.endTime, c.ruleType, null, c.visibility, " +
                         "(SELECT COUNT(cp2) FROM ContestParticipation cp2 WHERE cp2.contest.id = c.id), " +
-                        "c.status, c.durationMinutes, c.format, c.allowLateRegistration, c.scoreboardVisibility), " +
+                        "c.status, c.durationMinutes, c.format, c.allowLateRegistration, c.scoreboardVisibility, c.resourceVisibility), " +
                         "p.endTime) " +
                         "FROM ContestParticipation p " +
                         "JOIN p.contest c " +

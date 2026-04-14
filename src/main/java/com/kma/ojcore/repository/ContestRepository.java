@@ -23,12 +23,13 @@ public interface ContestRepository extends JpaRepository<Contest, UUID> {
             "null, " +
             "c.visibility, " +
             "(SELECT COUNT(p) FROM ContestParticipation p WHERE p.contest.id = c.id), " +
-            "c.status, c.durationMinutes, c.format, c.allowLateRegistration, c.scoreboardVisibility) " +
+            "c.status, c.durationMinutes, c.format, c.allowLateRegistration, c.scoreboardVisibility, c.resourceVisibility) " +
             "FROM Contest c " +
             "WHERE (:keyword IS NULL OR LOWER(c.title) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!') " +
             "AND (:ruleType IS NULL OR c.ruleType = :ruleType) " +
             "AND (:status IS NULL OR c.status = :status) " +
             "AND (:visibility IS NULL OR c.visibility = :visibility) " +
+            "AND (:authorId IS NULL OR c.author.id = :authorId) " +
             "AND (:contestStatus IS NULL OR " +
             "  (:contestStatus = 'UPCOMING' AND c.startTime > CURRENT_TIMESTAMP) OR " +
             "  (:contestStatus = 'ONGOING' AND c.startTime <= CURRENT_TIMESTAMP AND c.endTime > CURRENT_TIMESTAMP) OR " +
@@ -45,6 +46,7 @@ public interface ContestRepository extends JpaRepository<Contest, UUID> {
                     "AND (:ruleType IS NULL OR c.ruleType = :ruleType) " +
                     "AND (:status IS NULL OR c.status = :status) " +
                     "AND (:visibility IS NULL OR c.visibility = :visibility) " +
+                    "AND (:authorId IS NULL OR c.author.id = :authorId) " +
                     "AND (:contestStatus IS NULL OR " +
                     "  (:contestStatus = 'UPCOMING' AND c.startTime > CURRENT_TIMESTAMP) OR " +
                     "  (:contestStatus = 'ONGOING' AND c.startTime <= CURRENT_TIMESTAMP AND c.endTime > CURRENT_TIMESTAMP) OR " +
@@ -54,6 +56,7 @@ public interface ContestRepository extends JpaRepository<Contest, UUID> {
                                               @Param("contestStatus") String contestStatusStr,
                                               @Param("visibility") ContestVisibility visibility,
                                               @Param("status") EStatus status,
+                                              @Param("authorId") UUID authorId,
                                               Pageable pageable);
 
     @Query("SELECT c FROM Contest c LEFT JOIN FETCH c.author WHERE c.contestKey = :contestKey " +

@@ -97,7 +97,7 @@ public class SecurityConfig {
                                             apiPrefix + "/contests/*/leaderboard",
                                             apiPrefix + "/contests/*/participants").permitAll()
 
-                                    .requestMatchers(apiPrefix + "/admin/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_MODERATOR")
+                                    // Fine-grained access control is handled via @PreAuthorize on each controller.
 
                                     // Bắt buộc đăng nhập cho các request còn lại
                                     .anyRequest().authenticated()
