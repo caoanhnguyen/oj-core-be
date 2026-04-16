@@ -64,7 +64,7 @@ public class AdminSubmissionController {
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Submissions retrieved successfully")
-                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, keyword, status, null, submissionStatus, languageKey, fromDate, toDate, allowedVerdicts, false, true, pageable))
+                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, keyword, status, null, submissionStatus, languageKey, fromDate, toDate, allowedVerdicts, false, true, false, pageable))
                 .build();
     }
 

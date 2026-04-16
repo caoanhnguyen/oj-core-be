@@ -7,12 +7,14 @@ import com.kma.ojcore.dto.request.contests.CreateContestSdi;
 import com.kma.ojcore.dto.request.contests.RegisterContestSdi;
 import com.kma.ojcore.dto.request.contests.UpdateContestSdi;
 import com.kma.ojcore.dto.response.contests.*;
+import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo;
 import com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo;
 import com.kma.ojcore.entity.*;
 import com.kma.ojcore.enums.*;
 import com.kma.ojcore.exception.BusinessException;
 import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.mapper.ContestMapper;
+import com.kma.ojcore.mapper.ProblemMapper;
 import com.kma.ojcore.repository.*;
 import com.kma.ojcore.service.ContestService;
 import com.kma.ojcore.utils.EscapeHelper;
@@ -51,6 +53,7 @@ public class ContestServiceImpl implements ContestService {
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
     private final PasswordEncoder passwordEncoder;
+    private final ProblemMapper problemMapper;
 
     @Value("${REDIS_PREFIX_LEADERBOARD:CONTEST_LEADERBOARD:}")
     private String leaderboardPrefix;
@@ -1003,6 +1006,48 @@ public class ContestServiceImpl implements ContestService {
         }
 
         log.info("User {} finished contest {} early.", userId, contest.getId());
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public ProblemDetailsSdo getContestProblemDetail(String contestKey, String problemSlug, UUID userId) {
+        // 1. Find contest (must be ACTIVE record)
+        Contest contest = contestRepository.findByContestKeyAndStatus(contestKey, EStatus.ACTIVE)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
+
+        // 2. Find problem by slug (regardless of its ACTIVE/INACTIVE status)
+        com.kma.ojcore.entity.Problem problem = problemRepository.findBySlug(problemSlug)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+
+        // 3. Problem must belong to this contest
+        if (!contestProblemRepository.existsByContestIdAndProblemId(contest.getId(), problem.getId())) {
+            throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND, "Problem does not belong to this contest.");
+        }
+
+        ContestStatus timeStatus = contestMapper.getRealTimeStatus(contest.getStartTime(), contest.getEndTime());
+
+        if (timeStatus == ContestStatus.ONGOING || timeStatus == ContestStatus.UPCOMING) {
+            // 4a. During active contest: only registered & started participants can view
+            if (userId == null) {
+                throw new BusinessException(ErrorCode.UNAUTHORIZED, "Please log in to access contest problems.");
+            }
+            ContestParticipation participation = contestParticipationRepository
+                    .findByContestContestKeyAndUserId(contestKey, userId).orElse(null);
+            if (participation == null) {
+                throw new BusinessException(ErrorCode.NOT_REGISTERED, "You are not registered for this contest.");
+            }
+            if (participation.getStartTime() == null) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "You have not started the contest yet.");
+            }
+        } else {
+            // 4b. After contest: check resourceVisibility
+            if (contest.getResourceVisibility() == ContestResourceVisibility.ONLY_DURING) {
+                throw new BusinessException(ErrorCode.RESOURCE_ACCESS_DENIED,
+                        "Problems from this contest are not accessible after it ends.");
+            }
+        }
+
+        return problemMapper.toProblemDetailsSdo(problem);
     }
 
     private void checkWhitelistIfPrivate(Contest contest, UUID userId) {

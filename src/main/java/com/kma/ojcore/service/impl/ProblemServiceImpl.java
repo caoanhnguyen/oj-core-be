@@ -39,6 +39,7 @@ public class ProblemServiceImpl implements ProblemService {
     private final UserProblemStatusRepository userProblemStatusRepo;
     private final UserRepository userRepository;
     private final ContestProblemRepository contestProblemRepository;
+    private final ContestRepository contestRepository;
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
@@ -117,6 +118,40 @@ public class ProblemServiceImpl implements ProblemService {
             throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND, "Problem is not available or inactive");
         }
         
+        return problemMapper.toProblemDetailsSdo(problem);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public ProblemDetailsSdo getProblemViaContest(String contestKey, String problemSlug) {
+        // 1. Find contest — must be ACTIVE and PUBLIC
+        Contest contest = contestRepository.findByContestKeyAndStatus(contestKey, EStatus.ACTIVE)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTEST_NOT_FOUND));
+
+        if (contest.getVisibility() != ContestVisibility.PUBLIC) {
+            throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND, "Contest is not public");
+        }
+
+        // 2. Contest must have already ended
+        if (!java.time.LocalDateTime.now().isAfter(contest.getEndTime())) {
+            throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND, "Contest has not ended yet");
+        }
+
+        // 3. Resource visibility must be ALWAYS_VISIBLE
+        if (contest.getResourceVisibility() != ContestResourceVisibility.ALWAYS_VISIBLE) {
+            throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND, "Problems from this contest are not accessible after it ends");
+        }
+
+        // 4. Find the problem by slug
+        Problem problem = problemRepository.findBySlug(problemSlug)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+
+        // 5. Problem must be part of this contest
+        if (!contestProblemRepository.existsByContestIdAndProblemId(contest.getId(), problem.getId())) {
+            throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND, "Problem does not belong to this contest");
+        }
+
+        // All checks passed — return problem details (even if INACTIVE/DRAFT)
         return problemMapper.toProblemDetailsSdo(problem);
     }
 

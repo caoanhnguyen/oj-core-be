@@ -221,6 +221,7 @@ public class SubmissionServiceImpl implements SubmissionService {
             List<SubmissionVerdict> allowedVerdicts,
             boolean hideStaff,
             boolean ignoreContestPrivacy,
+            boolean isPracticeOnly,
             Pageable pageable) {
 
         if (problemId != null && !problemRepository.existsById(problemId)) {
@@ -235,7 +236,7 @@ public class SubmissionServiceImpl implements SubmissionService {
 
         return submissionRepository.getSubmissions(problemId, userId, submissionVerdict, searchKeyword, status,
                 problemStatus, submissionStatus, languageKey, fromDate, toDate, allowedVerdicts, hideStaff,
-                ignoreContestPrivacy, pageable);
+                ignoreContestPrivacy, isPracticeOnly, pageable);
     }
 
     @Override

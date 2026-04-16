@@ -6,6 +6,7 @@ import com.kma.ojcore.dto.request.contests.CreateContestSdi;
 import com.kma.ojcore.dto.request.contests.RegisterContestSdi;
 import com.kma.ojcore.dto.request.contests.UpdateContestSdi;
 import com.kma.ojcore.dto.response.contests.*;
+import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo;
 import com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo;
 import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.ContestVisibility;
@@ -88,4 +89,10 @@ public interface ContestService {
     ContestParticipationSdo startContest(String contestKey, UUID userId);
 
     void finishContest(String contestKey, UUID userId);
+
+    /**
+     * Get a single problem's details via its contest context.
+     * Works during active contest AND after contest ends (if ALWAYS_VISIBLE).
+     */
+    ProblemDetailsSdo getContestProblemDetail(String contestKey, String problemSlug, UUID userId);
 }

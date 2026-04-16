@@ -12,6 +12,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.SortDefault;
 
 import java.util.UUID;
 
@@ -81,6 +85,21 @@ public class UserController {
                 .status(200)
                 .message("Get contribution heatmap successfully!")
                 .data(heatMapData)
+                .build();
+    }
+
+    @GetMapping("/{id}/solved-problems")
+    public ApiResponse<?> getSolvedProblems(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @SortDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort
+    ) {
+        Pageable pageable = PageRequest.of(page, size, sort);
+        return ApiResponse.builder()
+                .status(200)
+                .message("Get solved problems successfully!")
+                .data(userService.getSolvedProblems(id, pageable))
                 .build();
     }
 }

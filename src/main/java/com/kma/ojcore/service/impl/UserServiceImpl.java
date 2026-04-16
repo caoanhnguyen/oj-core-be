@@ -13,6 +13,7 @@ import com.kma.ojcore.exception.ErrorCode;
 import com.kma.ojcore.mapper.UserMapper;
 import com.kma.ojcore.repository.RoleRepository;
 import com.kma.ojcore.repository.SubmissionRepository;
+import com.kma.ojcore.repository.UserProblemStatusRepository;
 import com.kma.ojcore.repository.UserRepository;
 import com.kma.ojcore.service.ImageStorageService;
 import com.kma.ojcore.service.UserService;
@@ -43,6 +44,7 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
     private final ImageStorageService imageStorageService;
     private final SubmissionRepository submissionRepo;
+    private final UserProblemStatusRepository userProblemStatusRepo;
 
     @Transactional(rollbackFor = Throwable.class)
     @Override
@@ -80,6 +82,15 @@ public class UserServiceImpl implements UserService {
                 .totalSubmissions(submissionDates.size())
                 .heatmapItems(heatmapItems)
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Page<com.kma.ojcore.dto.response.problems.ProblemResponse> getSolvedProblems(UUID userId, Pageable pageable) {
+        if (!userRepository.existsById(userId)) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        return userProblemStatusRepo.getSolvedProblemsByUserId(userId, pageable);
     }
 
     @Transactional(readOnly = true)

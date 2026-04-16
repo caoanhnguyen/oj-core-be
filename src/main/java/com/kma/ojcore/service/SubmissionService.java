@@ -37,6 +37,7 @@ public interface SubmissionService {
                            List<SubmissionVerdict> allowedVerdicts,
                            boolean hideStaff,
                            boolean ignoreContestPrivacy,
+                           boolean isPracticeOnly,
                            Pageable pageable);
 
     ProblemStatisticSdo getProblemStatistics(UUID problemId, List<SubmissionVerdict> allowedVerdicts);

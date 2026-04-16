@@ -110,83 +110,86 @@ public class JudgeResultListener {
                 return;
             }
 
-            // 2. ALWAYS INCREMENT SUBMISSION_COUNT FOR USER AND PROBLEM
-            int currentUserSub = user.getSubmissionCount() != null ? user.getSubmissionCount() : 0;
-            user.setSubmissionCount(currentUserSub + 1);
+            // ONLY UPDATE GLOBAL STATS FOR NON-CONTEST SUBMISSIONS
+            if (submission.getContest() == null) {
+                // 2. ALWAYS INCREMENT SUBMISSION_COUNT FOR USER AND PROBLEM
+                int currentUserSub = user.getSubmissionCount() != null ? user.getSubmissionCount() : 0;
+                user.setSubmissionCount(currentUserSub + 1);
 
-            long currentProbSub = problem.getSubmissionCount() != null ? problem.getSubmissionCount() : 0L;
-            problem.setSubmissionCount(currentProbSub + 1L);
+                long currentProbSub = problem.getSubmissionCount() != null ? problem.getSubmissionCount() : 0L;
+                problem.setSubmissionCount(currentProbSub + 1L);
 
-            boolean isAc = "AC".equals(result.getSubmissionVerdict().toString());
+                boolean isAc = "AC".equals(result.getSubmissionVerdict().toString());
 
-            // 3. IF AC -> INCREMENT AC_COUNT FOR USER AND PROBLEM
-            if (isAc) {
-                int currentUserAc = user.getAcCount() != null ? user.getAcCount() : 0;
-                user.setAcCount(currentUserAc + 1);
-
-                long currentProbAc = problem.getAcceptedCount() != null ? problem.getAcceptedCount() : 0L;
-                problem.setAcceptedCount(currentProbAc + 1L);
-            }
-
-            // =========================================================
-            // 4. PROTECT SOLVED_COUNT AND CALCULATE SCORE (STATUS TABLE)
-            // =========================================================
-            UserProblemStatus status = userProblemStatusRepo
-                    .findByUserIdAndProblemId(user.getId(), problem.getId())
-                    .orElse(UserProblemStatus.builder()
-                            .user(user)
-                            .problem(problem)
-                            .state(UserProblemState.ATTEMPTED)
-                            .maxScore(0.0)
-                            .build());
-
-            // SPLIT LOGIC: ACM and OI
-            if (problem.getRuleType() == RuleType.ACM) {
-                // ACM LOGIC
+                // 3. IF AC -> INCREMENT AC_COUNT FOR USER AND PROBLEM
                 if (isAc) {
-                    if (status.getState() != UserProblemState.SOLVED) {
-                        status.setState(UserProblemState.SOLVED);
+                    int currentUserAc = user.getAcCount() != null ? user.getAcCount() : 0;
+                    user.setAcCount(currentUserAc + 1);
 
-                        // Increment Solved Count
-                        int currentSolved = user.getSolvedCount() != null ? user.getSolvedCount() : 0;
-                        user.setSolvedCount(currentSolved + 1);
+                    long currentProbAc = problem.getAcceptedCount() != null ? problem.getAcceptedCount() : 0L;
+                    problem.setAcceptedCount(currentProbAc + 1L);
+                }
+
+                // =========================================================
+                // 4. PROTECT SOLVED_COUNT AND CALCULATE SCORE (STATUS TABLE)
+                // =========================================================
+                UserProblemStatus status = userProblemStatusRepo
+                        .findByUserIdAndProblemId(user.getId(), problem.getId())
+                        .orElse(UserProblemStatus.builder()
+                                .user(user)
+                                .problem(problem)
+                                .state(UserProblemState.ATTEMPTED)
+                                .maxScore(0.0)
+                                .build());
+
+                // SPLIT LOGIC: ACM and OI
+                if (problem.getRuleType() == RuleType.ACM) {
+                    // ACM LOGIC
+                    if (isAc) {
+                        if (status.getState() != UserProblemState.SOLVED) {
+                            status.setState(UserProblemState.SOLVED);
+
+                            // Increment Solved Count
+                            int currentSolved = user.getSolvedCount() != null ? user.getSolvedCount() : 0;
+                            user.setSolvedCount(currentSolved + 1);
+                        }
+                    } else if (status.getState() != UserProblemState.SOLVED) {
+                        status.setState(UserProblemState.ATTEMPTED);
                     }
-                } else if (status.getState() != UserProblemState.SOLVED) {
-                    status.setState(UserProblemState.ATTEMPTED);
-                }
-            } else {
-                // =============== OI LOGIC ===============
-                double currentScore = result.getScore() != null ? result.getScore().doubleValue() : 0.0;
-                double previousMax = status.getMaxScore() != null ? status.getMaxScore() : 0.0;
+                } else {
+                    // =============== OI LOGIC ===============
+                    double currentScore = result.getScore() != null ? result.getScore().doubleValue() : 0.0;
+                    double previousMax = status.getMaxScore() != null ? status.getMaxScore() : 0.0;
 
-                // 4.1 Update Max Score (totalScore)
-                if (currentScore > previousMax) {
-                    double scoreDiff = currentScore - previousMax;
-                    status.setMaxScore(currentScore);
+                    // 4.1 Update Max Score (totalScore)
+                    if (currentScore > previousMax) {
+                        double scoreDiff = currentScore - previousMax;
+                        status.setMaxScore(currentScore);
 
-                    double userTotalScore = user.getTotalScore() != null ? user.getTotalScore() : 0.0;
-                    user.setTotalScore(userTotalScore + scoreDiff);
-                }
-
-                // 4.2 Update Problem Status & Solved Count
-                double problemTotalScore = problem.getTotalScore() != null ? problem.getTotalScore().doubleValue() : 0.0;
-
-                if (isAc || currentScore >= problemTotalScore) {
-                    if (status.getState() != UserProblemState.SOLVED) {
-                        status.setState(UserProblemState.SOLVED);
-
-                        int currentSolved = user.getSolvedCount() != null ? user.getSolvedCount() : 0;
-                        user.setSolvedCount(currentSolved + 1);
+                        double userTotalScore = user.getTotalScore() != null ? user.getTotalScore() : 0.0;
+                        user.setTotalScore(userTotalScore + scoreDiff);
                     }
-                } else if (status.getState() != UserProblemState.SOLVED) {
-                    status.setState(UserProblemState.ATTEMPTED);
+
+                    // 4.2 Update Problem Status & Solved Count
+                    double problemTotalScore = problem.getTotalScore() != null ? problem.getTotalScore().doubleValue() : 0.0;
+
+                    if (isAc || currentScore >= problemTotalScore) {
+                        if (status.getState() != UserProblemState.SOLVED) {
+                            status.setState(UserProblemState.SOLVED);
+
+                            int currentSolved = user.getSolvedCount() != null ? user.getSolvedCount() : 0;
+                            user.setSolvedCount(currentSolved + 1);
+                        }
+                    } else if (status.getState() != UserProblemState.SOLVED) {
+                        status.setState(UserProblemState.ATTEMPTED);
+                    }
                 }
+
+                // 5. SAVE ALL TO DB AT ONCE (Performance optimization)
+                userRepository.save(user);
+                problemRepository.save(problem);
+                userProblemStatusRepo.save(status);
             }
-
-            // 5. SAVE ALL TO DB AT ONCE (Performance optimization)
-            userRepository.save(user);
-            problemRepository.save(problem);
-            userProblemStatusRepo.save(status);
 
 
             // =======================================================

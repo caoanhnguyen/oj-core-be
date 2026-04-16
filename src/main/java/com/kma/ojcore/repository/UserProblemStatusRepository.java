@@ -3,6 +3,9 @@ package com.kma.ojcore.repository;
 import com.kma.ojcore.dto.response.topics.DifficultyCountProjection;
 import com.kma.ojcore.entity.UserProblemStatus;
 import com.kma.ojcore.enums.UserProblemState;
+import com.kma.ojcore.dto.response.problems.ProblemResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -19,6 +22,13 @@ public interface UserProblemStatusRepository extends JpaRepository<UserProblemSt
     Optional<UserProblemStatus> findByUserIdAndProblemId(UUID userId, UUID problemId);
 
     List<UserProblemStatus> findByUserIdAndProblemIdIn(UUID userId, List<UUID> problemIds);
+
+    @Query("SELECT new com.kma.ojcore.dto.response.problems.ProblemResponse(" +
+           "p.id, p.title, p.slug, p.difficulty, p.status, p.problemStatus, " +
+           "p.submissionCount, p.acceptedCount, p.totalScore, p.ruleType, null, null, p.createdDate, p.updatedDate) " +
+           "FROM UserProblemStatus ups JOIN ups.problem p " +
+           "WHERE ups.user.id = :userId AND ups.state = 'SOLVED' AND p.status = 'ACTIVE' AND p.problemStatus = 'PUBLISHED'")
+    Page<ProblemResponse> getSolvedProblemsByUserId(@Param("userId") UUID userId, Pageable pageable);
 
     @Query("SELECT COUNT(ups) FROM UserProblemStatus ups " +
             "WHERE ups.user.id = :userId " +

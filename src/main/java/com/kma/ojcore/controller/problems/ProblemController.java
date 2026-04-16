@@ -66,6 +66,22 @@ public class ProblemController {
                 .build();
     }
 
+    /**
+     * Get a problem through its contest context (after contest has ended + ALWAYS_VISIBLE).
+     * This allows accessing INACTIVE/DRAFT problems that were used exclusively in a contest.
+     */
+    @GetMapping("/slug/{slug}/via-contest/{contestKey}")
+    public ApiResponse<ProblemDetailsSdo> getProblemViaContest(
+            @PathVariable String slug,
+            @PathVariable String contestKey) {
+        ProblemDetailsSdo result = problemService.getProblemViaContest(contestKey, slug);
+        return ApiResponse.<ProblemDetailsSdo>builder()
+                .status(HttpStatus.OK.value())
+                .message("Get problem details successfully")
+                .data(result)
+                .build();
+    }
+
     @GetMapping
     public ApiResponse<Page<ProblemResponse>> getProblems(
             @RequestParam(required = false) String keyword,

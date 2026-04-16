@@ -20,6 +20,12 @@ public interface ProblemService {
 
     ProblemDetailsSdo getProblemBySlug(String slug);
 
+    /**
+     * Get a problem via its contest context after the contest has ended.
+     * Allows access to INACTIVE/DRAFT problems if the contest's resourceVisibility = ALWAYS_VISIBLE.
+     */
+    ProblemDetailsSdo getProblemViaContest(String contestKey, String problemSlug);
+
     Page<ProblemResponse> getProblems(String keyword,
                                       ProblemDifficulty difficulty,
                                       RuleType ruleType,

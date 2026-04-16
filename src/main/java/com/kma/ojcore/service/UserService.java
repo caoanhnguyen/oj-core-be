@@ -25,6 +25,8 @@ public interface UserService {
 
     UserHeatMapSdo getContributionHeatMap(UUID userId);
 
+    Page<com.kma.ojcore.dto.response.problems.ProblemResponse> getSolvedProblems(UUID userId, Pageable pageable);
+
     // ADMIN
     Page<UserBasicSdo> getAllUsersForAdmin(String keyword, Boolean isLocked, RoleName role, Pageable pageable);
 

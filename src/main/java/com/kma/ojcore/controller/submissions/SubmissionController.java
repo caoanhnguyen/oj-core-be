@@ -109,8 +109,9 @@ public class SubmissionController {
             @RequestParam(required = false) String languageKey,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime toDate,
+            @RequestParam(required = false, defaultValue = "false") boolean isPracticeOnly,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "20") int size,
             @SortDefault(sort = "createdDate", direction = Sort.Direction.DESC) Sort sort
     ) {
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -118,7 +119,7 @@ public class SubmissionController {
         return ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Submissions retrieved successfully")
-                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, keyword, EStatus.ACTIVE, ProblemStatus.PUBLISHED, EStatus.ACTIVE, languageKey, fromDate, toDate, allowedVerdicts, true, false, pageable))
+                .data(submissionService.getSubmissions(problemId, userId, submissionVerdict, keyword, EStatus.ACTIVE, ProblemStatus.PUBLISHED, EStatus.ACTIVE, languageKey, fromDate, toDate, allowedVerdicts, true, false, isPracticeOnly, pageable))
                 .build();
     }
 

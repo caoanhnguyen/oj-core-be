@@ -3,6 +3,7 @@ package com.kma.ojcore.controller.contests;
 import com.kma.ojcore.dto.request.contests.RegisterContestSdi;
 import com.kma.ojcore.dto.response.common.ApiResponse;
 import com.kma.ojcore.dto.response.contests.*;
+import com.kma.ojcore.dto.response.problems.ProblemDetailsSdo;
 import com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo;
 import com.kma.ojcore.enums.ContestStatus;
 import com.kma.ojcore.enums.EStatus;
@@ -31,6 +32,7 @@ public class ContestController {
     private final ContestService contestService;
 
     @GetMapping("/my-active")
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<List<MyActiveContestSdo>> getMyActiveContests(@AuthenticationPrincipal UserPrincipal currentUser) {
 
         List<MyActiveContestSdo> activeContests = contestService.getMyActiveContests(currentUser.getId());
@@ -44,6 +46,7 @@ public class ContestController {
 
 
     @GetMapping("/{contestKey}/leaderboard")
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<ContestLeaderboardPageSdo> getLeaderboard(@PathVariable String contestKey,
                                                                    Pageable pageable) {
  
@@ -161,6 +164,26 @@ public class ContestController {
         return ApiResponse.<String>builder()
                 .status(200)
                 .message("Contest session finished successfully.")
+                .build();
+    }
+
+    /**
+     * Get a problem's details through its contest context.
+     * Works during active contest (for registered participants) AND after contest ends (if ALWAYS_VISIBLE).
+     * This is the canonical RESTful endpoint used by the frontend at /contests/{contestKey}/problems/{slug}.
+     */
+    @GetMapping("/{contestKey}/problems/{slug}")
+    public ApiResponse<ProblemDetailsSdo> getContestProblemDetail(
+            @PathVariable String contestKey,
+            @PathVariable String slug,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+
+        UUID userId = userPrincipal != null ? userPrincipal.getId() : null;
+        ProblemDetailsSdo result = contestService.getContestProblemDetail(contestKey, slug, userId);
+        return ApiResponse.<ProblemDetailsSdo>builder()
+                .status(HttpStatus.OK.value())
+                .message("Fetched contest problem details successfully.")
+                .data(result)
                 .build();
     }
 }

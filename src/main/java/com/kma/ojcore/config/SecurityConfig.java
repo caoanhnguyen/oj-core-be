@@ -94,7 +94,6 @@ public class SecurityConfig {
                                     .requestMatchers(HttpMethod.GET,
                                             apiPrefix + "/contests",
                                             apiPrefix + "/contests/*",
-                                            apiPrefix + "/contests/*/leaderboard",
                                             apiPrefix + "/contests/*/participants").permitAll()
 
                                     // Fine-grained access control is handled via @PreAuthorize on each controller.

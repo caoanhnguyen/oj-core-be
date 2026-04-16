@@ -99,6 +99,7 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             "AND (CAST(:toDate AS timestamp) IS NULL OR s.createdDate <= :toDate) " +
             "AND (s.verdict IN :verdicts) " +
             "AND (c IS NULL OR :ignoreContestPrivacy = true OR (c.status = com.kma.ojcore.enums.EStatus.ACTIVE AND c.endTime < CURRENT_TIMESTAMP AND c.visibility = com.kma.ojcore.enums.ContestVisibility.PUBLIC)) " +
+            "AND (:isPracticeOnly = false OR c IS NULL) " +
             "AND (:hideStaff = false OR NOT EXISTS (SELECT 1 FROM s.user.roles r WHERE r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR', 'ROLE_ASSESSOR')))")
     Page<SubmissionBasicSdo> getSubmissions(@Param("problemId") UUID problemId,
                                             @Param("userId") UUID userId,
@@ -113,6 +114,7 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
                                             @Param("verdicts") List<SubmissionVerdict> allowedVerdicts,
                                             @Param("hideStaff") boolean hideStaff,
                                             @Param("ignoreContestPrivacy") boolean ignoreContestPrivacy,
+                                            @Param("isPracticeOnly") boolean isPracticeOnly,
                                             Pageable pageable);
 
     @Query(value = "SELECT source_code FROM submissions " +
