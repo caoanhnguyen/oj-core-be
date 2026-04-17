@@ -21,6 +21,7 @@ import java.util.UUID;
 
 @Repository
 public interface ProblemRepository extends JpaRepository<Problem, UUID> {
+    long countByStatusNot(EStatus status);
 
     boolean existsBySlug(String slug);
 

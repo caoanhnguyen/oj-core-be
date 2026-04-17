@@ -17,6 +17,7 @@ import java.util.UUID;
 
 @Repository
 public interface ContestRepository extends JpaRepository<Contest, UUID> {
+    long countByStatusNot(EStatus status);
 
     @Query(value = "SELECT new com.kma.ojcore.dto.response.contests.ContestBasicSdo(" +
             "c.id, c.title, c.contestKey, c.startTime, c.endTime, c.ruleType, " +

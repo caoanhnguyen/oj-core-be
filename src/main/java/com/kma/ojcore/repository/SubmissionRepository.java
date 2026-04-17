@@ -23,6 +23,25 @@ import java.util.UUID;
 
 @Repository
 public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
+    long countByStatusNot(EStatus status);
+
+    interface DateCountProjection {
+        String getDateStr();
+        Long getCount();
+    }
+
+    @Query("SELECT s.verdict AS verdict, COUNT(s.id) AS count " +
+            "FROM Submission s " +
+            "WHERE s.status <> 'DELETED' AND s.createdDate >= :startDate " +
+            "GROUP BY s.verdict")
+    List<VerdictCountProjection> countVerdictsByStartDate(@Param("startDate") java.time.LocalDateTime startDate);
+
+    @Query(value = "SELECT DATE(s.created_date) AS dateStr, COUNT(s.id) AS count " +
+            "FROM submissions s " +
+            "WHERE s.status <> 'DELETED' AND s.created_date >= :startDate " +
+            "GROUP BY DATE(s.created_date) " +
+            "ORDER BY DATE(s.created_date) ASC", nativeQuery = true)
+    List<DateCountProjection> countTrendsByStartDate(@Param("startDate") java.time.LocalDateTime startDate);
 
     UUID user(User user);
 
