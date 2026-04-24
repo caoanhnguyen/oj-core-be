@@ -19,7 +19,7 @@ public class TestcaseController {
     private final TestcaseService testcaseService;
 
     @PostMapping("/upload/{problemId}")
-    public ApiResponse<?> uploadTestcases(@PathVariable UUID problemId, @RequestBody MultipartFile file) throws IOException {
+    public ApiResponse<?> uploadTestcases(@PathVariable UUID problemId, @RequestParam("file") MultipartFile file) throws IOException {
         testcaseService.processAndUploadTestcases(problemId, file);
         return ApiResponse.builder()
                 .status(200)

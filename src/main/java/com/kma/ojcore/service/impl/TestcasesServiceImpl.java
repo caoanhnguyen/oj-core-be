@@ -90,7 +90,14 @@ public class TestcasesServiceImpl implements TestcaseService {
             if (configJsonStr != null) {
                 // =============== CÓ CẤU HÌNH SUBTASKS (Subtask Mode) ===============
                 log.info("Detected config.json for problem {}. Parsing subtasks...", problemId);
-                Map<String, Object> configData = objectMapper.readValue(configJsonStr, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                Map<String, Object> configData;
+                try {
+                    configData = objectMapper.readValue(configJsonStr, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                } catch (Exception e) {
+                    log.error("Malformed config.json for problem {}: {}", problemId, e.getMessage());
+                    throw new BusinessException(ErrorCode.INVALID_TESTCASE_ARCHIVE,
+                            "config.json có cú pháp JSON không hợp lệ. Vui lòng kiểm tra lại tệp config.json.");
+                }
                 List<Map<String, Object>> configSubtasks = (List<Map<String, Object>>) configData.get("subtasks");
 
                 if (configSubtasks != null) {
@@ -108,7 +115,8 @@ public class TestcasesServiceImpl implements TestcaseService {
                             String outName = base + ".out";
 
                             if (!fileMap.containsKey(outName) || !fileMap.containsKey(inName)) {
-                                throw new BusinessException(ErrorCode.MISSING_OUTPUT_FILE, "Missing testcase files for: " + base);
+                                throw new BusinessException(ErrorCode.MISSING_OUTPUT_FILE,
+                                        "config.json tham chiếu đến testcase '" + base + "' nhưng không tìm thấy cặp tệp tương ứng trong file ZIP.");
                             }
                             processedTcs.add(buildTestCaseInfoMap(inName, outName, fileMap, 0)); // Điểm lẻ sẽ ghi vào subtask, testcase để score=0
                         }
