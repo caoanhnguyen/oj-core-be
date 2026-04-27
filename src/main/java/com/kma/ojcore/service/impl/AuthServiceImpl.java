@@ -67,7 +67,7 @@ public class AuthServiceImpl implements AuthService {
     @Value("${FRONTEND_URL}")
     private String frontendUrl;
 
-    @Transactional
+    @Transactional(rollbackFor = Throwable.class)
     @Override
     public JwtAuthenticationResponse login(LoginRequest loginRequest) {
         try {
@@ -110,7 +110,7 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Throwable.class)
     @Override
     public UserDetailsSdo register(RegisterRequest registerRequest) {
         if (userRepository.existsByUsername(registerRequest.getUsername())) {
@@ -146,7 +146,7 @@ public class AuthServiceImpl implements AuthService {
         return userMapper.toUserDetailsSdo(user, true);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Throwable.class)
     @Override
     public JwtAuthenticationResponse refreshToken(String reqRefreshTokenStr) {
         RefreshToken oldRefreshToken = refreshTokenService.findByToken(reqRefreshTokenStr)
@@ -174,7 +174,7 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Throwable.class)
     @Override
     public void logout(String accessToken, String refreshToken) {
         try {
@@ -220,7 +220,7 @@ public class AuthServiceImpl implements AuthService {
         rabbitTemplate.convertAndSend(RabbitMQConfig.JUDGE_EXCHANGE, RabbitMQConfig.EMAIL_ROUTING_KEY, message);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Throwable.class)
     @Override
     public void resetPassword(ResetPasswordRequest request) {
         String normalizedEmail = request.getEmail().trim().toLowerCase();
@@ -279,7 +279,7 @@ public class AuthServiceImpl implements AuthService {
         rabbitTemplate.convertAndSend(RabbitMQConfig.JUDGE_EXCHANGE, RabbitMQConfig.EMAIL_ROUTING_KEY, message);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Throwable.class)
     @Override
     public void verifyEmail(String token) {
         String userIdStr = redisTemplate.opsForValue().get(VERIFY_EMAIL_PREFIX + token);

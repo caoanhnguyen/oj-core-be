@@ -6,6 +6,7 @@ import com.kma.ojcore.dto.response.users.UserHeatMapSdo;
 import com.kma.ojcore.security.UserPrincipal;
 import com.kma.ojcore.service.UserService;
 import com.kma.ojcore.dto.response.common.ApiResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -50,7 +51,7 @@ public class UserController {
     @PatchMapping("/me")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<?> updateCurrentUser(@AuthenticationPrincipal UserPrincipal currentUser,
-                                            @RequestBody UpdateUserSdi request) {
+                                            @Valid @RequestBody UpdateUserSdi request) {
         UserDetailsSdo updatedProfile = userService.updateUserProfile(currentUser.getId(), request);
         return ApiResponse.<UserDetailsSdo>builder()
                 .status(200)
