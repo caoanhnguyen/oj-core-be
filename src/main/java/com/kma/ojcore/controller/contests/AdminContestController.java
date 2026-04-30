@@ -1,9 +1,6 @@
 package com.kma.ojcore.controller.contests;
 
-import com.kma.ojcore.dto.request.contests.AddContestProblemSdi;
-import com.kma.ojcore.dto.request.contests.UpdateContestProblemSdi;
-import com.kma.ojcore.dto.request.contests.CreateContestSdi;
-import com.kma.ojcore.dto.request.contests.UpdateContestSdi;
+import com.kma.ojcore.dto.request.contests.*;
 import com.kma.ojcore.dto.response.common.ApiResponse;
 import com.kma.ojcore.dto.response.contests.*;
 import com.kma.ojcore.dto.response.submissions.SubmissionBasicSdo;
@@ -131,7 +128,7 @@ public class AdminContestController {
 
         @GetMapping("/{id}/whitelist")
         @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
-        public ApiResponse<List<com.kma.ojcore.dto.response.contests.ContestWhitelistItemSdo>> getWhitelist(@PathVariable UUID id) {
+        public ApiResponse<List<ContestWhitelistItemSdo>> getWhitelist(@PathVariable UUID id) {
                 return ApiResponse.<List<com.kma.ojcore.dto.response.contests.ContestWhitelistItemSdo>>builder()
                                 .status(200)
                                 .message("Fetched whitelist successfully.")
@@ -141,7 +138,7 @@ public class AdminContestController {
 
         @PostMapping("/{id}/whitelist")
         @PreAuthorize("@contestSecurity.canManageContest(#id, authentication)")
-        public ApiResponse<?> saveWhitelist(@PathVariable UUID id, @RequestBody List<com.kma.ojcore.dto.request.contests.ContestWhitelistItemSdi> emails) {
+        public ApiResponse<?> saveWhitelist(@PathVariable UUID id, @RequestBody List<ContestWhitelistItemSdi> emails) {
                 contestService.saveContestWhitelist(id, emails);
                 return ApiResponse.builder()
                                 .status(200)

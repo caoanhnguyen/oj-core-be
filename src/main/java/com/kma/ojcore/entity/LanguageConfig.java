@@ -22,4 +22,5 @@ public class LanguageConfig {
     Double memoryMultiplier;
     Integer memoryLimitAllowance;
     Integer timeLimitAllowance;
+    String dockerImageName;
 }

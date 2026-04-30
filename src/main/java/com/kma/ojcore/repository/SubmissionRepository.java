@@ -25,6 +25,9 @@ import java.util.UUID;
 public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
     long countByStatusNot(EStatus status);
 
+    @Query("SELECT s FROM Submission s JOIN FETCH s.user JOIN FETCH s.problem LEFT JOIN FETCH s.contest WHERE s.id = :id")
+    Optional<Submission> findByIdWithRelations(@Param("id") UUID id);
+
     interface DateCountProjection {
         String getDateStr();
         Long getCount();

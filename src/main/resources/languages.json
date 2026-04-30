@@ -11,7 +11,8 @@
     "timeMultiplier": 1.0,
     "memoryMultiplier": 1.0,
     "memoryLimitAllowance": 0,
-    "timeLimitAllowance": 0
+    "timeLimitAllowance": 0,
+    "dockerImageName": "devassess-judge-cpp:latest"
   },
   {
     "languageKey": "CPP",
@@ -25,7 +26,8 @@
     "timeMultiplier": 1.0,
     "memoryMultiplier": 1.0,
     "memoryLimitAllowance": 0,
-    "timeLimitAllowance": 0
+    "timeLimitAllowance": 0,
+    "dockerImageName": "devassess-judge-cpp:latest"
   },
   {
     "languageKey": "JAVA",
@@ -39,7 +41,8 @@
     "timeMultiplier": 2.0,
     "memoryMultiplier": 2.0,
     "memoryLimitAllowance": 32,
-    "timeLimitAllowance": 1000
+    "timeLimitAllowance": 1000,
+    "dockerImageName": "devassess-judge-java:latest"
   },
   {
     "languageKey": "PYTHON3",
@@ -53,6 +56,7 @@
     "timeMultiplier": 3.0,
     "memoryMultiplier": 1.5,
     "memoryLimitAllowance": 64,
-    "timeLimitAllowance": 2000
+    "timeLimitAllowance": 2000,
+    "dockerImageName": "devassess-judge-python:latest"
   }
 ]

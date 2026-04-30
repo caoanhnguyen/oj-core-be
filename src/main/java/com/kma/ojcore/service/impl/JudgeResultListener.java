@@ -45,7 +45,7 @@ public class JudgeResultListener {
     public void handleJudgeResult(JudgeResultSdi result) {
         log.info("Received judge result from RabbitMQ for Submission ID: [{}] - Verdict: {}", result.getSubmissionId(), result.getSubmissionVerdict());
 
-        Submission submission = submissionRepository.findById(result.getSubmissionId()).orElse(null);
+        Submission submission = submissionRepository.findByIdWithRelations(result.getSubmissionId()).orElse(null);
         if (submission == null) {
             log.error("Submission [{}] not found in database!", result.getSubmissionId());
             return;

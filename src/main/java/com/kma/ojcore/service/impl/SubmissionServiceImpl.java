@@ -299,14 +299,35 @@ public class SubmissionServiceImpl implements SubmissionService {
             return;
         }
 
-        // Chia mảng thành các batch 1000 ID để update status
+        // 1. Cập nhật trạng thái ngay lập tức trong transaction hiện tại
         int batchSize = 1000;
         for (int i = 0; i < targetIds.size(); i += batchSize) {
             List<UUID> batchIds = targetIds.subList(i, Math.min(i + batchSize, targetIds.size()));
             submissionRepository.markSubmissionsForRejudge(batchIds);
         }
 
-        // Bắn vào Message Queue (cũng chia batch để tránh OutOfMemory)
+        // 2. Đăng ký xử lý bắn Message Queue ở background SAU KHI COMMIT thành công
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                CompletableFuture.runAsync(() -> {
+                    try {
+                        log.info("[Background Rejudge] Bắt đầu đẩy {} bài nộp vào hàng đợi...", targetIds.size());
+                        processRejudgeQueueing(targetIds);
+                        log.info("[Background Rejudge] Hoàn tất đẩy bài vào hàng đợi.");
+                    } catch (Exception e) {
+                        log.error("[Background Rejudge] Lỗi nghiêm trọng khi xử lý ngầm: {}", e.getMessage(), e);
+                    }
+                });
+            }
+        });
+    }
+
+    /**
+     * Phương thức nội bộ chạy ngầm để đẩy bài nộp vào RabbitMQ
+     */
+    private void processRejudgeQueueing(List<UUID> targetIds) {
+        int batchSize = 1000;
         for (int i = 0; i < targetIds.size(); i += batchSize) {
             List<UUID> batchIds = targetIds.subList(i, Math.min(i + batchSize, targetIds.size()));
             List<Submission> submissionsBatch = submissionRepository.findSubmissionsWithRulesByIds(batchIds);
@@ -317,7 +338,7 @@ public class SubmissionServiceImpl implements SubmissionService {
                     LanguageConfig langConfig = languageLoader.getConfigByKey(submission.getLanguageKey());
 
                     if (langConfig == null) {
-                        log.warn("Skipping rejudge for submission {} because language {} is no longer supported",
+                        log.warn("Skipping rejudge for submission {}: Language {} not supported", 
                                 submission.getId(), submission.getLanguageKey());
                         continue;
                     }
@@ -343,20 +364,12 @@ public class SubmissionServiceImpl implements SubmissionService {
                             .finalMemoryLimitMb(finalMemoryLimit)
                             .build();
 
-                    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            rabbitTemplate.convertAndSend(RabbitMQConfig.JUDGE_EXCHANGE,
-                                    RabbitMQConfig.JUDGE_ROUTING_KEY, sdi);
-                        }
-                    });
+                    rabbitTemplate.convertAndSend(RabbitMQConfig.JUDGE_EXCHANGE, RabbitMQConfig.JUDGE_ROUTING_KEY, sdi);
                 } catch (Exception e) {
-                    log.error("Error building JudgeSdi for rejudging submission {}: {}", submission.getId(),
-                            e.getMessage());
+                    log.error("Error queueing rejudge for submission {}: {}", submission.getId(), e.getMessage());
                 }
             }
         }
-        log.info("Successfully queued {} submissions for rejudging.", targetIds.size());
     }
 
     @Transactional(rollbackFor = Throwable.class)

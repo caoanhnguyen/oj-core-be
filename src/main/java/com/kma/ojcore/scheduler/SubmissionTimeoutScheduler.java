@@ -55,7 +55,7 @@ public class SubmissionTimeoutScheduler {
             if (currentRetry >= 3) {
                 log.error("Submission [{}] đã retry 3 lần nhưng vẫn kẹt. Bắn kết quả System Error về hệ thống...", submission.getId());
                 
-                JudgeResultSdi failSdi = com.kma.ojcore.dto.request.submissions.JudgeResultSdi.builder()
+                JudgeResultSdi failSdi = JudgeResultSdi.builder()
                         .submissionId(submission.getId())
                         .submissionStatus(SubmissionStatus.FAILED)
                         .submissionVerdict(SubmissionVerdict.SE)
