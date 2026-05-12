@@ -81,7 +81,7 @@ public class JudgeResultListener {
 
             // 1. Check Role (Ghost Mode mechanism)
             boolean isStaff = user.getRoles().stream()
-                    .anyMatch(r -> r.getName().name().equals("ROLE_ADMIN") || r.getName().name().equals("ROLE_MODERATOR"));
+                    .anyMatch(r -> r.getName().name().equals("ROLE_ADMIN") || r.getName().name().equals("ROLE_MODERATOR") || r.getName().name().equals("ROLE_ASSESSOR"));
 
             if (isStaff) {
                 log.info("Staff debug mode: Saved test result, SKIPPING points and ranking update for Submission [{}]", submission.getId());
@@ -112,22 +112,16 @@ public class JudgeResultListener {
 
             // ONLY UPDATE GLOBAL STATS FOR NON-CONTEST SUBMISSIONS
             if (submission.getContest() == null) {
-                // 2. ALWAYS INCREMENT SUBMISSION_COUNT FOR USER AND PROBLEM
-                int currentUserSub = user.getSubmissionCount() != null ? user.getSubmissionCount() : 0;
-                user.setSubmissionCount(currentUserSub + 1);
-
-                long currentProbSub = problem.getSubmissionCount() != null ? problem.getSubmissionCount() : 0L;
-                problem.setSubmissionCount(currentProbSub + 1L);
+                // 2. ATOMIC INCREMENT SUBMISSION_COUNT FOR USER AND PROBLEM
+                userRepository.incrementSubmissionCount(user.getId());
+                problemRepository.incrementSubmissionCount(problem.getId());
 
                 boolean isAc = "AC".equals(result.getSubmissionVerdict().toString());
 
-                // 3. IF AC -> INCREMENT AC_COUNT FOR USER AND PROBLEM
+                // 3. IF AC -> ATOMIC INCREMENT AC_COUNT FOR USER AND PROBLEM
                 if (isAc) {
-                    int currentUserAc = user.getAcCount() != null ? user.getAcCount() : 0;
-                    user.setAcCount(currentUserAc + 1);
-
-                    long currentProbAc = problem.getAcceptedCount() != null ? problem.getAcceptedCount() : 0L;
-                    problem.setAcceptedCount(currentProbAc + 1L);
+                    userRepository.incrementAcCount(user.getId());
+                    problemRepository.incrementAcceptedCount(problem.getId());
                 }
 
                 // =========================================================
@@ -149,9 +143,8 @@ public class JudgeResultListener {
                         if (status.getState() != UserProblemState.SOLVED) {
                             status.setState(UserProblemState.SOLVED);
 
-                            // Increment Solved Count
-                            int currentSolved = user.getSolvedCount() != null ? user.getSolvedCount() : 0;
-                            user.setSolvedCount(currentSolved + 1);
+                            // Atomic Increment Solved Count
+                            userRepository.incrementSolvedCount(user.getId());
                         }
                     } else if (status.getState() != UserProblemState.SOLVED) {
                         status.setState(UserProblemState.ATTEMPTED);
@@ -166,8 +159,8 @@ public class JudgeResultListener {
                         double scoreDiff = currentScore - previousMax;
                         status.setMaxScore(currentScore);
 
-                        double userTotalScore = user.getTotalScore() != null ? user.getTotalScore() : 0.0;
-                        user.setTotalScore(userTotalScore + scoreDiff);
+                        // Atomic Add Total Score for User
+                        userRepository.addTotalScore(user.getId(), scoreDiff);
                     }
 
                     // 4.2 Update Problem Status & Solved Count
@@ -177,17 +170,15 @@ public class JudgeResultListener {
                         if (status.getState() != UserProblemState.SOLVED) {
                             status.setState(UserProblemState.SOLVED);
 
-                            int currentSolved = user.getSolvedCount() != null ? user.getSolvedCount() : 0;
-                            user.setSolvedCount(currentSolved + 1);
+                            // Atomic Increment Solved Count
+                            userRepository.incrementSolvedCount(user.getId());
                         }
                     } else if (status.getState() != UserProblemState.SOLVED) {
                         status.setState(UserProblemState.ATTEMPTED);
                     }
                 }
 
-                // 5. SAVE ALL TO DB AT ONCE (Performance optimization)
-                userRepository.save(user);
-                problemRepository.save(problem);
+                // 5. SAVE STATUS ONLY (Counters are updated atomically above)
                 userProblemStatusRepo.save(status);
             }
 

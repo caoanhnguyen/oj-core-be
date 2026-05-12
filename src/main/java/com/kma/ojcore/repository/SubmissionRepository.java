@@ -84,7 +84,7 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
     @Query("SELECT s.verdict AS verdict, COUNT(s.id) AS count " +
             "FROM Submission s " +
             "WHERE s.problem.id = :problemId " +
-            "AND NOT EXISTS (SELECT 1 FROM s.user.roles r WHERE r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR')) " +
+            "AND NOT EXISTS (SELECT 1 FROM s.user.roles r WHERE r.name IN ('ROLE_ADMIN', 'ROLE_MODERATOR', 'ROLE_ASSESSOR')) " +
             "GROUP BY s.verdict")
     List<VerdictCountProjection> countSubmissionsByVerdict(@Param("problemId") UUID problemId);
 

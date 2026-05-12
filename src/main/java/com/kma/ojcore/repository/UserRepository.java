@@ -142,4 +142,20 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             "ac_count = (SELECT COUNT(*) FROM submissions WHERE user_id = u.id AND verdict = 'AC' AND status = 'ACTIVE' AND contest_id IS NULL) " +
             "WHERE u.id = :userId", nativeQuery = true)
     void recalculateUserStats(@Param("userId") UUID userId);
+
+    @Modifying
+    @Query("UPDATE User u SET u.submissionCount = COALESCE(u.submissionCount, 0) + 1 WHERE u.id = :userId")
+    void incrementSubmissionCount(@Param("userId") UUID userId);
+
+    @Modifying
+    @Query("UPDATE User u SET u.acCount = COALESCE(u.acCount, 0) + 1 WHERE u.id = :userId")
+    void incrementAcCount(@Param("userId") UUID userId);
+
+    @Modifying
+    @Query("UPDATE User u SET u.solvedCount = COALESCE(u.solvedCount, 0) + 1 WHERE u.id = :userId")
+    void incrementSolvedCount(@Param("userId") UUID userId);
+
+    @Modifying
+    @Query("UPDATE User u SET u.totalScore = COALESCE(u.totalScore, 0.0) + :scoreDiff WHERE u.id = :userId")
+    void addTotalScore(@Param("userId") UUID userId, @Param("scoreDiff") Double scoreDiff);
 }
