@@ -1,15 +1,20 @@
 package com.kma.ojcore.dto.request.contests;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.kma.ojcore.enums.ContestVisibility;
 import com.kma.ojcore.enums.ContestFormat;
 import com.kma.ojcore.enums.ContestResourceVisibility;
+import com.kma.ojcore.enums.ContestVisibility;
 import com.kma.ojcore.enums.RuleType;
 import com.kma.ojcore.enums.ScoreboardVisibility;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 
 import java.time.LocalDateTime;
@@ -44,6 +49,7 @@ public class UpdateContestSdi {
     ContestVisibility visibility;
 
     String password;
+
     @NotNull(message = "Format is required.")
     ContestFormat format;
 
@@ -56,7 +62,6 @@ public class UpdateContestSdi {
     @NotNull(message = "Resource visibility is required.")
     ContestResourceVisibility resourceVisibility;
 
-    // 1. CHECK THỜI GIAN (End phải lớn hơn Start)
     @JsonIgnore
     @AssertTrue(message = "Start time must before end time.")
     public boolean isTimeValid() {
@@ -64,15 +69,5 @@ public class UpdateContestSdi {
             return true;
         }
         return endTime.isAfter(startTime);
-    }
-
-    // 2. CHECK PASSWORD (Nếu PRIVATE thì phải có Pass)
-    @JsonIgnore
-    @AssertTrue(message = "Private contests must have password.")
-    public boolean isPasswordValid() {
-        if (visibility == ContestVisibility.PRIVATE) {
-            return password != null && !password.trim().isEmpty();
-        }
-        return true;
     }
 }

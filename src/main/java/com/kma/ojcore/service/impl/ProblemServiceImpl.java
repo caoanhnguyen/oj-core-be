@@ -105,6 +105,17 @@ public class ProblemServiceImpl implements ProblemService {
     public ProblemDetailsSdo getProblemById(UUID id) {
         Problem problem = problemRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+        if (problem.getStatus() != EStatus.ACTIVE || problem.getProblemStatus() != ProblemStatus.PUBLISHED) {
+            throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND, "Problem is not available or inactive");
+        }
+        return problemMapper.toProblemDetailsSdo(problem);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public ProblemDetailsSdo getAdminProblemById(UUID id) {
+        Problem problem = problemRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
         return problemMapper.toProblemDetailsSdo(problem);
     }
 

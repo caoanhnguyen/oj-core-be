@@ -79,6 +79,16 @@ public class AdminProblemController {
                 .build();
     }
 
+    @GetMapping("/{id}")
+    public ApiResponse<ProblemDetailsSdo> getProblemById(@PathVariable UUID id) {
+        ProblemDetailsSdo result = problemService.getAdminProblemById(id);
+        return ApiResponse.<ProblemDetailsSdo>builder()
+                .status(HttpStatus.OK.value())
+                .message("Get problem details successfully")
+                .data(result)
+                .build();
+    }
+
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MODERATOR')")
     public ApiResponse<ProblemDetailsSdo> updateProblem(@PathVariable UUID id,

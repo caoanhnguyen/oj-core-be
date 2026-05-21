@@ -147,7 +147,7 @@ public class ContestServiceImpl implements ContestService {
         } else if (req.getPassword() != null && !req.getPassword().isBlank()) {
             req.setPassword(passwordEncoder.encode(req.getPassword()));
         } else {
-            req.setPassword(null);
+            req.setPassword(contest.getPassword());
         }
 
         if (req.getFormat() == ContestFormat.WINDOWED) {

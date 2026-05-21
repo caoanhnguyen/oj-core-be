@@ -18,6 +18,8 @@ public interface ProblemService {
 
     ProblemDetailsSdo getProblemById(UUID id);
 
+    ProblemDetailsSdo getAdminProblemById(UUID id);
+
     ProblemDetailsSdo getProblemBySlug(String slug);
 
     /**

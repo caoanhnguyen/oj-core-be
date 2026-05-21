@@ -34,7 +34,7 @@
     "displayName": "Java 21 (OpenJDK)",
     "aceMode": "java",
     "compileCommand": "javac Main.java",
-    "runCommand": "java -Xss64M -Xmx256M Main < %s > %s",
+    "runCommand": "java -Xss64M -Xmx{memory_limit}Mw Main < %s > %s",
     "isCompiled": true,
     "sourceName": "Main.java",
     "exeName": "Main.class",
